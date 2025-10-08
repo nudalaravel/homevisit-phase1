@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Fake IndexedDB Test</title>
+</head>
+
+<body>
+    <h1>Fake IndexedDB Test</h1>
+    <div id="status">Testing...</div>
+    <div id="result"></div>
+    <button onclick="testFakeIndexedDB()">Test Fake IndexedDB</button>
+
+    <script>
+        function testFakeIndexedDB() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+
+            try {
+                // Test if IndexedDB is available
+                if (typeof indexedDB === 'undefined') {
+                    statusDiv.innerHTML = '❌ IndexedDB is not available';
+                    return;
+                }
+
+                statusDiv.innerHTML = '✅ IndexedDB is available';
+
+                // Test opening a database
+                const request = indexedDB.open('TestDB', 1);
+
+                request.onerror = function (event) {
+                    resultDiv.innerHTML = '❌ Failed to open database: ' + event.target.error;
+                };
+
+                request.onsuccess = function (event) {
+                    const db = event.target.result;
+                    resultDiv.innerHTML = '✅ Database opened successfully';
+
+                    // Test adding data
+                    const transaction = db.transaction(['test'], 'readwrite');
+                    const store = transaction.objectStore('test');
+
+                    const addRequest = store.add({ id: 1, name: 'Test Item' });
+                    addRequest.onsuccess = function () {
+                        resultDiv.innerHTML += '<br>✅ Data added successfully';
+
+                        // Test getting data
+                        const getRequest = store.get(1);
+                        getRequest.onsuccess = function () {
+                            resultDiv.innerHTML += '<br>✅ Data retrieved: ' + JSON.stringify(getRequest.result);
+                        };
+                    };
+                };
+
+                request.onupgradeneeded = function (event) {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('test')) {
+                        db.createObjectStore('test', { keyPath: 'id' });
+                    }
+                };
+
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Error: ' + error.message;
+            }
+        }
+
+        // Run test when page loads
+        window.addEventListener('load', testFakeIndexedDB);
+    </script>
+</body>
+
+</html>

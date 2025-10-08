@@ -1,0 +1,8 @@
+{
+  "OnlineStatus": {
+    "description": "Auto imported from components/OnlineStatus.vue"
+  },
+  "StorageStatus": {
+    "description": "Auto imported from components/StorageStatus.vue"
+  }
+}

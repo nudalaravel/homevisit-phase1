@@ -1,0 +1,108 @@
+{
+  "title": "Riped V2 Admin",
+  "meta": [
+    {
+      "hid": "charset",
+      "charset": "utf-8"
+    },
+    {
+      "hid": "viewport",
+      "name": "viewport",
+      "content": "width=device-width, initial-scale=1"
+    },
+    {
+      "hid": "mobile-web-app-capable",
+      "name": "mobile-web-app-capable",
+      "content": "yes"
+    },
+    {
+      "hid": "apple-mobile-web-app-title",
+      "name": "apple-mobile-web-app-title",
+      "content": "Riped V2 Admin"
+    },
+    {
+      "hid": "author",
+      "name": "author",
+      "content": "Riped Team"
+    },
+    {
+      "hid": "description",
+      "name": "description",
+      "content": "Admin Dashboard Template"
+    },
+    {
+      "hid": "theme-color",
+      "name": "theme-color",
+      "content": "#3551a4"
+    },
+    {
+      "hid": "og:type",
+      "name": "og:type",
+      "property": "og:type",
+      "content": "website"
+    },
+    {
+      "hid": "og:title",
+      "name": "og:title",
+      "property": "og:title",
+      "content": "Riped V2 Admin"
+    },
+    {
+      "hid": "og:site_name",
+      "name": "og:site_name",
+      "property": "og:site_name",
+      "content": "Riped V2 Admin"
+    },
+    {
+      "hid": "og:description",
+      "name": "og:description",
+      "property": "og:description",
+      "content": "Admin Dashboard Template"
+    },
+    {
+      "hid": "og:url",
+      "name": "og:url",
+      "property": "og:url",
+      "content": "https://ripped-v2.com"
+    },
+    {
+      "hid": "twitter:card",
+      "name": "twitter:card",
+      "property": "twitter:card",
+      "content": "summary_large_image"
+    },
+    {
+      "hid": "twitter:site",
+      "name": "twitter:site",
+      "property": "twitter:site",
+      "content": "@ripped"
+    },
+    {
+      "hid": "twitter:creator",
+      "name": "twitter:creator",
+      "property": "twitter:creator",
+      "content": "@ripped"
+    }
+  ],
+  "link": [
+    {
+      "hid": "shortcut-icon",
+      "rel": "shortcut icon",
+      "href": "/logo.png"
+    },
+    {
+      "hid": "apple-touch-icon",
+      "rel": "apple-touch-icon",
+      "href": "/logo.png",
+      "sizes": "512x512"
+    },
+    {
+      "rel": "manifest",
+      "href": "/_nuxt/manifest.a83f9400.json",
+      "hid": "manifest"
+    }
+  ],
+  "htmlAttrs": {
+    "lang": "th"
+  }
+}
