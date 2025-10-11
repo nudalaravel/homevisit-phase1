@@ -1,12 +1,5 @@
 [
   {
-    "name": "dashboard",
-    "path": "/dashboard",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/dashboard.vue",
-    "chunkName": "pages/dashboard",
-    "_name": "_3be5c9f6"
-  },
-  {
     "name": "login",
     "path": "/login",
     "component": "/Users/exd/Documents/works/riped-v2/pages/login.vue",
@@ -21,32 +14,11 @@
     "_name": "_2143bdd8"
   },
   {
-    "name": "orders",
-    "path": "/orders",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/orders.vue",
-    "chunkName": "pages/orders",
-    "_name": "_33c4e9c4"
-  },
-  {
-    "name": "products",
-    "path": "/products",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/products.vue",
-    "chunkName": "pages/products",
-    "_name": "_ada129fa"
-  },
-  {
-    "name": "settings",
-    "path": "/settings",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/settings.vue",
-    "chunkName": "pages/settings",
-    "_name": "_e8f6437c"
-  },
-  {
-    "name": "users",
-    "path": "/users",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/users.vue",
-    "chunkName": "pages/users",
-    "_name": "_384c8e0e"
+    "name": "survey",
+    "path": "/survey",
+    "component": "/Users/exd/Documents/works/riped-v2/pages/survey.vue",
+    "chunkName": "pages/survey",
+    "_name": "_4510288e"
   },
   {
     "name": "index",

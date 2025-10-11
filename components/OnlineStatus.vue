@@ -16,18 +16,57 @@
       <i class="fas fa-sync-alt fa-spin"></i>
       รอซิงค์ {{ syncQueueLength }} รายการ
     </b-badge>
-    
+
+    <!-- Sync Button (only when online) -->
     <b-button
-      v-if="hasPendingSync && isOnline"
+      v-if="isOnline"
       size="sm"
-      variant="outline-primary"
-      class="ml-2"
-      @click="manualSync"
+      variant="danger"
+      class="sync-button"
+      @click="showSyncConfirmation"
       :disabled="syncInProgress"
     >
-      <i class="fas fa-sync-alt" :class="{ 'fa-spin': syncInProgress }"></i>
-      ซิงค์ตอนนี้
+      <i 
+        class="fas fa-sync-alt" 
+        :class="{ 'fa-spin': syncInProgress }"
+      ></i>
+      {{ syncInProgress ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูล' }}
     </b-button>
+
+    <!-- Last Update Time -->
+    <div v-if="lastSyncTime" class="last-sync-time">
+      <small class="text-muted">
+        <i class="fas fa-clock"></i>
+        อัพเดทล่าสุด: {{ formatLastSync }}
+      </small>
+    </div>
+
+    <!-- Sync Confirmation Modal -->
+    <b-modal
+      id="syncConfirmModal"
+      v-model="showSyncModal"
+      title="ยืนยันการซิงค์ข้อมูล"
+      no-close-on-backdrop
+      @ok="confirmSync"
+      @hidden="closeSyncModal"
+    >
+      <div class="sync-confirm-content">
+        <i class="fas fa-sync-alt fa-3x text-primary mb-3"></i>
+        <p>คุณต้องการซิงค์ข้อมูลกับเซิร์ฟเวอร์หรือไม่?</p>
+        <p v-if="hasPendingSync" class="text-info">
+          <i class="fas fa-info-circle"></i>
+          มีข้อมูล {{ syncQueueLength }} รายการรอซิงค์
+        </p>
+      </div>
+      <template #modal-footer="{ ok, cancel }">
+        <b-button variant="secondary" @click="cancel()">
+          ยกเลิก
+        </b-button>
+        <b-button variant="primary" @click="ok()">
+          ยืนยัน
+        </b-button>
+      </template>
+    </b-modal>
   </div>
 </template>
 
@@ -36,7 +75,9 @@ export default {
   name: 'OnlineStatus',
   data() {
     return {
-      indexedDBSyncQueueLength: 0
+      indexedDBSyncQueueLength: 0,
+      showSyncModal: false,
+      lastSyncTime: null
     }
   },
   computed: {
@@ -51,6 +92,31 @@ export default {
     },
     syncInProgress() {
       return this.$offline?.syncInProgress || false
+    },
+    formatLastSync() {
+      if (!this.lastSyncTime) return '-'
+      
+      const now = new Date()
+      const syncDate = new Date(this.lastSyncTime)
+      const diffMs = now - syncDate
+      const diffMins = Math.floor(diffMs / 60000)
+      const diffHours = Math.floor(diffMs / 3600000)
+      const diffDays = Math.floor(diffMs / 86400000)
+      
+      if (diffMins < 1) return 'เมื่อสักครู่'
+      if (diffMins < 60) return `${diffMins} นาทีที่แล้ว`
+      if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`
+      if (diffDays < 7) return `${diffDays} วันที่แล้ว`
+      
+      // Format as date time
+      const options = {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }
+      return syncDate.toLocaleDateString('th-TH', options)
     }
   },
   async mounted() {
@@ -61,8 +127,27 @@ export default {
     
     // Load IndexedDB sync queue length
     await this.loadSyncQueueLength();
+
+    // Load last sync time from localStorage
+    const savedLastSync = localStorage.getItem('lastSyncTime')
+    if (savedLastSync) {
+      this.lastSyncTime = savedLastSync
+    }
   },
   methods: {
+    showSyncConfirmation() {
+      this.showSyncModal = true
+    },
+
+    closeSyncModal() {
+      this.showSyncModal = false
+    },
+
+    async confirmSync() {
+      this.showSyncModal = false
+      await this.manualSync()
+    },
+
     async manualSync() {
       try {
         if (this.$offline) {
@@ -71,7 +156,16 @@ export default {
           await this.$store.dispatch('syncData')
         }
         
-        if (this.$bvToast) {
+        // Update last sync time
+        this.lastSyncTime = new Date().toISOString()
+        localStorage.setItem('lastSyncTime', this.lastSyncTime)
+
+        // Reload sync queue length
+        await this.loadSyncQueueLength()
+        
+        if (this.$toast) {
+          this.$toast.success('ซิงค์ข้อมูลเสร็จสิ้น')
+        } else if (this.$bvToast) {
           this.$bvToast.toast('ซิงค์ข้อมูลเสร็จสิ้น', {
             title: 'สำเร็จ',
             variant: 'success',
@@ -80,7 +174,9 @@ export default {
         }
       } catch (error) {
         console.error('Sync failed:', error)
-        if (this.$bvToast) {
+        if (this.$toast) {
+          this.$toast.error('ซิงค์ข้อมูลล้มเหลว')
+        } else if (this.$bvToast) {
           this.$bvToast.toast('ซิงค์ข้อมูลล้มเหลว', {
             title: 'ข้อผิดพลาด',
             variant: 'danger',
@@ -112,16 +208,77 @@ export default {
   flex-wrap: wrap;
   margin: 10px auto;
   text-align: center;
+  gap: 4px;
 }
 
 .status-badge {
   font-size: 0.8rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.75rem;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sync-badge {
   font-size: 0.8rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.75rem;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-button {
+  font-size: 0.8rem;
+  padding: 0.5rem 0.75rem;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  line-height: 1;
+}
+
+.sync-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.last-sync-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  height: 36px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.last-sync-time small {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.last-sync-time i {
+  margin-right: 4px;
+}
+
+.sync-confirm-content {
+  text-align: center;
+  padding: 1rem;
+}
+
+.sync-confirm-content i {
+  display: block;
+  margin: 0 auto 1rem;
+}
+
+.sync-confirm-content p {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
 }
 
 .fa-spin {
@@ -134,6 +291,19 @@ export default {
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .online-status {
+    justify-content: center;
+  }
+  
+  .last-sync-time {
+    width: 100%;
+    justify-content: center;
+    margin-top: 8px;
   }
 }
 </style>

@@ -73,7 +73,9 @@ export default function ({ app, store }, inject) {
     // Clear authentication data
     clearAuthData() {
       try {
+        console.log("Clearing offline_auth_data from localStorage");
         localStorage.removeItem("offline_auth_data");
+        console.log("offline_auth_data cleared successfully");
       } catch (error) {
         console.error("Failed to clear auth data:", error);
       }
@@ -119,7 +121,8 @@ export default function ({ app, store }, inject) {
       if (navigator.onLine) {
         // Online login
         try {
-          const result = await store.dispatch("auth/login", credentials);
+          // Use $auth.loginWith for Nuxt Auth module
+          const result = await app.$auth.loginWith("local", credentials);
           this.saveAuthData();
           return result;
         } catch (error) {
@@ -137,26 +140,86 @@ export default function ({ app, store }, inject) {
       }
     }
 
-    // Enhanced logout method
+    // Enhanced logout method - works both online and offline
     async logout() {
-      try {
-        // Clear offline data first
-        this.clearAuthData();
+      const isOffline = !navigator.onLine;
 
-        // Then logout from auth system
-        if (navigator.onLine) {
-          await store.dispatch("auth/logout");
-        } else {
-          // Offline logout - just clear local state
+      console.log(`Logging out... (${isOffline ? "offline" : "online"} mode)`);
+      console.log("Before logout - auth state:", {
+        loggedIn: store.state.auth?.loggedIn,
+        hasUser: !!store.state.auth?.user,
+        hasOfflineData: !!localStorage.getItem("offline_auth_data"),
+      });
+
+      try {
+        // Step 1: Clear Vuex auth state first to prevent middleware issues
+        if (store.state.auth) {
+          console.log("Clearing Vuex auth state...");
           store.commit("auth/SET", ["loggedIn", false]);
           store.commit("auth/SET", ["user", null]);
+          store.commit("auth/SET", ["strategy", null]);
+          console.log("Vuex auth state cleared");
         }
+
+        // Step 2: Clear token from auth strategy
+        if (store.state.auth?.strategy?.token) {
+          try {
+            store.state.auth.strategy.token.reset();
+          } catch (e) {
+            console.log("Token reset skipped:", e.message);
+          }
+        }
+
+        // Step 3: Clear all auth-related localStorage items
+        if (typeof localStorage !== "undefined") {
+          console.log("Clearing localStorage auth items...");
+          const authItems = [
+            "auth._token.local",
+            "auth._refresh_token.local",
+            "auth.strategy",
+            "offline_auth_data",
+          ];
+
+          authItems.forEach((item) => {
+            try {
+              localStorage.removeItem(item);
+              console.log(`Removed ${item}`);
+            } catch (e) {
+              console.warn(`Failed to remove ${item}:`, e);
+            }
+          });
+
+          console.log("localStorage cleared");
+        }
+
+        // Step 4: Verify cleanup
+        console.log("After logout - auth state:", {
+          loggedIn: store.state.auth?.loggedIn,
+          hasUser: !!store.state.auth?.user,
+          hasOfflineData: !!localStorage.getItem("offline_auth_data"),
+        });
+
+        // Step 5: Small delay to ensure all operations complete
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        console.log("Logout successful - redirecting to login");
+
+        // Step 6: Redirect to login page with success query param
+        if (app.router) {
+          return app.router.push({
+            path: "/login",
+            query: { logout: "success" },
+          });
+        }
+
+        return true;
       } catch (error) {
-        console.error("Logout failed:", error);
-        // Force clear local state even if logout fails
-        store.commit("auth/SET", ["loggedIn", false]);
-        store.commit("auth/SET", ["user", null]);
-        this.clearAuthData();
+        console.error("Error during logout:", error);
+        // Even if there's an error, try to redirect to login
+        if (app.router) {
+          return app.router.push("/login");
+        }
+        throw error;
       }
     }
 

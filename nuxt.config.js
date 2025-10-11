@@ -1,6 +1,13 @@
 export default {
   ssr: false,
   mode: "spa",
+
+  // Server configuration
+  server: {
+    port: process.env.PORT || 3300,
+    host: process.env.HOST || "0.0.0.0",
+  },
+
   head: {
     title: "Riped V2 Admin",
     meta: [
@@ -20,6 +27,10 @@ export default {
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
       {
         rel: "stylesheet",
+        href: "/fonts/kanit.css",
+      },
+      {
+        rel: "stylesheet",
         href: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css",
       },
       { rel: "apple-touch-icon", href: "/logo.png" },
@@ -35,6 +46,7 @@ export default {
     "~/plugins/auth-offline",
     "~/plugins/fake-indexeddb",
     "~/plugins/indexeddb",
+    "~/plugins/toast",
   ],
   components: [
     {
@@ -49,14 +61,14 @@ export default {
     "@nuxtjs/pwa",
   ],
   axios: {
-    baseURL: "http://localhost:3000/api",
+    baseURL: process.env.API_BASE_URL || "http://localhost:3001",
   },
   auth: {
     strategies: {
       local: {
         endpoints: {
           login: { url: "/auth/login", method: "post", propertyName: "token" },
-          logout: { url: "/auth/logout", method: "post" },
+          logout: false, // Disable logout endpoint - handled client-side only
           user: { url: "/auth/user", method: "get", propertyName: "user" },
         },
         token: {
@@ -65,7 +77,7 @@ export default {
         },
         user: {
           property: "user",
-          autoFetch: true,
+          autoFetch: false, // Disable auto fetch to prevent API calls
         },
       },
     },
@@ -73,13 +85,13 @@ export default {
       login: "/login",
       logout: "/login",
       callback: "/login",
-      home: "/dashboard",
+      home: "/",
     },
   },
   router: {
-    middleware: ["auth"],
+    middleware: [],
   },
-  serverMiddleware: ["~/api"],
+  // serverMiddleware: ["~/api"], // Disabled - API runs separately
   pwa: {
     meta: {
       title: "Riped V2 Admin",
@@ -139,7 +151,7 @@ export default {
           },
         },
         {
-          urlPattern: "^http://localhost:3000/api/.*",
+          urlPattern: "^http://localhost:3001/.*",
           handler: "networkFirst",
           method: "GET",
           strategyOptions: {

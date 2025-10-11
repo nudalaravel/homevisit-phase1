@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "nuxt",
     "dev:cache": "ENABLE_CACHE=true nuxt",
+    "api": "node api/index.js",
+    "dev:all": "concurrently \"npm run api\" \"npm run dev\" --names \"API,NUXT\" --prefix-colors \"blue,green\"",
     "build": "nuxt build",
     "build:cache": "ENABLE_CACHE=true nuxt build",
     "start": "nuxt start",
@@ -20,6 +22,8 @@
     "bootstrap": "^4.6.2",
     "bootstrap-vue": "^2.23.1",
     "chart.js": "^2.9.4",
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
     "express": "^5.1.0",
     "lodash": "^4.17.21",
     "nuxt": "^2.17.3",

@@ -3,7 +3,7 @@ export default function ({ app }, inject) {
   class IndexedDBManager {
     constructor() {
       this.dbName = "RipedV2DB";
-      this.version = 1;
+      this.version = 3;
       this.db = null;
       this.isInitialized = false;
     }
@@ -83,6 +83,34 @@ export default function ({ app }, inject) {
             });
             syncStore.createIndex("action", "action", { unique: false });
             syncStore.createIndex("timestamp", "timestamp", { unique: false });
+          }
+
+          if (!db.objectStoreNames.contains("patients")) {
+            const patientStore = db.createObjectStore("patients", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+            patientStore.createIndex("name", "name", { unique: false });
+            patientStore.createIndex("nickname", "nickname", { unique: false });
+            patientStore.createIndex("appointmentDate", "appointmentDate", {
+              unique: false,
+            });
+          }
+
+          if (!db.objectStoreNames.contains("images")) {
+            const imageStore = db.createObjectStore("images", {
+              keyPath: "id",
+            });
+            imageStore.createIndex("timestamp", "timestamp", { unique: false });
+          }
+
+          if (!db.objectStoreNames.contains("surveys")) {
+            const surveyStore = db.createObjectStore("surveys", {
+              keyPath: "id",
+            });
+            surveyStore.createIndex("timestamp", "timestamp", {
+              unique: false,
+            });
           }
 
           console.log("IndexedDB object stores created");
@@ -255,6 +283,33 @@ export default function ({ app }, inject) {
       return await this.delete("products", id);
     }
 
+    // Patient operations
+    async addPatient(patient) {
+      return await this.add("patients", {
+        ...patient,
+        lastSync: new Date().toISOString(),
+      });
+    }
+
+    async getPatients() {
+      return await this.getAll("patients");
+    }
+
+    async getPatient(id) {
+      return await this.get("patients", id);
+    }
+
+    async updatePatient(patient) {
+      return await this.update("patients", {
+        ...patient,
+        lastSync: new Date().toISOString(),
+      });
+    }
+
+    async deletePatient(id) {
+      return await this.delete("patients", id);
+    }
+
     // Settings operations
     async setSetting(key, value) {
       return await this.update("settings", {
@@ -285,6 +340,47 @@ export default function ({ app }, inject) {
 
     async removeFromSyncQueue(id) {
       return await this.delete("syncQueue", id);
+    }
+
+    // Image operations
+    async saveData(storeName, data) {
+      return await this.update(storeName, data);
+    }
+
+    async deleteData(storeName, key) {
+      return await this.delete(storeName, key);
+    }
+
+    async getImage(id) {
+      return await this.get("images", id);
+    }
+
+    async getAllImages() {
+      return await this.getAll("images");
+    }
+
+    async deleteImage(id) {
+      return await this.delete("images", id);
+    }
+
+    // Survey operations
+    async saveSurvey(survey) {
+      return await this.update("surveys", {
+        ...survey,
+        lastSync: new Date().toISOString(),
+      });
+    }
+
+    async getSurveys() {
+      return await this.getAll("surveys");
+    }
+
+    async getSurvey(id) {
+      return await this.get("surveys", id);
+    }
+
+    async deleteSurvey(id) {
+      return await this.delete("surveys", id);
     }
 
     async clearSyncQueue() {
@@ -318,6 +414,9 @@ export default function ({ app }, inject) {
         "products",
         "settings",
         "syncQueue",
+        "patients",
+        "images",
+        "surveys",
       ];
 
       for (const storeName of storeNames) {
@@ -502,6 +601,9 @@ export default function ({ app }, inject) {
         "products",
         "settings",
         "syncQueue",
+        "patients",
+        "images",
+        "surveys",
       ];
 
       for (const storeName of storeNames) {

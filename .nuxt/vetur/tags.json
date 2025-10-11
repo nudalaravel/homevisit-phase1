@@ -1,8 +1,14 @@
 {
+  "Loading": {
+    "description": "Auto imported from components/Loading.vue"
+  },
   "OnlineStatus": {
     "description": "Auto imported from components/OnlineStatus.vue"
   },
   "StorageStatus": {
     "description": "Auto imported from components/StorageStatus.vue"
+  },
+  "Toast": {
+    "description": "Auto imported from components/Toast.vue"
   }
 }

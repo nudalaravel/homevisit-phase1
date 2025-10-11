@@ -1,6 +1,9 @@
 const express = require("express");
+const cors = require("cors");
 const app = express();
 
+// Middleware
+app.use(cors());
 app.use(express.json());
 
 // Mock data
@@ -81,7 +84,7 @@ const dashboardData = {
 };
 
 // Auth endpoints
-app.post("/api/auth/login", (req, res) => {
+app.post("/auth/login", (req, res) => {
   const { username, password } = req.body;
 
   const user = users.find(
@@ -99,11 +102,11 @@ app.post("/api/auth/login", (req, res) => {
   }
 });
 
-app.post("/api/auth/logout", (req, res) => {
+app.post("/auth/logout", (req, res) => {
   res.json({ message: "Logged out successfully" });
 });
 
-app.get("/api/auth/user", (req, res) => {
+app.get("/auth/user", (req, res) => {
   const token = req.headers.authorization?.replace("Bearer ", "");
 
   if (token && token.startsWith("mock-jwt-token-")) {
@@ -122,21 +125,38 @@ app.get("/api/auth/user", (req, res) => {
 });
 
 // Dashboard endpoints
-app.get("/api/dashboard", (req, res) => {
+app.get("/dashboard", (req, res) => {
   res.json(dashboardData);
 });
 
-app.get("/api/dashboard/stats", (req, res) => {
+app.get("/dashboard/stats", (req, res) => {
   res.json(dashboardData.stats);
 });
 
-app.get("/api/dashboard/orders", (req, res) => {
+app.get("/dashboard/orders", (req, res) => {
   res.json(dashboardData.recentOrders);
 });
 
-app.get("/api/dashboard/chart", (req, res) => {
+app.get("/dashboard/chart", (req, res) => {
   res.json(dashboardData.chartData);
 });
 
-module.exports = app;
+// Start server if run directly
+if (require.main === module) {
+  const PORT = process.env.API_PORT || 3000;
+  const HOST = process.env.API_HOST || "0.0.0.0";
 
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 API Server running at http://${HOST}:${PORT}`);
+    console.log(`📡 Endpoints:`);
+    console.log(`   - POST http://${HOST}:${PORT}/auth/login`);
+    console.log(`   - POST http://${HOST}:${PORT}/auth/logout`);
+    console.log(`   - GET  http://${HOST}:${PORT}/auth/user`);
+    console.log(`   - GET  http://${HOST}:${PORT}/dashboard`);
+    console.log(`   - GET  http://${HOST}:${PORT}/dashboard/stats`);
+    console.log(`   - GET  http://${HOST}:${PORT}/dashboard/orders`);
+    console.log(`   - GET  http://${HOST}:${PORT}/dashboard/chart`);
+  });
+}
+
+module.exports = app;

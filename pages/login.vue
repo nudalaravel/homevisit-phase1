@@ -1,76 +1,92 @@
 <template>
   <div class="login-page">
+    <Loading :show="loading" :message="loadingMessage" />
+    
     <div class="login-container">
       <div class="login-card">
         <div class="login-header">
           <div class="logo">
             <img src="/logo.png" alt="Logo" class="logo-img" />
           </div>
-         
-      
         </div>
 
-        <form @submit.prevent="handleLogin" class="login-form">
+        <form @submit.prevent="handleLogin" class="login-form" novalidate>
           <div class="form-group">
-            <label for="username" class="form-label">ชื่อผู้ใช้</label>
+            <label for="username" class="form-label">
+              ชื่อผู้ใช้ <span class="text-danger">*</span>
+            </label>
             <input
               id="username"
-              v-model="form.username"
+              v-model.trim="form.username"
               type="text"
               class="form-control"
-              :class="{ 'is-invalid': errors.username }"
+              :class="{ 'is-invalid': errors.username || submitted && !form.username }"
               placeholder="กรอกชื่อผู้ใช้"
               autocomplete="username"
-              required
+              @input="clearError('username')"
+              @blur="validateUsername"
             />
             <div v-if="errors.username" class="invalid-feedback">
               {{ errors.username }}
             </div>
-          </div>
-
-          <div class="form-group">
-            <label for="password" class="form-label">รหัสผ่าน</label>
-            <input
-              id="password"
-              v-model="form.password"
-              type="password"
-              class="form-control"
-              :class="{ 'is-invalid': errors.password }"
-              placeholder="กรอกรหัสผ่าน"
-              autocomplete="current-password"
-              required
-            />
-            <div v-if="errors.password" class="invalid-feedback">
-              {{ errors.password }}
+            <div v-else-if="submitted && !form.username" class="invalid-feedback">
+              กรุณากรอกชื่อผู้ใช้
             </div>
           </div>
 
-              <OnlineStatus />
+          <div class="form-group">
+            <label for="password" class="form-label">
+              รหัสผ่าน <span class="text-danger">*</span>
+            </label>
+            <div class="password-input-wrapper">
+              <input
+                id="password"
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                class="form-control"
+                :class="{ 'is-invalid': errors.password || submitted && !form.password }"
+                placeholder="กรอกรหัสผ่าน"
+                autocomplete="current-password"
+                @input="clearError('password')"
+                @blur="validatePassword"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                @click="showPassword = !showPassword"
+                tabindex="-1"
+              >
+                <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
+            <div v-if="errors.password" class="invalid-feedback">
+              {{ errors.password }}
+            </div>
+            <div v-else-if="submitted && !form.password" class="invalid-feedback">
+              กรุณากรอกรหัสผ่าน
+            </div>
+          </div>
 
-          <StorageStatus />
+        
+
+          <OnlineStatus />
+          <!-- <StorageStatus /> -->
+
+          <div v-if="generalError" class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ generalError }}
+          </div>
 
           <button
             type="submit"
             class="btn btn-primary btn-lg login-btn"
-            :disabled="loading"
+            :disabled="loading || isFormInvalid"
           >
             <i v-if="loading" class="fas fa-spinner fa-spin"></i>
             <i v-else class="fas fa-sign-in-alt"></i>
             {{ loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ' }}
           </button>
         </form>
-
-        <div class="login-footer">
-          <div class="demo-credentials">
-            <h4>ข้อมูลสำหรับทดสอบ:</h4>
-            <div class="credential-item">
-              <strong>ผู้ดูแลระบบ:</strong> admin / admin123
-            </div>
-            <div class="credential-item">
-              <strong>ผู้ใช้ทั่วไป:</strong> user / user123
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -88,27 +104,142 @@ export default {
         remember: false
       },
       errors: {},
-      loading: false
+      generalError: '',
+      loading: false,
+      loadingMessage: 'กำลังเข้าสู่ระบบ...',
+      submitted: false,
+      showPassword: false
+    }
+  },
+  computed: {
+    isFormInvalid() {
+      return !this.form.username || !this.form.password || this.form.username.length < 3 || this.form.password.length < 6
+    }
+  },
+  beforeMount() {
+    // Check if already authenticated, redirect to home
+    if (process.client) {
+      const isAuthenticated = this.$store.state.auth?.loggedIn
+      if (isAuthenticated) {
+        console.log('Already authenticated, redirecting to home')
+        this.$router.push('/')
+      }
+    }
+  },
+  mounted() {
+    // Show logout success message if coming from logout
+    if (process.client && this.$route.query.logout === 'success') {
+      // Use custom toast instead of Bootstrap Vue toast
+      setTimeout(() => {
+        this.$toast.success('ออกจากระบบสำเร็จ')
+      }, 300)
+      // Remove query parameter
+      this.$router.replace({ query: {} })
     }
   },
   methods: {
-    async handleLogin() {
+    validateUsername() {
+      if (!this.form.username) {
+        this.errors.username = 'กรุณากรอกชื่อผู้ใช้'
+        return false
+      }
+      if (this.form.username.length < 3) {
+        this.errors.username = 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร'
+        return false
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(this.form.username)) {
+        this.errors.username = 'ชื่อผู้ใช้ต้องเป็นตัวอักษร ตัวเลข หรือ _ เท่านั้น'
+        return false
+      }
+      delete this.errors.username
+      return true
+    },
+    validatePassword() {
+      if (!this.form.password) {
+        this.errors.password = 'กรุณากรอกรหัสผ่าน'
+        return false
+      }
+      if (this.form.password.length < 6) {
+        this.errors.password = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'
+        return false
+      }
+      delete this.errors.password
+      return true
+    },
+    validateForm() {
       this.errors = {}
+      this.generalError = ''
+      
+      const usernameValid = this.validateUsername()
+      const passwordValid = this.validatePassword()
+      
+      return usernameValid && passwordValid
+    },
+    clearError(field) {
+      if (this.errors[field]) {
+        delete this.errors[field]
+      }
+      if (this.generalError) {
+        this.generalError = ''
+      }
+    },
+    async handleLogin() {
+      this.submitted = true
+      this.generalError = ''
+      
+      if (!this.validateForm()) {
+        return
+      }
+
       this.loading = true
+      this.loadingMessage = 'กำลังตรวจสอบข้อมูล...'
 
       try {
+        // Check if we're online or offline
+        if (!navigator.onLine) {
+          this.loadingMessage = 'กำลังเข้าสู่ระบบในโหมดออฟไลน์...'
+        }
+
         // Use offline auth manager for enhanced login
         await this.$offlineAuth.login({
-          username: this.form.username,
-          password: this.form.password
+          data: {
+            username: this.form.username,
+            password: this.form.password
+          }
         })
 
-        this.$router.push('/dashboard')
+        this.loadingMessage = 'เข้าสู่ระบบสำเร็จ!'
+        
+        // Show success message
+        this.$toast.success('เข้าสู่ระบบสำเร็จ')
+
+        // Wait a bit before redirecting
+        setTimeout(() => {
+          this.$router.push('/')
+        }, 500)
+
       } catch (error) {
         console.error('Login error:', error)
-        this.errors = {
-          username: error.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+        
+        let errorMessage = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+        
+        if (error.response) {
+          // API error response
+          if (error.response.status === 401) {
+            errorMessage = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+          } else if (error.response.status === 500) {
+            errorMessage = 'เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง'
+          } else if (error.response.data && error.response.data.error) {
+            errorMessage = error.response.data.error
+          }
+        } else if (error.message) {
+          errorMessage = error.message
         }
+        
+        this.generalError = errorMessage
+        
+        // Show error toast
+        this.$toast.error(errorMessage)
       } finally {
         this.loading = false
       }
@@ -129,7 +260,7 @@ export default {
 
 .login-container {
   width: 100%;
-  max-width: 400px;
+  max-width: 450px;
 }
 
 .login-card {
@@ -142,8 +273,7 @@ export default {
 .login-header {
   text-align: center;
   padding: 2rem 2rem 1rem;
- background: linear-gradient(135deg, #e2e2e2 0%, #ffffff 100%);
-  color: white;
+  background: linear-gradient(135deg, #e2e2e2 0%, #ffffff 100%);
 }
 
 .logo {
@@ -155,20 +285,7 @@ export default {
 
 .logo-img {
   width: 150px;
-  margin-right: 0.75rem;
   object-fit: contain;
-}
-
-.logo h1 {
-  margin: 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-}
-
-.login-subtitle {
-  margin: 0;
-  opacity: 0.9;
-  font-size: 1rem;
 }
 
 .login-form {
@@ -186,6 +303,10 @@ export default {
   color: #495057;
 }
 
+.text-danger {
+  color: #dc3545;
+}
+
 .form-control {
   width: 100%;
   padding: 0.75rem 1rem;
@@ -193,6 +314,7 @@ export default {
   border: 2px solid #e9ecef;
   border-radius: 0.5rem;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  height: 50px;
 }
 
 .form-control:focus {
@@ -203,6 +325,36 @@ export default {
 
 .form-control.is-invalid {
   border-color: #dc3545;
+}
+
+.form-control.is-invalid:focus {
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-input-wrapper .form-control {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1rem;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: #3551a4;
 }
 
 .invalid-feedback {
@@ -219,12 +371,31 @@ export default {
   font-size: 0.875rem;
   color: #6c757d;
   cursor: pointer;
+  margin-bottom: 0;
 }
 
 .form-checkbox {
   margin-right: 0.5rem;
-  width: 1rem;
-  height: 1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+}
+
+.alert {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.alert-danger {
+  color: #721c24;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+.alert i {
+  margin-right: 0.5rem;
 }
 
 .login-btn {
@@ -237,17 +408,17 @@ export default {
   background: linear-gradient(135deg, #3551a4 0%, #2c4088 100%);
   color: white;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
 .login-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 0.5rem 1rem rgba(53, 81, 164, 0.4);
+  opacity: 0.9;
 }
 
 .login-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .login-btn i {
@@ -267,6 +438,7 @@ export default {
   margin-bottom: 1rem;
   color: #495057;
   font-size: 1rem;
+  font-weight: 600;
 }
 
 .credential-item {
@@ -295,6 +467,9 @@ export default {
   .login-footer {
     padding: 1rem 1.5rem 1.5rem;
   }
+  
+  .logo-img {
+    width: 120px;
+  }
 }
 </style>
-

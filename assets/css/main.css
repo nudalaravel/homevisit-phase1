@@ -1,9 +1,21 @@
 /* Global Styles */
+* {
+  font-family: 'Kanit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Kanit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #f8f9fa;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Kanit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+button, input, select, textarea {
+  font-family: 'Kanit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 /* Card Styles */
@@ -174,11 +186,6 @@ body {
   box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
   border: 1px solid rgba(0, 0, 0, 0.125);
   text-align: center;
-  transition: transform 0.2s ease;
-}
-
-.stats-card:hover {
-  transform: translateY(-2px);
 }
 
 .stats-icon {

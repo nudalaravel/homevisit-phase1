@@ -1,60 +1,13 @@
 <template>
   <div class="admin-layout">
-    <!-- Sidebar -->
-    <div class="sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <div class="sidebar-header">
-        <div v-if="!sidebarCollapsed" class="logo-container">
-          <img src="/logo.png" alt="Logo" class="logo-img" />
-          <h3>Riped Admin</h3>
-        </div>
-        <img v-else src="/logo.png" alt="Logo" class="logo-img-small" />
-      </div>
-      
-      <nav class="sidebar-nav">
-        <ul>
-          <li>
-            <nuxt-link to="/dashboard" class="nav-link" active-class="active">
-              <i class="fas fa-tachometer-alt"></i>
-              <span v-if="!sidebarCollapsed">แดชบอร์ด</span>
-            </nuxt-link>
-          </li>
-          <li>
-            <nuxt-link to="/users" class="nav-link" active-class="active">
-              <i class="fas fa-users"></i>
-              <span v-if="!sidebarCollapsed">ผู้ใช้</span>
-            </nuxt-link>
-          </li>
-          <li>
-            <nuxt-link to="/orders" class="nav-link" active-class="active">
-              <i class="fas fa-shopping-cart"></i>
-              <span v-if="!sidebarCollapsed">คำสั่งซื้อ</span>
-            </nuxt-link>
-          </li>
-          <li>
-            <nuxt-link to="/products" class="nav-link" active-class="active">
-              <i class="fas fa-box"></i>
-              <span v-if="!sidebarCollapsed">สินค้า</span>
-            </nuxt-link>
-          </li>
-          <li>
-            <nuxt-link to="/settings" class="nav-link" active-class="active">
-              <i class="fas fa-cog"></i>
-              <span v-if="!sidebarCollapsed">การตั้งค่า</span>
-            </nuxt-link>
-          </li>
-        </ul>
-      </nav>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content" :class="{ expanded: sidebarCollapsed }">
-      <!-- Top Header -->
-      <header class="top-header">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="header-container">
         <div class="header-left">
-          <button class="sidebar-toggle" @click="toggleSidebar">
-            <i class="fas fa-bars"></i>
-          </button>
-          <h1 class="page-title">{{ pageTitle }}</h1>
+          <div class="logo-container">
+            <img src="/logo.png" alt="Logo" class="logo-img" />
+          </div>
+          <!-- <h1 class="page-title">{{ pageTitle }}</h1> -->
         </div>
         
         <div class="header-right">
@@ -62,23 +15,25 @@
           <div class="user-menu">
             <div class="user-info">
               <span class="user-name">{{ $auth?.user?.name || 'ผู้ดูแลระบบ' }}</span>
-              <span class="user-role">{{ $auth?.user?.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้ทั่วไป' }}</span>
             </div>
-            <div class="user-avatar">
+            <button class="user-avatar" @click="toggleDropdown">
               <i class="fas fa-user-circle"></i>
-            </div>
-            <div class="dropdown-menu">
-              <a href="#" @click.prevent="logout">ออกจากระบบ</a>
+            </button>
+            <div class="dropdown-menu" :class="{ show: showDropdown }">
+              <a href="#" @click.prevent="logout">
+                <i class="fas fa-sign-out-alt"></i>
+                ออกจากระบบ
+              </a>
             </div>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <!-- Page Content -->
-      <main class="page-content">
-        <slot />
-      </main>
-    </div>
+    <!-- Page Content -->
+    <main class="page-content">
+      <Nuxt />
+    </main>
   </div>
 </template>
 
@@ -86,28 +41,59 @@
 export default {
   data() {
     return {
-      sidebarCollapsed: false
+      showDropdown: false
     }
   },
   computed: {
     pageTitle() {
       const route = this.$route.name
       switch (route) {
-        case 'dashboard': return 'แดชบอร์ด'
+        case 'index': return 'ระบบจัดการผู้รับบริการ'
+        case 'dashboard': return 'ระบบจัดการผู้รับบริการ'
         case 'users': return 'จัดการผู้ใช้'
         case 'orders': return 'จัดการคำสั่งซื้อ'
         case 'products': return 'จัดการสินค้า'
         case 'settings': return 'การตั้งค่า'
-        default: return 'แผงควบคุม'
+        default: return 'ระบบจัดการผู้รับบริการ'
       }
     }
   },
+  mounted() {
+    // Close dropdown when clicking outside
+    document.addEventListener('click', this.handleClickOutside)
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.handleClickOutside)
+  },
   methods: {
-    toggleSidebar() {
-      this.sidebarCollapsed = !this.sidebarCollapsed
+    toggleDropdown() {
+      this.showDropdown = !this.showDropdown
+    },
+    handleClickOutside(event) {
+      const userMenu = this.$el.querySelector('.user-menu')
+      if (userMenu && !userMenu.contains(event.target)) {
+        this.showDropdown = false
+      }
     },
     async logout() {
-      await this.$offlineAuth.logout()
+      this.showDropdown = false
+      
+      try {
+        console.log('Logout initiated from UI')
+        
+        // Perform logout (works both online and offline)
+        // This will clear all data and redirect to /login
+        await this.$offlineAuth.logout()
+        
+        console.log('Logout completed')
+      } catch (error) {
+        console.error('Logout error:', error)
+        
+        // Even if error, try to redirect
+        this.$router.push('/login').catch(() => {
+          window.location.href = '/login'
+        })
+      }
     }
   }
 }
@@ -116,215 +102,199 @@ export default {
 <style scoped>
 .admin-layout {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background-color: #f8f9fa;
 }
 
-.sidebar {
-  width: 250px;
-    background: linear-gradient(135deg, #3551a4 0%, #2c4088 100%);
-  color: white;
-  transition: width 0.3s ease;
-  position: fixed;
-  height: 100vh;
-  overflow-y: auto;
+.top-header {
+  background: linear-gradient(135deg, #3551a4 0%, #2c4088 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  position: sticky;
+  top: 0;
   z-index: 1000;
 }
 
-.sidebar.collapsed {
-  width: 70px;
-}
-
-.sidebar-header {
-  padding: 1.5rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  text-align: center;
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
-.logo-img {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 0.5rem;
-  object-fit: contain;
-}
-
-.logo-img-small {
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
-}
-
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.sidebar-nav ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.sidebar-nav li {
-  margin: 0;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  padding: 1rem;
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  transition: all 0.3s ease;
-  border-left: 3px solid transparent;
-}
-
-.nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.nav-link.active {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  border-left-color: #3551a4;
-}
-
-.nav-link i {
-  width: 20px;
-  margin-right: 0.75rem;
-  text-align: center;
-}
-
-.main-content {
-  margin-left: 250px;
-  flex: 1;
-  transition: margin-left 0.3s ease;
-}
-
-.main-content.expanded {
-  margin-left: 70px;
-}
-
-.top-header {
-  background: white;
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
   padding: 1rem 2rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 100;
 }
 
 .header-left {
   display: flex;
   align-items: center;
+  gap: 1.5rem;
 }
 
-.sidebar-toggle {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  margin-right: 1rem;
-  cursor: pointer;
-  color: #6c757d;
+.logo-container {
+  display: flex;
+  align-items: center;
+  background: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.logo-img {
+  height: 45px;
+  width: auto;
+  object-fit: contain;
 }
 
 .page-title {
   margin: 0;
   font-size: 1.5rem;
-  font-weight: 600;
-  color: #2c3e50;
+  font-weight: 500;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
 }
 
 .user-menu {
   display: flex;
   align-items: center;
+  gap: 0.75rem;
   position: relative;
-  cursor: pointer;
 }
 
 .user-info {
   text-align: right;
-  margin-right: 0.75rem;
 }
 
 .user-name {
   display: block;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.user-role {
-  display: block;
-  font-size: 0.875rem;
-  color: #6c757d;
-  text-transform: capitalize;
+  font-weight: 500;
+  color: white;
+  font-size: 0.95rem;
 }
 
 .user-avatar {
-  font-size: 2rem;
-  color: #6c757d;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.user-avatar:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.user-avatar i {
+  font-size: 1.8rem;
+  color: white;
 }
 
 .dropdown-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 0.5rem);
   right: 0;
   background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  min-width: 150px;
-  display: none;
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  overflow: hidden;
 }
 
-.user-menu:hover .dropdown-menu {
-  display: block;
+.dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .dropdown-menu a {
-  display: block;
-  padding: 0.75rem 1rem;
-  color: #6c757d;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  color: #495057;
   text-decoration: none;
-  transition: background-color 0.15s ease;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
+
+.dropdown-menu a i {
+  color: #3551a4;
+  font-size: 1rem;
 }
 
 .dropdown-menu a:hover {
   background-color: #f8f9fa;
-  color: #495057;
+  color: #3551a4;
 }
 
 .page-content {
+  flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
   padding: 2rem;
 }
 
 @media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
+  .header-container {
+    padding: 1rem;
   }
   
-  .sidebar.collapsed {
-    transform: translateX(0);
+  .header-left {
+    gap: 1rem;
   }
   
-  .main-content {
-    margin-left: 0;
+  .logo-img {
+    height: 35px;
   }
   
-  .main-content.expanded {
-    margin-left: 0;
+  .page-title {
+    font-size: 1.1rem;
+  }
+  
+  .user-name {
+    display: none;
+  }
+  
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .page-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 0.95rem;
+  }
+  
+  .logo-container {
+    padding: 0.4rem 0.8rem;
+  }
+  
+  .logo-img {
+    height: 30px;
   }
 }
 </style>

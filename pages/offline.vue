@@ -79,9 +79,9 @@ export default {
         solid: true
       })
       
-      // Redirect to dashboard after a short delay
+      // Redirect to home after a short delay
       setTimeout(() => {
-        this.$router.push('/dashboard')
+        this.$router.push('/')
       }, 2000)
     },
     
@@ -90,7 +90,7 @@ export default {
     },
     
     goToDashboard() {
-      this.$router.push('/dashboard')
+      this.$router.push('/')
     },
     
     retryConnection() {
@@ -178,8 +178,7 @@ export default {
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0.5rem 1rem rgba(53, 81, 164, 0.4);
+  opacity: 0.9;
 }
 
 .btn-outline-secondary {
