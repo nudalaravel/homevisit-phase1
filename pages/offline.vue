@@ -139,7 +139,7 @@ export default {
 
 .offline-title {
   font-size: 2rem;
-  font-weight: 700;
+  font-weight: 500;
   color: #2c3e50;
   margin-bottom: 1rem;
 }
@@ -162,7 +162,7 @@ export default {
 .btn {
   padding: 0.75rem 1.5rem;
   border-radius: 0.5rem;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
   border: none;
   cursor: pointer;
@@ -235,7 +235,7 @@ export default {
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
   border-radius: 2rem;
-  font-weight: 600;
+  font-weight: 500;
   background: #dc3545;
   color: white;
   transition: all 0.3s ease;

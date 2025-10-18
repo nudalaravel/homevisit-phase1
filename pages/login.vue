@@ -69,8 +69,6 @@
 
         
 
-          <OnlineStatus />
-          <!-- <StorageStatus /> -->
 
           <div v-if="generalError" class="alert alert-danger" role="alert">
             <i class="fas fa-exclamation-circle"></i>
@@ -202,10 +200,8 @@ export default {
 
         // Use offline auth manager for enhanced login
         await this.$offlineAuth.login({
-          data: {
-            username: this.form.username,
-            password: this.form.password
-          }
+          username: this.form.username,
+          password: this.form.password
         })
 
         this.loadingMessage = 'เข้าสู่ระบบสำเร็จ!'
@@ -299,7 +295,7 @@ export default {
 .form-label {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 600;
+  font-weight: 500;
   color: #495057;
 }
 
@@ -402,7 +398,7 @@ export default {
   width: 100%;
   padding: 0.75rem 1rem;
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 500;
   border: none;
   border-radius: 0.5rem;
   background: linear-gradient(135deg, #3551a4 0%, #2c4088 100%);
@@ -438,7 +434,7 @@ export default {
   margin-bottom: 1rem;
   color: #495057;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .credential-item {

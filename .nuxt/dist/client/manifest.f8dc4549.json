@@ -1,7 +1,7 @@
 {
-  "name": "Riped V2 Admin",
-  "short_name": "Riped Admin",
-  "description": "Admin Dashboard Template with Offline Support",
+  "name": "Riped V2 Research",
+  "short_name": "Riped Research",
+  "description": "Research Dashboard Template with Offline Support",
   "icons": [
     {
       "src": "/logo.png",

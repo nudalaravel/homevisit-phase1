@@ -34,31 +34,5 @@ export default function ({ store, redirect, route }) {
     return redirect("/login");
   }
 
-  // Additional check: If authenticated but no offline auth data,
-  // this might indicate a logout in progress or corrupted state
-  if (process.client) {
-    const hasOfflineData = localStorage.getItem("offline_auth_data");
-    if (!hasOfflineData) {
-      console.log(
-        "Auth middleware: No offline data found, clearing auth state"
-      );
-      // Clear auth state completely
-      store.commit("auth/SET", ["loggedIn", false]);
-      store.commit("auth/SET", ["user", null]);
-      store.commit("auth/SET", ["strategy", null]);
-
-      // Clear any remaining auth tokens
-      try {
-        localStorage.removeItem("auth._token.local");
-        localStorage.removeItem("auth._refresh_token.local");
-        localStorage.removeItem("auth.strategy");
-      } catch (e) {
-        console.warn("Failed to clear auth tokens:", e);
-      }
-
-      return redirect("/login");
-    }
-  }
-
   console.log("Auth middleware: Authentication passed");
 }

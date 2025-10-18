@@ -20,11 +20,13 @@ import nuxt_plugin_bootstrapvue_837e18ac from 'nuxt_plugin_bootstrapvue_837e18ac
 import nuxt_plugin_axios_26f27f0a from 'nuxt_plugin_axios_26f27f0a' // Source: ./axios.js (mode: 'all')
 import nuxt_plugin_bootstrapvue_928a4c1e from 'nuxt_plugin_bootstrapvue_928a4c1e' // Source: ../plugins/bootstrap-vue (mode: 'all')
 import nuxt_plugin_axios_3566aa80 from 'nuxt_plugin_axios_3566aa80' // Source: ../plugins/axios (mode: 'all')
+import nuxt_plugin_authcustom_2fe02a00 from 'nuxt_plugin_authcustom_2fe02a00' // Source: ../plugins/auth-custom (mode: 'all')
 import nuxt_plugin_offline_eafd7ca6 from 'nuxt_plugin_offline_eafd7ca6' // Source: ../plugins/offline (mode: 'all')
 import nuxt_plugin_authoffline_2c9c4134 from 'nuxt_plugin_authoffline_2c9c4134' // Source: ../plugins/auth-offline (mode: 'all')
-import nuxt_plugin_fakeindexeddb_eb87f4a6 from 'nuxt_plugin_fakeindexeddb_eb87f4a6' // Source: ../plugins/fake-indexeddb (mode: 'all')
 import nuxt_plugin_indexeddb_3fb74679 from 'nuxt_plugin_indexeddb_3fb74679' // Source: ../plugins/indexeddb (mode: 'all')
+import nuxt_plugin_systeminit_62d658b8 from 'nuxt_plugin_systeminit_62d658b8' // Source: ../plugins/system-init (mode: 'all')
 import nuxt_plugin_toast_3357971e from 'nuxt_plugin_toast_3357971e' // Source: ../plugins/toast (mode: 'all')
+import nuxt_plugin_sweetalert_4d5e1f3c from 'nuxt_plugin_sweetalert_4d5e1f3c' // Source: ../plugins/sweetalert (mode: 'all')
 import nuxt_plugin_plugin_79477512 from 'nuxt_plugin_plugin_79477512' // Source: ./auth/plugin.js (mode: 'all')
 
 // Component: <ClientOnly>
@@ -90,7 +92,7 @@ async function createApp(ssrContext, config = {}) {
   // here we inject the router and store to all child components,
   // making them available everywhere as `this.$router` and `this.$store`.
   const app = {
-    head: {"title":"Riped V2 Admin","meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"hid":"description","name":"description","content":"Admin Dashboard Template"},{"name":"theme-color","content":"#3551a4"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"Riped V2 Admin"}],"link":[{"rel":"icon","type":"image\u002Fx-icon","href":"\u002Ffavicon.ico"},{"rel":"stylesheet","href":"\u002Ffonts\u002Fkanit.css"},{"rel":"stylesheet","href":"https:\u002F\u002Fcdnjs.cloudflare.com\u002Fajax\u002Flibs\u002Ffont-awesome\u002F5.15.4\u002Fcss\u002Fall.min.css"},{"rel":"apple-touch-icon","href":"\u002Flogo.png"},{"rel":"manifest","href":"\u002Fmanifest.json"}],"style":[],"script":[]},
+    head: {"title":"Riped V2 Research","meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"hid":"description","name":"description","content":"Research Dashboard Template"},{"name":"theme-color","content":"#3551a4"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"Riped V2 Research"}],"link":[{"rel":"icon","type":"image\u002Fx-icon","href":"\u002Ffavicon.ico"},{"rel":"stylesheet","href":"\u002Ffonts\u002Fkanit.css"},{"rel":"stylesheet","href":"https:\u002F\u002Fcdnjs.cloudflare.com\u002Fajax\u002Flibs\u002Ffont-awesome\u002F5.15.4\u002Fcss\u002Fall.min.css"},{"rel":"apple-touch-icon","href":"\u002Flogo.png"},{"rel":"manifest","href":"\u002Fmanifest.json"}],"style":[],"script":[]},
 
     store,
     router,
@@ -250,6 +252,10 @@ async function createApp(ssrContext, config = {}) {
     await nuxt_plugin_axios_3566aa80(app.context, inject)
   }
 
+  if (typeof nuxt_plugin_authcustom_2fe02a00 === 'function') {
+    await nuxt_plugin_authcustom_2fe02a00(app.context, inject)
+  }
+
   if (typeof nuxt_plugin_offline_eafd7ca6 === 'function') {
     await nuxt_plugin_offline_eafd7ca6(app.context, inject)
   }
@@ -258,16 +264,20 @@ async function createApp(ssrContext, config = {}) {
     await nuxt_plugin_authoffline_2c9c4134(app.context, inject)
   }
 
-  if (typeof nuxt_plugin_fakeindexeddb_eb87f4a6 === 'function') {
-    await nuxt_plugin_fakeindexeddb_eb87f4a6(app.context, inject)
-  }
-
   if (typeof nuxt_plugin_indexeddb_3fb74679 === 'function') {
     await nuxt_plugin_indexeddb_3fb74679(app.context, inject)
   }
 
+  if (typeof nuxt_plugin_systeminit_62d658b8 === 'function') {
+    await nuxt_plugin_systeminit_62d658b8(app.context, inject)
+  }
+
   if (typeof nuxt_plugin_toast_3357971e === 'function') {
     await nuxt_plugin_toast_3357971e(app.context, inject)
+  }
+
+  if (typeof nuxt_plugin_sweetalert_4d5e1f3c === 'function') {
+    await nuxt_plugin_sweetalert_4d5e1f3c(app.context, inject)
   }
 
   if (typeof nuxt_plugin_plugin_79477512 === 'function') {

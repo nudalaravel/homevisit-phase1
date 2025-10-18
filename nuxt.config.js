@@ -9,19 +9,19 @@ export default {
   },
 
   head: {
-    title: "Riped V2 Admin",
+    title: "Riped V2 Research",
     meta: [
       { charset: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       {
         hid: "description",
         name: "description",
-        content: "Admin Dashboard Template",
+        content: "Research Dashboard Template",
       },
       { name: "theme-color", content: "#3551a4" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
-      { name: "apple-mobile-web-app-title", content: "Riped V2 Admin" },
+      { name: "apple-mobile-web-app-title", content: "Riped V2 Research" },
     ],
     link: [
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
@@ -42,11 +42,13 @@ export default {
   plugins: [
     "~/plugins/bootstrap-vue",
     "~/plugins/axios",
+    "~/plugins/auth-custom",
     "~/plugins/offline",
     "~/plugins/auth-offline",
-    "~/plugins/fake-indexeddb",
     "~/plugins/indexeddb",
+    "~/plugins/system-init",
     "~/plugins/toast",
+    "~/plugins/sweetalert",
   ],
   components: [
     {
@@ -62,23 +64,38 @@ export default {
   ],
   axios: {
     baseURL: process.env.API_BASE_URL || "http://localhost:3001",
+    proxy: true,
+  },
+  proxy: {
+    "/api/": {
+      target: "https://ripedresearch.org",
+      pathRewrite: {
+        "^/api/": "/api/",
+      },
+      changeOrigin: true,
+    },
   },
   auth: {
     strategies: {
       local: {
         endpoints: {
-          login: { url: "/auth/login", method: "post", propertyName: "token" },
+          login: {
+            url: "/api/spa/login/login.php",
+            method: "post",
+            propertyName: "token",
+          },
           logout: false, // Disable logout endpoint - handled client-side only
-          user: { url: "/auth/user", method: "get", propertyName: "user" },
+          user: false, // Disable user endpoint - we get user from login response
         },
         token: {
           property: "token",
           maxAge: 60 * 60 * 24 * 365, // 1 year
         },
         user: {
-          property: "user",
-          autoFetch: false, // Disable auto fetch to prevent API calls
+          property: "user", // Get user from login response
+          autoFetch: "/api/spa/login/verify.php", // Disable auto fetch to prevent API calls
         },
+        clientId: false,
       },
     },
     redirect: {
@@ -94,14 +111,14 @@ export default {
   // serverMiddleware: ["~/api"], // Disabled - API runs separately
   pwa: {
     meta: {
-      title: "Riped V2 Admin",
+      title: "Riped V2 Research",
       author: "Riped Team",
-      description: "Admin Dashboard Template",
+      description: "Research Dashboard Template",
       theme_color: "#3551a4",
       lang: "th",
-      ogSiteName: "Riped V2 Admin",
-      ogTitle: "Riped V2 Admin",
-      ogDescription: "Admin Dashboard Template",
+      ogSiteName: "Riped V2 Research",
+      ogTitle: "Riped V2 Research",
+      ogDescription: "Research Dashboard Template",
       ogImage: "/logo.png",
       ogUrl: "https://ripped-v2.com",
       twitterCard: "summary_large_image",
@@ -109,9 +126,9 @@ export default {
       twitterCreator: "@ripped",
     },
     manifest: {
-      name: "Riped V2 Admin",
-      short_name: "Riped Admin",
-      description: "Admin Dashboard Template with Offline Support",
+      name: "Riped V2 Research",
+      short_name: "Riped Research",
+      description: "Research Dashboard Template with Offline Support",
       theme_color: "#3551a4",
       background_color: "#ffffff",
       display: "standalone",

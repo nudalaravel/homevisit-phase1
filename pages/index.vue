@@ -2,97 +2,64 @@
   <div class="dashboard">
     <Loading :show="loading" :message="loadingMessage" />
     
-  
 
-    <!-- Stats Cards -->
-    <div class="stats-container">
-      <div class="stat-card">
-        <div class="stat-icon stat-icon-total">
-              <i class="fas fa-users"></i>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ patients.length }}</div>
-          <div class="stat-label">ผู้รับการประเมินทั้งหมด</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon stat-icon-scheduled">
-          <i class="fas fa-calendar-check"></i>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ scheduledCount }}</div>
-          <div class="stat-label">มีนัดหมายแล้ว</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon stat-icon-pending">
-          <i class="fas fa-calendar-plus"></i>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ pendingCount }}</div>
-          <div class="stat-label">รอนัดหมาย</div>
-        </div>
-      </div>
-    </div>
     
     <!-- Patients List -->
     <div class="patients-card">
-      <div class="patients-header">
-        <h3 class="patients-title">
-          <i class="fas fa-list"></i>
-              รายการผู้รับบริการ
-        </h3>
-      </div>
       <div class="patients-body">
-        <div v-if="patients.length === 0" class="empty-state">
+        <div v-if="visitors.length === 0" class="empty-state">
           <i class="fas fa-user-plus"></i>
-          <p>ยังไม่มีข้อมูลผู้รับบริการ</p>
-            <button class="btn btn-primary" @click="showAddPatientModal">
-            เพิ่มผู้รับบริการแรก
-            </button>
+          <p>ยังไม่มีข้อมูลผู้เยี่ยมบ้าน</p>
+           
           </div>
-        <div v-else class="table-responsive">
-          <table class="patients-table">
-                <thead>
-                  <tr>
-                <th class="col-name">ชื่อ-นามสกุล</th>
-                <th class="col-nickname">ชื่อเล่น</th>
-                <th class="col-appointment">วันนัดหมาย</th>
-                <th class="col-actions">การดำเนินการ</th>
-                  </tr>
-                </thead>
-                <tbody>
-              <tr v-for="(patient, index) in patients" :key="patient.id" class="patient-row">
-                <td class="col-name">
-                  <a href="#" class="patient-name-link" @click.prevent="editPatient(patient)">
-                    <i class="fas fa-user"></i>
-                    {{ patient.name }}
-                      </a>
-                    </td>
-                <td class="col-nickname">
-                  <span class="nickname-badge">{{ patient.nickname }}</span>
-                </td>
-                <td class="col-appointment">
-                      <button
-                    class="appointment-btn"
-                    :class="patient.appointmentDate ? 'appointment-set' : 'appointment-none'"
-                        @click="scheduleAppointment(patient)"
-                      >
-                    <i :class="patient.appointmentDate ? 'fas fa-calendar-check' : 'fas fa-calendar-plus'"></i>
-                    {{ patient.appointmentDate ? formatAppointmentDate(patient.appointmentDate, patient.appointmentTime) : 'กำหนดนัดหมาย' }}
-                      </button>
-                    </td>
-                <td class="col-actions">
-                  <div class="action-buttons-group">
-                    <button class="action-btn btn-visit" @click="recordVisit(patient)" title="บันทึกการเยี่ยม">
-                      <i class="fas fa-file-alt"></i>
-                      <span>บันทึกการเยี่ยม</span>
-                    </button>
-                  </div>
-                </td>
-                  </tr>
-                </tbody>
-              </table>
+        <div v-else class="patients-grid">
+          <!-- Grid Header -->
+          <div class="grid-header-row">
+            <div class="grid-header-col">ชื่อ (ชื่อเล่น)</div>
+            <div class="grid-header-col">วันนัดหมาย (กิจกรรม)</div>
+            <div class="grid-header-col">บันทึกการเยี่ยมบ้าน</div>
+            <div class="grid-header-col">แก้ไข</div>
+          </div>
+
+          <!-- Grid Body -->
+          <div v-for="(visitor, index) in visitors" :key="visitor.id" class="patient-card-row">
+            <div class="card-col card-col-name" @click="editPatient(visitor)">
+              <div class="card-name">{{ visitor.name }}</div>
+              <div class="card-nickname">({{ visitor.nickname }})</div>
+            </div>
+            
+            <div 
+              class="card-col card-col-appointment"
+              :class="visitor.appointmentDate ? 'has-appointment' : 'no-appointment'"
+              @click="scheduleAppointment(visitor)"
+            >
+              <div v-if="visitor.appointmentDate" class="appointment-date">
+                <div class="appointment-date">{{ formatAppointmentDateShort(visitor.appointmentDate) }}</div>
+                <div class="appointment-time">{{ visitor.appointmentTime }}</div>
+              
+              </div>
+              <div v-else class="appointment-placeholder">
+                ยังไม่ได้กำหนดหมาย
+              </div>
+            </div>
+
+            <div 
+              class="card-col card-col-visit"
+              :class="visitor.appointmentDate ? 'visit-ready' : 'visit-disabled'"
+              @click="visitor.appointmentDate ? recordVisit(visitor) : null"
+            >
+              <div v-if="visitor.appointmentDate" class="visit-text">
+                บันทึกเยี่ยมบ้าน
+              </div>
+              <div v-else class="visit-text-disabled">
+                ยังไม่ได้บันทึก<br>การเยี่ยมบ้าน
+              </div>
+            </div>
+
+            <div class="card-col card-col-edit" @click="showVisitHistory(visitor)">
+              <div class="edit-text">แก้ไขการเยี่ยมบ้าน</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -125,17 +92,17 @@
         </b-form-group>
         <b-form-group 
           label="เบอร์โทรศัพท์" 
-          label-for="edit-phone"
-          :invalid-feedback="editFormErrors.phone"
-          :state="editFormErrors.phone ? false : null"
+          label-for="edit-tel"
+          :invalid-feedback="editFormErrors.tel"
+          :state="editFormErrors.tel ? false : null"
         >
           <b-form-input
-            id="edit-phone"
-            v-model.trim="editForm.phone"
-            placeholder="เบอร์โทรศัพท์ (เช่น 081-234-5678)"
-            :state="editFormErrors.phone ? false : null"
-            @input="clearEditError('phone')"
-            @blur="validateEditPhone"
+            id="edit-tel"
+            v-model.trim="editForm.tel"
+            placeholder="เบอร์โทรศัพท์ (เช่น 0812345678)"
+            :state="editFormErrors.tel ? false : null"
+            @input="clearEditError('tel')"
+            @blur="validateEditTel"
           ></b-form-input>
         </b-form-group>
         <b-form-group 
@@ -153,6 +120,52 @@
             @input="clearEditError('address')"
             @blur="validateEditAddress"
           ></b-form-textarea>
+        </b-form-group>
+
+        <b-form-group label="จังหวัด" label-for="edit-province">
+          <b-form-select
+            id="edit-province"
+            v-model="editForm.prov_code"
+            :options="provinces"
+            value-field="prov_code"
+            text-field="prov_name"
+            @change="onProvinceChange"
+          >
+            <template #first>
+              <b-form-select-option :value="null">-- เลือกจังหวัด --</b-form-select-option>
+            </template>
+          </b-form-select>
+        </b-form-group>
+
+        <b-form-group label="อำเภอ" label-for="edit-amphoe">
+          <b-form-select
+            id="edit-amphoe"
+            v-model="editForm.amp_code"
+            :options="filteredAmphoes"
+            value-field="amp_code"
+            text-field="amp_name"
+            :disabled="!editForm.prov_code"
+            @change="onAmphoeChange"
+          >
+            <template #first>
+              <b-form-select-option :value="null">-- เลือกอำเภอ --</b-form-select-option>
+            </template>
+          </b-form-select>
+        </b-form-group>
+
+        <b-form-group label="ตำบล" label-for="edit-tambon">
+          <b-form-select
+            id="edit-tambon"
+            v-model="editForm.tam_code"
+            :options="filteredTambons"
+            value-field="tam_code"
+            text-field="tam_name"
+            :disabled="!editForm.amp_code"
+          >
+            <template #first>
+              <b-form-select-option :value="null">-- เลือกตำบล --</b-form-select-option>
+            </template>
+          </b-form-select>
         </b-form-group>
       </b-form>
       <template #modal-footer="{ ok, cancel }">
@@ -305,10 +318,7 @@
       header-class="modal-header-visit"
     >
       <b-form>
-        <div class="visit-staff-info">
-          <i class="fas fa-user-tie"></i>
-          <span><strong>STAFF:</strong> น.ส.สีเนาะ กาลานต</span>
-        </div>
+       
 
         <div class="visit-info-grid">
           <div class="info-item">
@@ -349,90 +359,60 @@
       </template>
     </b-modal>
 
-    <!-- Add Patient Modal -->
+    <!-- Visit History Modal -->
     <b-modal
-      id="addPatientModal"
-      v-model="showAddModal"
-      title="เพิ่มผู้รับบริการใหม่"
+      id="visitHistoryModal"
+      v-model="showVisitHistoryModal"
+      title="ประวัติการเยี่ยมบ้าน"
+      size="xl"
       no-close-on-backdrop
-      @ok="addNewPatient"
-      @hidden="resetAddForm"
+      @hidden="resetVisitHistoryForm"
+      header-class="modal-header-visit"
     >
-      <b-form @submit.prevent="addNewPatient">
-        <b-form-group 
-          label-for="add-name"
-          :invalid-feedback="addFormErrors.name"
-          :state="addFormErrors.name ? false : null"
-        >
-          <template #label>
-            ชื่อ-นามสกุล <span class="text-danger">*</span>
-          </template>
-          <b-form-input
-            id="add-name"
-            v-model.trim="addForm.name"
-            placeholder="ชื่อ-นามสกุล"
-            :state="addFormErrors.name ? false : null"
-            @input="clearAddError('name')"
-            @blur="validateAddName"
-          ></b-form-input>
-        </b-form-group>
-        <b-form-group 
-          label-for="add-nickname"
-          :invalid-feedback="addFormErrors.nickname"
-          :state="addFormErrors.nickname ? false : null"
-        >
-          <template #label>
-            ชื่อเล่น <span class="text-danger">*</span>
-          </template>
-          <b-form-input
-            id="add-nickname"
-            v-model.trim="addForm.nickname"
-            placeholder="ชื่อเล่น"
-            :state="addFormErrors.nickname ? false : null"
-            @input="clearAddError('nickname')"
-            @blur="validateAddNickname"
-          ></b-form-input>
-        </b-form-group>
-        <b-form-group 
-          label="เบอร์โทรศัพท์" 
-          label-for="add-phone"
-          :invalid-feedback="addFormErrors.phone"
-          :state="addFormErrors.phone ? false : null"
-        >
-          <b-form-input
-            id="add-phone"
-            v-model.trim="addForm.phone"
-            placeholder="เบอร์โทรศัพท์ (เช่น 081-234-5678)"
-            :state="addFormErrors.phone ? false : null"
-            @input="clearAddError('phone')"
-            @blur="validateAddPhone"
-          ></b-form-input>
-        </b-form-group>
-        <b-form-group 
-          label="ที่อยู่" 
-          label-for="add-address"
-          :invalid-feedback="addFormErrors.address"
-          :state="addFormErrors.address ? false : null"
-        >
-          <b-form-textarea
-            id="add-address"
-            v-model.trim="addForm.address"
-            placeholder="ที่อยู่"
-            rows="3"
-            :state="addFormErrors.address ? false : null"
-            @input="clearAddError('address')"
-          ></b-form-textarea>
-        </b-form-group>
-      </b-form>
-      <template #modal-footer="{ ok, cancel }">
+      <div class="visit-history-header">
+        <div class="patient-info-bar">
+          <i class="fas fa-user-circle"></i>
+          <span class="patient-name-large">{{ visitHistoryForm.patientName }}</span>
+          <span class="patient-nickname-badge">({{ visitHistoryForm.nickname }})</span>
+        </div>
+      </div>
+
+      <div v-if="visitHistoryForm.visits && visitHistoryForm.visits.length > 0" class="visit-history-list">
+        <div v-for="(visit, index) in visitHistoryForm.visits" :key="index" class="visit-history-row">
+          <div class="visit-card visit-card-date">
+            <i class="fas fa-calendar-day"></i>
+            <div class="visit-card-content">
+              <div class="visit-number-badge">{{ visit.visitNumber }}/{{ visitHistoryForm.totalVisits }}</div>
+              <div class="visit-date-text">{{ formatVisitDate(visit.date) }}</div>
+              <div class="visit-time-text">{{ visit.time }}</div>
+            </div>
+          </div>
+          
+          <div class="visit-card visit-card-action visit-card-edit-record" @click="editVisitRecord(visit)">
+            <i class="fas fa-edit"></i>
+            <span>แก้ไขบันทึกการเยี่ยม</span>
+          </div>
+
+          <div class="visit-card visit-card-action visit-card-edit-photos" @click="editVisitPhotos(visit)">
+            <i class="fas fa-images"></i>
+            <span>แก้ไขรูปภาพ</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty-visit-history">
+        <i class="fas fa-folder-open"></i>
+        <p>ยังไม่มีประวัติการเยี่ยมบ้าน</p>
+      </div>
+
+      <template #modal-footer="{ cancel }">
         <b-button variant="secondary" @click="cancel()">
-          ยกเลิก
-        </b-button>
-        <b-button variant="primary" @click="ok()">
-          บันทึก
+          <i class="fas fa-times"></i>
+          ปิด
         </b-button>
       </template>
     </b-modal>
+
   </div>
 </template>
 
@@ -442,76 +422,35 @@ export default {
   middleware: 'auth',
   data() {
     return {
-      patients: [
-        {
-          id: 1,
-          name: 'นายสมชาย ใจดี',
-          nickname: 'ชาย',
-          phone: '081-234-5678',
-          address: '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
-          appointmentDate: '2568-10-15',
-          appointmentTime: '09:00 น.'
-        },
-        {
-          id: 2,
-          name: 'นางสาวสมหญิง รักดี',
-          nickname: 'หญิง',
-          phone: '082-345-6789',
-          address: '456 ถนนพหลโยธิน แขวงสามเสนใน เขตพญาไท กรุงเทพฯ 10400',
-          appointmentDate: '2568-10-20',
-          appointmentTime: '14:00 น.'
-        },
-        {
-          id: 3,
-          name: 'นายวิชัย ทรงพล',
-          nickname: 'ชัย',
-          phone: '083-456-7890',
-          address: '789 ถนนรัชดาภิเษก แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพฯ 10320',
-          appointmentDate: null,
-          appointmentTime: null
-        },
-        {
-          id: 4,
-          name: 'นางพิมพ์ใจ สวยงาม',
-          nickname: 'พิม',
-          phone: '084-567-8901',
-          address: '321 ซอยสุขสวัสดิ์ แขวงบางมด เขตทุ่งครุ กรุงเทพฯ 10140',
-          appointmentDate: '2568-10-18',
-          appointmentTime: '10:00 น.'
-        },
-        {
-          id: 5,
-          name: 'นายประยุทธ์ มั่นคง',
-          nickname: 'ยุทธ์',
-          phone: '085-678-9012',
-          address: '654 ถนนพระราม 4 แขวงพระโขนง เขตคลองเตย กรุงเทพฯ 10110',
-          appointmentDate: null,
-          appointmentTime: null
-        },
-        {
-          id: 6,
-          name: 'นางสาวอรุณี สดใส',
-          nickname: 'อรุณ',
-          phone: '086-789-0123',
-          address: '987 ถนนศรีนครินทร์ แขวงหนองบอน เขตประเวศ กรุงเทพฯ 10250',
-          appointmentDate: '2568-10-22',
-          appointmentTime: '15:00 น.'
-        }
-      ],
+      visitors: [], // โหลดจาก IndexedDB table visitors
       loading: false,
       loadingMessage: 'กำลังโหลดข้อมูล...',
+      isSyncingQueue: false, // ป้องกันการ sync ซ้ำ
+      syncQueueTimeout: null, // สำหรับ debounce
       showEditModal: false,
       showAppointmentModal: false,
       showVisitModal: false,
+      showVisitHistoryModal: false,
       showAddModal: false,
       editForm: {
         id: null,
+        stid: null,
         name: '',
         nickname: '',
-        phone: '',
-        address: ''
+        tel: '', // ชื่อ field ตรงกับ database
+        address: '',
+        prov_code: null,
+        amp_code: null,
+        tam_code: null,
+        latitude: null,
+        longitude: null
       },
       editFormErrors: {},
+      provinces: [],
+      amphoes: [],
+      tambons: [],
+      filteredAmphoes: [],
+      filteredTambons: [],
       appointmentForm: {
         id: null,
         name: '',
@@ -528,10 +467,17 @@ export default {
         visitDate: '',
         startTime: '16:00 น.'
       },
+      visitHistoryForm: {
+        id: null,
+        patientName: '',
+        nickname: '',
+        visits: [],
+        totalVisits: 48
+      },
       addForm: {
         name: '',
         nickname: '',
-        phone: '',
+        tel: '',
         address: ''
       },
       addFormErrors: {},
@@ -567,10 +513,10 @@ export default {
   },
   computed: {
     scheduledCount() {
-      return this.patients.filter(p => p.appointmentDate).length
+      return this.visitors.filter(v => v.appointmentDate).length
     },
     pendingCount() {
-      return this.patients.filter(p => !p.appointmentDate).length
+      return this.visitors.filter(v => !v.appointmentDate).length
     },
     currentDayOptions() {
       // Calculate days in month based on selected month and year
@@ -586,10 +532,276 @@ export default {
       return this.generateDayOptions(daysInMonth)
     }
   },
-  mounted() {
+  async mounted() {
     this.initDateOptions()
+    this.updateVisitorsCount()
+    
+    // Initialize system
+    await this.initializeSystem()
+    
+    // Listen for sync-completed event
+    this.$nuxt.$on('sync-completed', this.handleSyncCompleted)
+    
+    // Listen for online status changes
+    window.addEventListener('online', this.handleOnlineStatusChange)
+    window.addEventListener('offline', this.handleOnlineStatusChange)
+  },
+  beforeDestroy() {
+    // Cleanup event listeners
+    this.$nuxt.$off('sync-completed', this.handleSyncCompleted)
+    window.removeEventListener('online', this.handleOnlineStatusChange)
+    window.removeEventListener('offline', this.handleOnlineStatusChange)
+    
+    // Clear timeout
+    if (this.syncQueueTimeout) {
+      clearTimeout(this.syncQueueTimeout)
+    }
+  },
+  watch: {
+    visitors: {
+      handler() {
+        this.updateVisitorsCount()
+      },
+      deep: true
+    },
+    '$store.state.isOnline'(newValue, oldValue) {
+      // เมื่อ online status เปลี่ยนจาก offline เป็น online
+      if (newValue && !oldValue) {
+        this.handleOnlineStatusChange()
+      }
+    }
   },
   methods: {
+    updateVisitorsCount() {
+      this.$store.commit('setPatientsCount', this.visitors.length)
+    },
+    async addToSyncQueue(item) {
+      try {
+        await this.$indexedDB.addToSyncQueue(item)
+      } catch (error) {
+        console.error('Failed to add to sync queue:', error)
+      }
+    },
+    async processSyncQueue() {
+      // ป้องกันการ sync ซ้ำ
+      if (this.isSyncingQueue) {
+        return
+      }
+      
+      if (!this.$store.state.isOnline) {
+        return
+      }
+      
+      this.isSyncingQueue = true
+      
+      try {
+        const queueItems = await this.$indexedDB.getSyncQueue()
+        
+        if (queueItems.length === 0) {
+          return
+        }
+        
+        let successCount = 0
+        let failCount = 0
+        
+        for (const item of queueItems) {
+          try {
+            if (item.type === 'UPDATE_VISITOR') {
+              // Sync to API
+              await this.$axios.$put(
+                '/api/parenting2025_census/put/homevisit/putdata_arr.php',
+                item.payload
+              )
+              
+              // Update visitor in IndexedDB to mark as synced
+              const existingVisitor = await this.$indexedDB.getVisitor(item.stid)
+              if (existingVisitor) {
+                await this.$indexedDB.updateVisitor({
+                  ...existingVisitor,
+                  ...item.data,
+                  dataSource: 'api',
+                  lastSyncedAt: new Date().toISOString()
+                })
+              }
+              
+              // Remove from queue
+              await this.$indexedDB.removeFromSyncQueue(item.id)
+              successCount++
+            }
+          } catch (error) {
+            console.error('Failed to sync item:', item, error)
+            failCount++
+          }
+        }
+        
+        if (successCount > 0) {
+          this.$toast.success(`ซิงค์ข้อมูลสำเร็จ ${successCount} รายการ`)
+          // Reload visitors to update UI
+          await this.loadVisitors()
+        }
+        
+        if (failCount > 0) {
+          this.$toast.warning(`ซิงค์ข้อมูลล้มเหลว ${failCount} รายการ`)
+        }
+      } catch (error) {
+        console.error('Process sync queue error:', error)
+      } finally {
+        // ปลดล็อกเมื่อเสร็จสิ้น
+        this.isSyncingQueue = false
+      }
+    },
+    handleOnlineStatusChange() {
+      if (this.$store.state.isOnline) {
+        // Clear timeout ก่อนหน้า (ถ้ามี)
+        if (this.syncQueueTimeout) {
+          clearTimeout(this.syncQueueTimeout)
+        }
+        
+        // Debounce: รอ 2 วินาทีก่อน process (ป้องกันการเรียกซ้ำจาก multiple events)
+        this.syncQueueTimeout = setTimeout(() => {
+          this.processSyncQueue()
+        }, 2000)
+      }
+    },
+    async initializeSystem() {
+      try {
+        this.loading = true
+        this.loadingMessage = 'กำลังเริ่มต้นระบบ...'
+        
+        // Initialize system via store action
+        await this.$store.dispatch('initializeSystem', this)
+        
+        // Load location data for dropdowns
+        await this.loadLocationData()
+        
+        // Sync visitors if online
+        if (this.$store.state.isOnline && this.$auth.user?.username) {
+          this.loadingMessage = 'กำลังซิงค์ข้อมูล...'
+          await this.$systemInit.syncVisitors(this.$auth.user.username)
+        }
+        
+        // Load visitors from IndexedDB
+        this.loadingMessage = 'กำลังโหลดข้อมูลผู้รับบริการ...'
+        await this.loadVisitors()
+        
+        this.loading = false
+      } catch (error) {
+        console.error('System initialization error:', error)
+        this.loading = false
+        this.$toast.error('เกิดข้อผิดพลาดในการเริ่มต้นระบบ')
+      }
+    },
+    async handleSyncCompleted() {
+      try {
+        await this.loadVisitors()
+      } catch (error) {
+        console.error('Failed to reload visitors:', error)
+        this.$toast.error('ไม่สามารถโหลดข้อมูลใหม่ได้')
+      }
+    },
+    async loadVisitors() {
+      try {
+        // Get current user's username
+        const username = this.$auth.user?.username || this.$offlineAuth?.getUser?.()?.username
+        
+        if (!username) {
+          console.warn('No username found, cannot load visitors')
+          return
+        }
+        
+        // Load visitors from IndexedDB
+        const visitors = await this.$indexedDB.getVisitorsByHomevisitor(username)
+        
+        // Map visitors data for UI
+        this.visitors = visitors.map(visitor => {
+          // สร้างชื่อเต็มจาก field ที่มี
+          let fullName = ''
+          if (visitor.stname) {
+            fullName = visitor.stname // ถ้ามีชื่อเต็มอยู่แล้ว
+          } else if (visitor.prename || visitor.fname || visitor.lname) {
+            fullName = `${visitor.prename || ''}${visitor.fname || ''} ${visitor.lname || ''}`.trim()
+          }
+          
+          return {
+            id: visitor.stid, // ใช้ stid เป็น id
+            stid: visitor.stid,
+            name: fullName,
+            nickname: visitor.nickname || '',
+            tel: visitor.tel || '', // ใช้ชื่อ field ตรงกับ database
+            address: visitor.address || '',
+            // แปลง location codes เป็น string เพื่อให้ v-model select ทำงานถูกต้อง
+            prov_code: visitor.prov_code ? String(visitor.prov_code) : null,
+            amp_code: visitor.amp_code ? String(visitor.amp_code) : null,
+            tam_code: visitor.tam_code ? String(visitor.tam_code) : null,
+            latitude: visitor.latitude || null,
+            longitude: visitor.longitude || null,
+            appointmentDate: visitor.appointmentDate || null, // จะเพิ่ม field นี้ภายหลัง
+            appointmentTime: visitor.appointmentTime || null,
+            dataSource: visitor.dataSource || 'api',
+            lastSyncedAt: visitor.lastSyncedAt || null
+          }
+        })
+      } catch (error) {
+        console.error('Failed to load visitors:', error)
+        this.$toast.error('ไม่สามารถโหลดข้อมูลผู้รับบริการได้')
+      }
+    },
+    async loadLocationData() {
+      try {
+        // Load provinces และแปลง prov_code เป็น string
+        const provincesData = await this.$indexedDB.getProvinces()
+        this.provinces = provincesData.map(p => ({
+          ...p,
+          prov_code: String(p.prov_code)
+        }))
+        
+        // Load amphoes และแปลง codes เป็น string
+        const amphoesData = await this.$indexedDB.getAmphoes()
+        this.amphoes = amphoesData.map(a => ({
+          ...a,
+          amp_code: String(a.amp_code),
+          prov_code: String(a.prov_code)
+        }))
+        
+        // Load tambons และแปลง codes เป็น string
+        const tambonsData = await this.$indexedDB.getTambons()
+        this.tambons = tambonsData.map(t => ({
+          ...t,
+          tam_code: String(t.tam_code),
+          amp_code: String(t.amp_code)
+        }))
+      } catch (error) {
+        console.error('Failed to load location data:', error)
+      }
+    },
+    onProvinceChange() {
+      // Filter amphoes based on selected province
+      if (this.editForm.prov_code) {
+        this.filteredAmphoes = this.amphoes.filter(
+          a => String(a.prov_code) === String(this.editForm.prov_code)
+        )
+      } else {
+        this.filteredAmphoes = []
+      }
+      
+      // Reset amphoe and tambon selection
+      this.editForm.amp_code = null
+      this.editForm.tam_code = null
+      this.filteredTambons = []
+    },
+    onAmphoeChange() {
+      // Filter tambons based on selected amphoe
+      if (this.editForm.amp_code) {
+        this.filteredTambons = this.tambons.filter(
+          t => String(t.amp_code) === String(this.editForm.amp_code)
+        )
+      } else {
+        this.filteredTambons = []
+      }
+      
+      // Reset tambon selection
+      this.editForm.tam_code = null
+    },
     initDateOptions() {
       // Generate year options (current year - 2 to current year + 2)
       const currentYear = new Date().getFullYear() + 543 // Thai Buddhist year
@@ -657,19 +869,19 @@ export default {
       }
     },
     // Edit Patient Form Validation
-    validateEditPhone() {
-      if (this.editForm.phone && this.editForm.phone.length > 0) {
+    validateEditTel() {
+      if (this.editForm.tel && this.editForm.tel.length > 0) {
         const phoneRegex = /^[0-9\-\s()]+$/
-        if (!phoneRegex.test(this.editForm.phone)) {
-          this.editFormErrors.phone = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง'
+        if (!phoneRegex.test(this.editForm.tel)) {
+          this.editFormErrors.tel = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง'
           return false
         }
-        if (this.editForm.phone.replace(/[^0-9]/g, '').length < 9) {
-          this.editFormErrors.phone = 'เบอร์โทรศัพท์ต้องมีอย่างน้อย 9 หลัก'
+        if (this.editForm.tel.replace(/[^0-9]/g, '').length < 9) {
+          this.editFormErrors.tel = 'เบอร์โทรศัพท์ต้องมีอย่างน้อย 9 หลัก'
           return false
         }
       }
-      delete this.editFormErrors.phone
+      delete this.editFormErrors.tel
       return true
     },
     validateEditAddress() {
@@ -687,52 +899,188 @@ export default {
     },
     validateEditForm() {
       this.editFormErrors = {}
-      const phoneValid = this.validateEditPhone()
+      const telValid = this.validateEditTel()
       const addressValid = this.validateEditAddress()
-      return phoneValid && addressValid
+      return telValid && addressValid
     },
     editPatient(patient) {
       this.editForm = {
         id: patient.id,
+        stid: patient.stid || null,
         name: patient.name,
         nickname: patient.nickname,
-        phone: patient.phone || '',
-        address: patient.address || ''
+        tel: patient.tel || '',
+        address: patient.address || '',
+        prov_code: patient.prov_code || null,
+        amp_code: patient.amp_code || null,
+        tam_code: patient.tam_code || null,
+        latitude: patient.latitude || null,
+        longitude: patient.longitude || null
       }
+      
+      // Populate filtered dropdowns based on existing selection
+      if (this.editForm.prov_code) {
+        this.filteredAmphoes = this.amphoes.filter(
+          a => String(a.prov_code) === String(this.editForm.prov_code)
+        )
+      } else {
+        this.filteredAmphoes = []
+      }
+      
+      if (this.editForm.amp_code) {
+        this.filteredTambons = this.tambons.filter(
+          t => String(t.amp_code) === String(this.editForm.amp_code)
+        )
+      } else {
+        this.filteredTambons = []
+      }
+      
       this.editFormErrors = {}
       this.showEditModal = true
     },
-    savePatientEdit(bvModalEvt) {
+    async savePatientEdit(bvModalEvt) {
       bvModalEvt.preventDefault()
       
       if (!this.validateEditForm()) {
         return
       }
       
-      // Update patient in local array
-      const patientIndex = this.patients.findIndex(p => p.id === this.editForm.id)
-      if (patientIndex !== -1) {
-        this.patients[patientIndex] = {
-          ...this.patients[patientIndex],
-          phone: this.editForm.phone,
-          address: this.editForm.address
+      try {
+        // Update visitor in local array
+        const visitorIndex = this.visitors.findIndex(v => v.id === this.editForm.id)
+        if (visitorIndex !== -1) {
+          this.visitors[visitorIndex] = {
+            ...this.visitors[visitorIndex],
+            tel: this.editForm.tel,
+            address: this.editForm.address,
+            prov_code: this.editForm.prov_code,
+            amp_code: this.editForm.amp_code,
+            tam_code: this.editForm.tam_code,
+            latitude: this.editForm.latitude,
+            longitude: this.editForm.longitude
+          }
         }
-      }
         
+        // Save to IndexedDB if stid exists (visitor data)
+        if (this.editForm.stid) {
+          const visitorData = {
+            stid: this.editForm.stid,
+            tel: this.editForm.tel || null,
+            address: this.editForm.address || null,
+            prov_code: this.editForm.prov_code || null,
+            amp_code: this.editForm.amp_code || null,
+            tam_code: this.editForm.tam_code || null,
+            latitude: this.editForm.latitude || null,
+            longitude: this.editForm.longitude || null,
+            dataSource: 'local',
+            lastSyncedAt: new Date().toISOString()
+          }
+          
+          // Get existing visitor data
+          const existingVisitor = await this.$indexedDB.getVisitor(this.editForm.stid)
+          if (existingVisitor) {
+            // Merge with existing data
+            await this.$indexedDB.updateVisitor({
+              ...existingVisitor,
+              ...visitorData
+            })
+          }
+          
+          // If online, sync to API
+          if (this.$store.state.isOnline) {
+            try {
+              const payload = {
+                variable: [['tel', 'address', 'prov_code', 'amp_code', 'tam_code', 'latitude', 'longitude']],
+                value: [[
+                  this.editForm.tel || '',
+                  this.editForm.address || '',
+                  this.editForm.prov_code || '',
+                  this.editForm.amp_code || '',
+                  this.editForm.tam_code || '',
+                  this.editForm.latitude || '',
+                  this.editForm.longitude || ''
+                ]],
+                pk: [['stid']],
+                pkval: [[this.editForm.stid]],
+                tb: 'homevisitor_sample_students'
+              }
+              
+              await this.$axios.$put(
+                '/api/parenting2025_census/put/homevisit/putdata_arr.php',
+                payload
+              )
+              
+              // Update to mark as synced
+              if (existingVisitor) {
+                await this.$indexedDB.updateVisitor({
+                  ...existingVisitor,
+                  ...visitorData,
+                  dataSource: 'api',
+                  lastSyncedAt: new Date().toISOString()
+                })
+              }
+              
+              this.$toast.success('บันทึกและซิงค์ข้อมูลสำเร็จ')
+            } catch (apiError) {
+              console.error('API sync failed:', apiError)
+              this.$toast.warning('บันทึกข้อมูลสำเร็จ แต่ยังไม่ได้ซิงค์กับเซิร์ฟเวอร์')
+            }
+          } else {
+            // เก็บไว้ใน sync queue เพื่อ sync ภายหลังเมื่อ online
+            await this.addToSyncQueue({
+              type: 'UPDATE_VISITOR',
+              stid: this.editForm.stid,
+              data: visitorData,
+              payload: {
+                variable: [['tel', 'address', 'prov_code', 'amp_code', 'tam_code', 'latitude', 'longitude']],
+                value: [[
+                  this.editForm.tel || '',
+                  this.editForm.address || '',
+                  this.editForm.prov_code || '',
+                  this.editForm.amp_code || '',
+                  this.editForm.tam_code || '',
+                  this.editForm.latitude || '',
+                  this.editForm.longitude || ''
+                ]],
+                pk: [['stid']],
+                pkval: [[this.editForm.stid]],
+                tb: 'homevisitor_sample_students'
+              },
+              timestamp: new Date().toISOString()
+            })
+            this.$toast.success('บันทึกข้อมูลสำเร็จ (จะซิงค์เมื่อออนไลน์)')
+          }
+        } else {
         this.$toast.success('บันทึกข้อมูลสำเร็จ')
+        }
+        
+        // Reload visitors from IndexedDB to update UI
+        await this.loadVisitors()
         
         this.$nextTick(() => {
           this.showEditModal = false
         })
+      } catch (error) {
+        console.error('Save patient edit error:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล')
+      }
     },
     resetEditForm() {
       this.editForm = {
         id: null,
+        stid: null,
         name: '',
         nickname: '',
-        phone: '',
-        address: ''
+        tel: '',
+        address: '',
+        prov_code: null,
+        amp_code: null,
+        tam_code: null,
+        latitude: null,
+        longitude: null
       }
+      this.filteredAmphoes = []
+      this.filteredTambons = []
       this.editFormErrors = {}
     },
     // Appointment Form Validation
@@ -821,11 +1169,11 @@ export default {
         return
       }
       
-      // Update patient in local array
-        const patient = this.patients.find(p => p.id === this.appointmentForm.id)
-        if (patient) {
-          patient.appointmentDate = `${this.appointmentForm.year}-${String(this.appointmentForm.month).padStart(2, '0')}-${String(this.appointmentForm.day).padStart(2, '0')}`
-          patient.appointmentTime = this.appointmentForm.time
+      // Update visitor in local array
+        const visitor = this.visitors.find(v => v.id === this.appointmentForm.id)
+        if (visitor) {
+          visitor.appointmentDate = `${this.appointmentForm.year}-${String(this.appointmentForm.month).padStart(2, '0')}-${String(this.appointmentForm.day).padStart(2, '0')}`
+          visitor.appointmentTime = this.appointmentForm.time
           
           this.$toast.success('บันทึกนัดหมายสำเร็จ')
           
@@ -882,7 +1230,70 @@ export default {
     continueToSurvey() {
       // Close modal and go to survey
       this.showVisitModal = false
-      this.goToSurvey(this.patients.find(p => p.id === this.visitForm.id))
+      this.goToSurvey(this.visitors.find(v => v.id === this.visitForm.id))
+    },
+    // Visit History Modal
+    showVisitHistory(patient) {
+      // Demo: สร้างข้อมูลตัวอย่างการเยี่ยมบ้าน
+      const demoVisits = [
+        {
+          id: 1,
+          date: '2568-10-01',
+          time: '09:00 น.',
+          patientId: patient.id,
+          visitNumber: 3
+        },
+        {
+          id: 2,
+          date: '2568-09-15',
+          time: '14:00 น.',
+          patientId: patient.id,
+          visitNumber: 2
+        },
+        {
+          id: 3,
+          date: '2568-09-01',
+          time: '10:30 น.',
+          patientId: patient.id,
+          visitNumber: 1
+        }
+      ]
+      
+      this.visitHistoryForm = {
+        id: patient.id,
+        patientName: patient.name,
+        nickname: patient.nickname,
+        visits: demoVisits,
+        totalVisits: 48
+      }
+      this.showVisitHistoryModal = true
+    },
+    resetVisitHistoryForm() {
+      this.visitHistoryForm = {
+        id: null,
+        patientName: '',
+        nickname: '',
+        visits: [],
+        totalVisits: 48
+      }
+    },
+    formatVisitDate(dateStr) {
+      if (!dateStr) return ''
+      
+      const date = new Date(dateStr)
+      const day = date.getDate()
+      const month = this.getThaiMonthFull(date.getMonth())
+      const year = date.getFullYear() + 543
+      
+      return `${day} ${month} ${year}`
+    },
+    editVisitRecord(visit) {
+      // TODO: เปิดหน้าแก้ไขบันทึกการเยี่ยม
+      this.$toast.info('เปิดหน้าแก้ไขบันทึกการเยี่ยม')
+    },
+    editVisitPhotos(visit) {
+      // TODO: เปิดหน้าแก้ไขรูปภาพ
+      this.$toast.info('เปิดหน้าแก้ไขรูปภาพ')
     },
     // Add Patient Form Validation
     validateAddName() {
@@ -917,19 +1328,19 @@ export default {
       delete this.addFormErrors.nickname
       return true
     },
-    validateAddPhone() {
-      if (this.addForm.phone && this.addForm.phone.length > 0) {
+    validateAddTel() {
+      if (this.addForm.tel && this.addForm.tel.length > 0) {
         const phoneRegex = /^[0-9\-\s()]+$/
-        if (!phoneRegex.test(this.addForm.phone)) {
-          this.addFormErrors.phone = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง'
+        if (!phoneRegex.test(this.addForm.tel)) {
+          this.addFormErrors.tel = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง'
           return false
         }
-        if (this.addForm.phone.replace(/[^0-9]/g, '').length < 9) {
-          this.addFormErrors.phone = 'เบอร์โทรศัพท์ต้องมีอย่างน้อย 9 หลัก'
+        if (this.addForm.tel.replace(/[^0-9]/g, '').length < 9) {
+          this.addFormErrors.tel = 'เบอร์โทรศัพท์ต้องมีอย่างน้อย 9 หลัก'
           return false
         }
       }
-      delete this.addFormErrors.phone
+      delete this.addFormErrors.tel
       return true
     },
     validateAddAddress() {
@@ -949,9 +1360,9 @@ export default {
       this.addFormErrors = {}
       const nameValid = this.validateAddName()
       const nicknameValid = this.validateAddNickname()
-      const phoneValid = this.validateAddPhone()
+      const telValid = this.validateAddTel()
       const addressValid = this.validateAddAddress()
-      return nameValid && nicknameValid && phoneValid && addressValid
+      return nameValid && nicknameValid && telValid && addressValid
     },
     showAddPatientModal() {
       this.addFormErrors = {}
@@ -964,13 +1375,13 @@ export default {
         return
       }
       
-      // Add patient to local array
-      const newId = Math.max(...this.patients.map(p => p.id), 0) + 1
-      this.patients.push({
+      // Add visitor to local array
+      const newId = Math.max(...this.visitors.map(v => v.id), 0) + 1
+      this.visitors.push({
         id: newId,
           name: this.addForm.name,
           nickname: this.addForm.nickname,
-          phone: this.addForm.phone,
+          tel: this.addForm.tel,
           address: this.addForm.address,
           appointmentDate: null,
           appointmentTime: null
@@ -986,7 +1397,7 @@ export default {
       this.addForm = {
         name: '',
         nickname: '',
-        phone: '',
+        tel: '',
         address: ''
       }
       this.addFormErrors = {}
@@ -1001,10 +1412,27 @@ export default {
       
       return `${day} ${month} ${year} ${timeStr || ''}`
     },
+    formatAppointmentDateShort(dateStr, timeStr) {
+      if (!dateStr) return ''
+      
+      const date = new Date(dateStr)
+      const day = date.getDate()
+      const month = this.getThaiMonthFull(date.getMonth())
+      const year = (date.getFullYear() + 543).toString().slice(-2)
+      
+      return `อา. ${day} ${month}. ${year}`
+    },
     getThaiMonth(monthIndex) {
       const thaiMonths = [
         'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
         'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+      ]
+      return thaiMonths[monthIndex]
+    },
+    getThaiMonthFull(monthIndex) {
+      const thaiMonths = [
+        'ม.ค', 'ก.พ', 'มี.ค', 'เม.ย', 'พ.ค', 'มิ.ย',
+        'ก.ค', 'ส.ค', 'ก.ย', 'ต.ค', 'พ.ย', 'ธ.ค'
       ]
       return thaiMonths[monthIndex]
     }
@@ -1124,7 +1552,7 @@ export default {
 
 .stat-number {
   font-size: 2rem;
-  font-weight: 600;
+  font-weight: 500;
   color: #2c3e50;
   line-height: 1;
   margin-bottom: 0.25rem;
@@ -1144,28 +1572,8 @@ export default {
   overflow: hidden;
 }
 
-.patients-header {
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  padding: 1.5rem;
-  border-bottom: 1px solid #dee2e6;
-}
-
-.patients-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: #2c3e50;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.patients-title i {
-  color: #3551a4;
-}
-
 .patients-body {
-  padding: 1.5rem;
+  padding: 1rem;
 }
 
 /* Empty State */
@@ -1176,14 +1584,194 @@ export default {
 }
 
 .empty-state i {
-  font-size: 4rem;
+  font-size: 4.4rem;
   color: #dee2e6;
   margin-bottom: 1rem;
 }
 
 .empty-state p {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  font-weight: 300;
   margin-bottom: 1.5rem;
+}
+
+/* Patients Grid */
+.patients-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Grid Header */
+.grid-header-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.grid-header-col {
+  background: transparent;
+  border-bottom: 2px solid #dee2e6;
+  padding: 1.2rem 1rem;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: #2c3e50;
+}
+
+.patient-card-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.card-col {
+  border: 2px solid #2c3e50;
+  border-radius: 0.75rem;
+  padding: 1.6rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  min-height: 150px;
+  font-weight: 400;
+}
+
+.card-col:hover {
+  border-color: #3551a4;
+}
+
+/* Name Card */
+.card-col-name {
+  background: #ffffff;
+  border: 2px solid #3551a4;
+  cursor: pointer;
+}
+
+.card-col-name:hover {
+  background: #f0f7ff;
+  border-color: #2c4088;
+}
+
+.card-name {
+  font-size: 1.45rem;
+  color: #2c3e50;
+  margin-bottom: 0.3rem;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.card-nickname {
+  font-size: 1.25rem;
+  color: #6c757d;
+  font-weight: 300;
+}
+
+/* Appointment Card */
+.card-col-appointment {
+  font-size: 1.2rem;
+  line-height: 1.5;
+}
+
+.card-col-appointment.has-appointment {
+  background: #28a745;
+  color: white;
+  border-color: #1e7e34;
+}
+
+.card-col-appointment.has-appointment:hover {
+  background: #218838;
+  border-color: #1e7e34;
+}
+
+.card-col-appointment.no-appointment {
+  background: #ffc107;
+  color: #333;
+  border-color: #ff9800;
+}
+
+.card-col-appointment.no-appointment:hover {
+  background: #e0a800;
+  border-color: #d39e00;
+}
+
+.appointment-date {
+  white-space: pre-line;
+  font-size: 1.4rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.appointment-time {
+  font-size: 1.4rem;
+  font-weight: 300;
+}
+
+.appointment-placeholder {
+  font-size: 1.4rem;
+  font-weight: 300;
+}
+
+/* Visit Card */
+.card-col-visit {
+  font-size: 1.2rem;
+}
+
+.card-col-visit.visit-ready {
+  background: #17a2b8;
+  color: white;
+  border-color: #138496;
+}
+
+.card-col-visit.visit-ready:hover {
+  background: #138496;
+  border-color: #117a8b;
+}
+
+.card-col-visit.visit-disabled {
+  background: #e9ecef;
+  color: #6c757d;
+  border-color: #adb5bd;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.card-col-visit.visit-disabled:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.visit-text {
+  font-size: 1.4rem;
+  font-weight: 400;
+}
+
+.visit-text-disabled {
+  font-size: 1.4rem;
+  line-height: 1.6;
+  font-weight: 300;
+}
+
+/* Edit Card */
+.card-col-edit {
+  background: #6c757d;
+  color: white;
+  border-color: #495057;
+}
+
+.card-col-edit:hover {
+  background: #5a6268;
+  border-color: #545b62;
+}
+
+.edit-text {
+  font-size: 1.4rem;
+  font-weight: 400;
 }
 
 /* Patients Table */
@@ -1204,7 +1792,7 @@ export default {
 .patients-table th {
   padding: 1rem;
   text-align: left;
-  font-weight: 600;
+  font-weight: 500;
   color: #495057;
   font-size: 0.9rem;
   text-transform: uppercase;
@@ -1370,7 +1958,7 @@ export default {
 .card-title {
   margin: 0;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 500;
   color: #2c3e50;
 }
 
@@ -1405,7 +1993,7 @@ export default {
   vertical-align: bottom;
   border-bottom: 2px solid #dee2e6;
   background-color: #f8f9fa;
-  font-weight: 600;
+  font-weight: 500;
   color: #495057;
 }
 
@@ -1439,48 +2027,170 @@ export default {
   color: #fff;
 }
 
-.modal-header-custom {
-  background-color: #003d7a;
+/* Modal Improvements */
+::v-deep .modal-dialog {
+  max-width: 650px;
+}
+
+::v-deep .modal-dialog.modal-lg {
+  max-width: 950px;
+}
+
+::v-deep .modal-content {
+  border-radius: 1rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+::v-deep .modal-header {
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+::v-deep .modal-title {
+  font-size: 1.65rem;
+  font-weight: 400;
+  color: #2c3e50;
+}
+
+::v-deep .modal-body {
+  padding: 2rem;
+}
+
+::v-deep .modal-footer {
+  padding: 1.25rem 2rem;
+  border-top: 2px solid #e9ecef;
+}
+
+/* Form Controls in Modal */
+::v-deep .form-group {
+  margin-bottom: 1.75rem;
+}
+
+::v-deep .form-group label {
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: #2c3e50;
+  margin-bottom: 0.75rem;
+}
+
+::v-deep .form-control,
+::v-deep .custom-select {
+  font-size: 1.2rem;
+  padding: 0.975rem 1.1rem;
+  border: 2px solid #ced4da;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+  font-weight: 300;
+}
+
+::v-deep .form-control:focus,
+::v-deep .custom-select:focus {
+  border-color: #3551a4;
+  box-shadow: 0 0 0 0.2rem rgba(53, 81, 164, 0.15);
+}
+
+::v-deep .form-control:disabled {
+  background-color: #f8f9fa;
+  font-weight: 400;
+}
+
+::v-deep textarea.form-control {
+  min-height: 120px;
+}
+
+::v-deep .invalid-feedback {
+  font-size: 1.1rem;
+  font-weight: 400;
+  margin-top: 0.5rem;
+}
+
+/* Modal Buttons */
+::v-deep .modal-footer .btn {
+  font-size: 1.25rem;
+  font-weight: 400;
+  padding: 0.975rem 2.2rem;
+  border-radius: 0.5rem;
+  border: none;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+::v-deep .modal-footer .btn-primary {
+  background: linear-gradient(135deg, #3551a4, #2c4088);
   color: white;
+}
+
+::v-deep .modal-footer .btn-primary:hover {
+  background: linear-gradient(135deg, #2c4088, #1f2f5f);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(53, 81, 164, 0.3);
+}
+
+::v-deep .modal-footer .btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+::v-deep .modal-footer .btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+.modal-header-custom {
+  background: linear-gradient(135deg, #3551a4, #2c4088) !important;
+  color: white !important;
+  border-bottom: none !important;
+}
+
+.modal-header-custom .modal-title {
+  color: white !important;
+  font-size: 1.75rem !important;
+  font-weight: 400 !important;
 }
 
 .modal-header-visit {
-  background: linear-gradient(135deg, #3551a4, #2c4088);
-  color: white;
-  border-bottom: none;
+  background: linear-gradient(135deg, #3551a4, #2c4088) !important;
+  color: white !important;
+  border-bottom: none !important;
 }
 
 .modal-header-visit .modal-title {
-  font-weight: 600;
+  color: white !important;
+  font-size: 1.75rem !important;
+  font-weight: 400 !important;
 }
 
 .visit-staff-info {
   background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-  padding: 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
   color: #1976d2;
-  font-size: 0.95rem;
+  font-size: 1.15rem;
+  font-weight: 500;
+  border: 2px solid #90caf9;
 }
 
 .visit-staff-info i {
-  font-size: 1.2rem;
+  font-size: 1.5rem;
 }
 
 .visit-info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.25rem;
-  margin-bottom: 1rem;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .info-item.full-width {
@@ -1488,65 +2198,77 @@ export default {
 }
 
 .info-item label {
-  font-weight: 600;
-  color: #495057;
-  font-size: 0.9rem;
+  font-weight: 400;
+  color: #2c3e50;
+  font-size: 1.2rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .info-item label i {
   color: #3551a4;
-  font-size: 0.95rem;
+  font-size: 1.3rem;
 }
 
 .info-value {
   background: #f8f9fa;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  border: 1px solid #dee2e6;
+  padding: 1.1rem 1.35rem;
+  border-radius: 0.5rem;
+  border: 2px solid #dee2e6;
   color: #2c3e50;
-  font-weight: 500;
+  font-weight: 400;
+  font-size: 1.2rem;
 }
 
 .custom-select-visit {
-  /* padding: 0 0.875rem; */
-  /* border: 2px solid #dee2e6; */
-  /* border-radius: 0.75rem; */
-  font-size: 1.2rem;
-  height: 50px;
-  color: #495057;
-  font-weight: 500;
-  background-color: white;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  font-size: 1.35rem !important;
+  height: 62px !important;
+  padding: 0.975rem 1.1rem !important;
+  color: #2c3e50 !important;
+  font-weight: 400 !important;
+  background-color: white !important;
+  border: 2px solid #ced4da !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
 }
 
 .custom-select-visit:focus {
-  border-color: #3551a4;
-  outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(53, 81, 164, 0.15);
+  border-color: #3551a4 !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 0.2rem rgba(53, 81, 164, 0.15) !important;
 }
 
 .appointment-info {
-  background-color: #f8f9fa;
-  padding: 1rem;
-  border-radius: 0.375rem;
-  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+  padding: 1.35rem 1.6rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
   text-align: center;
+  border: 2px solid #ffc107;
+}
+
+.appointment-info p {
+  font-size: 1.3rem !important;
+  font-weight: 400 !important;
+  color: #856404 !important;
+  margin: 0 !important;
 }
 
 .info-section {
-  background-color: #f8f9fa;
-  padding: 1rem;
-  border-radius: 0.375rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  padding: 1.35rem 1.6rem;
+  border-radius: 0.75rem;
   margin-bottom: 1rem;
-  min-height: 120px;
+  min-height: 140px;
+  border: 2px solid #dee2e6;
 }
 
 .info-section h6 {
-  margin-bottom: 0.5rem;
-  color: #003d7a;
+  margin-bottom: 0.8rem;
+  color: #3551a4;
+  font-size: 1.25rem;
+  font-weight: 400;
 }
 
 .info-section ul {
@@ -1554,125 +2276,194 @@ export default {
 }
 
 .info-section ul li {
-  line-height: 1.5;
-}
-
-/* Custom Bootstrap Vue Modal styles */
-.modal-dialog {
-  max-width: 600px;
-}
-
-.modal-dialog.modal-lg {
-  max-width: 900px;
-}
-
-.modal-dialog.modal-xl {
-  max-width: 1200px;
+  line-height: 1.8;
+  font-size: 1.15rem;
+  font-weight: 300;
+  color: #495057;
 }
 
 .text-danger {
   color: #dc3545;
+  font-weight: 500;
+  font-size: 1rem;
 }
 
-/* Responsive Styles */
-@media (max-width: 768px) {
-  .welcome-section {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
-  }
-  
-  .welcome-title {
-    font-size: 1.4rem;
-    justify-content: center;
-  }
-  
-  .welcome-subtitle {
-    font-size: 0.95rem;
-  }
-  
-  .btn-add-patient {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .stats-container {
-    grid-template-columns: 1fr;
-  }
-  
-  .patients-table {
-    font-size: 0.875rem;
-  }
-  
-  .patients-table th,
-  .patients-table td {
-    padding: 0.75rem 0.5rem;
-  }
-  
-  .appointment-btn,
-  .action-btn {
-    font-size: 0.85rem;
-    padding: 0.5rem 0.75rem;
-  }
-  
-  .action-buttons-group {
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  
-  .action-btn span {
-    display: none;
-  }
-  
-  .card-body {
-    padding: 1rem;
-  }
-  
-  .visit-info-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .visit-staff-info {
-    font-size: 0.85rem;
-  }
+/* Visit History Modal */
+.visit-history-header {
+  margin-bottom: 2rem;
 }
 
-@media (max-width: 480px) {
-  .welcome-section {
-    padding: 1.5rem;
-  }
-  
-  .welcome-title {
-    font-size: 1.2rem;
-  }
-  
-  .stat-card {
-    padding: 1rem;
-  }
-  
-  .stat-icon {
-    width: 50px;
-    height: 50px;
-    font-size: 1.5rem;
-  }
-  
-  .stat-number {
-    font-size: 1.75rem;
-  }
-  
-  .stat-label {
-    font-size: 0.85rem;
-  }
-  
-  .patients-table th,
-  .patients-table td {
-    padding: 0.5rem 0.25rem;
-  }
-  
-  .nickname-badge {
-    font-size: 0.8rem;
-    padding: 0.3rem 0.5rem;
-  }
+.patient-info-bar {
+  background: linear-gradient(135deg, #3551a4, #2c4088);
+  padding: 1.35rem 1.85rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  color: white;
+  box-shadow: 0 4px 12px rgba(53, 81, 164, 0.3);
 }
+
+.patient-info-bar i {
+  font-size: 2.2rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.patient-name-large {
+  font-size: 1.55rem;
+  font-weight: 400;
+  color: white;
+}
+
+.patient-nickname-badge {
+  font-size: 1.3rem;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.85);
+  margin-left: 0.5rem;
+}
+
+.visit-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.visit-history-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.2fr;
+  gap: 0.75rem;
+}
+
+.visit-card {
+  border: 2px solid #2c3e50;
+  border-radius: 0.75rem;
+  padding: 1.6rem 1.35rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  transition: all 0.3s ease;
+  min-height: 130px;
+  font-weight: 400;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+.visit-card i {
+  font-size: 1.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.visit-card span {
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.visit-card-date {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 2px solid #3551a4;
+  cursor: default;
+}
+
+.visit-card-date:hover {
+  box-shadow: 0 3px 10px rgba(53, 81, 164, 0.2);
+  border-color: #3551a4;
+}
+
+.visit-card-date i {
+  color: #3551a4;
+  font-size: 2.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.visit-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.visit-number-badge {
+  background: linear-gradient(135deg, #3551a4, #2c4088);
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 1.5rem;
+  font-size: 1rem;
+  font-weight: 400;
+  margin-bottom: 0.25rem;
+  box-shadow: 0 2px 6px rgba(53, 81, 164, 0.3);
+}
+
+.visit-date-text {
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: #2c3e50;
+}
+
+.visit-time-text {
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: #6c757d;
+}
+
+.visit-card-action {
+  cursor: pointer;
+}
+
+.visit-card-action:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  border-color: #3551a4;
+}
+
+.visit-card-edit-record {
+  background: linear-gradient(135deg, #17a2b8 0%, #20c9e3 100%);
+  color: white;
+  border-color: #138496;
+}
+
+.visit-card-edit-record:hover {
+  background: linear-gradient(135deg, #20c9e3 0%, #17a2b8 100%);
+  border-color: #17a2b8;
+}
+
+.visit-card-edit-record i {
+  color: white;
+}
+
+.visit-card-edit-photos {
+  background: linear-gradient(135deg, #ffc107 0%, #ffcd39 100%);
+  color: #333;
+  border-color: #ff9800;
+}
+
+.visit-card-edit-photos:hover {
+  background: linear-gradient(135deg, #ffcd39 0%, #ffc107 100%);
+  border-color: #ffc107;
+}
+
+.visit-card-edit-photos i {
+  color: #333;
+}
+
+.empty-visit-history {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6c757d;
+}
+
+.empty-visit-history i {
+  font-size: 5.5rem;
+  color: #dee2e6;
+  margin-bottom: 1.5rem;
+}
+
+.empty-visit-history p {
+  font-size: 1.35rem;
+  font-weight: 300;
+  margin: 0;
+}
+
+
 </style>

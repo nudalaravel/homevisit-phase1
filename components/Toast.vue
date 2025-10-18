@@ -137,7 +137,7 @@ export default {
 }
 
 .toast-title {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 1rem;
   color: #2c3e50;
   margin-bottom: 0.25rem;

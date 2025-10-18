@@ -4,6 +4,11 @@ export const state = () => ({
   syncQueue: [],
   lastSyncTime: null,
   cacheEnabled: process.env.ENABLE_CACHE === "true",
+  patientsCount: 0,
+  isSyncing: false,
+  systemInitialized: false,
+  lastVisitorsSync: null,
+  lastActivitiesUpdate: null,
 });
 
 export const mutations = {
@@ -19,6 +24,21 @@ export const mutations = {
   },
   setCacheEnabled(state, enabled) {
     state.cacheEnabled = enabled;
+  },
+  setPatientsCount(state, count) {
+    state.patientsCount = count;
+  },
+  setIsSyncing(state, status) {
+    state.isSyncing = status;
+  },
+  setSystemInitialized(state, status) {
+    state.systemInitialized = status;
+  },
+  setLastVisitorsSync(state, time) {
+    state.lastVisitorsSync = time;
+  },
+  setLastActivitiesUpdate(state, time) {
+    state.lastActivitiesUpdate = time;
   },
 };
 
@@ -44,6 +64,75 @@ export const actions = {
       this.$offline.addToSyncQueue(action, data);
     }
   },
+
+  async initializeSystem({ commit }, app) {
+    try {
+      const success = await app.$systemInit.initialize();
+      commit("setSystemInitialized", success);
+      return success;
+    } catch (error) {
+      console.error("System initialization failed:", error);
+      commit("setSystemInitialized", false);
+      return false;
+    }
+  },
+
+  async manualSync({ commit, state, rootState }, app) {
+    if (!state.isOnline) {
+      return {
+        success: false,
+        message: "ไม่สามารถซิงค์ได้ เนื่องจากไม่มีอินเทอร์เน็ต",
+      };
+    }
+
+    if (state.isSyncing) {
+      return {
+        success: false,
+        message: "กำลังซิงค์ข้อมูลอยู่ กรุณารอสักครู่",
+      };
+    }
+
+    commit("setIsSyncing", true);
+
+    try {
+      // ดึง username จาก auth (ใช้ rootState หรือ app context)
+      const username =
+        rootState.auth?.user?.username ||
+        app.$auth?.user?.username ||
+        app.$offlineAuth?.getUser?.()?.username;
+
+      if (!username) {
+        throw new Error("ไม่พบข้อมูลผู้ใช้");
+      }
+
+      // ซิงค์ผู้รับบริการ
+      const visitorsSuccess = await app.$systemInit.syncVisitors(username);
+
+      if (visitorsSuccess) {
+        const syncTime = new Date().toISOString();
+        commit("setLastVisitorsSync", syncTime);
+        commit("setLastSyncTime", syncTime);
+      }
+
+      // อัพเดทกิจกรรม
+      await app.$systemInit.updateActivitiesFromAPI();
+      commit("setLastActivitiesUpdate", new Date().toISOString());
+
+      commit("setIsSyncing", false);
+
+      return {
+        success: true,
+        message: "ซิงค์ข้อมูลสำเร็จ",
+      };
+    } catch (error) {
+      commit("setIsSyncing", false);
+      console.error("Manual sync failed:", error);
+      return {
+        success: false,
+        message: error.message || "เกิดข้อผิดพลาดในการซิงค์ข้อมูล",
+      };
+    }
+  },
 };
 
 export const getters = {
@@ -55,5 +144,10 @@ export const getters = {
     queueLength: state.syncQueue.length,
     lastSync: state.lastSyncTime,
     cacheEnabled: state.cacheEnabled,
+    isSyncing: state.isSyncing,
+    lastVisitorsSync: state.lastVisitorsSync,
+    lastActivitiesUpdate: state.lastActivitiesUpdate,
   }),
+  isSystemInitialized: (state) => state.systemInitialized,
+  isSyncing: (state) => state.isSyncing,
 };

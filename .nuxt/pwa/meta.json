@@ -1,5 +1,5 @@
 {
-  "title": "Riped V2 Admin",
+  "title": "Riped V2 Research",
   "meta": [
     {
       "hid": "charset",
@@ -18,7 +18,7 @@
     {
       "hid": "apple-mobile-web-app-title",
       "name": "apple-mobile-web-app-title",
-      "content": "Riped V2 Admin"
+      "content": "Riped V2 Research"
     },
     {
       "hid": "author",
@@ -28,7 +28,7 @@
     {
       "hid": "description",
       "name": "description",
-      "content": "Admin Dashboard Template"
+      "content": "Research Dashboard Template"
     },
     {
       "hid": "theme-color",
@@ -45,19 +45,19 @@
       "hid": "og:title",
       "name": "og:title",
       "property": "og:title",
-      "content": "Riped V2 Admin"
+      "content": "Riped V2 Research"
     },
     {
       "hid": "og:site_name",
       "name": "og:site_name",
       "property": "og:site_name",
-      "content": "Riped V2 Admin"
+      "content": "Riped V2 Research"
     },
     {
       "hid": "og:description",
       "name": "og:description",
       "property": "og:description",
-      "content": "Admin Dashboard Template"
+      "content": "Research Dashboard Template"
     },
     {
       "hid": "og:url",
@@ -98,7 +98,7 @@
     },
     {
       "rel": "manifest",
-      "href": "/_nuxt/manifest.a83f9400.json",
+      "href": "/_nuxt/manifest.f8dc4549.json",
       "hid": "manifest"
     }
   ],

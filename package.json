@@ -1,7 +1,7 @@
 {
-  "name": "riper-v2-admin",
+  "name": "riper-v2-app",
   "version": "1.0.0",
-  "description": "Nuxt.js 2 Admin Template with Mock APIs",
+  "description": "Nuxt.js 2 - Riped",
   "private": true,
   "scripts": {
     "dev": "nuxt",
@@ -27,6 +27,7 @@
     "express": "^5.1.0",
     "lodash": "^4.17.21",
     "nuxt": "^2.17.3",
+    "sweetalert2": "^11.26.2",
     "vue-chartjs": "^3.5.1",
     "workbox-webpack-plugin": "^6.5.4"
   },

@@ -591,7 +591,7 @@ export default {
 .question-title {
   color: #2c3e50;
   font-size: 1.35rem;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 2rem;
   text-align: left;
   padding-bottom: 1rem;
@@ -713,7 +713,7 @@ export default {
 
 .colon {
   font-size: 1.75rem;
-  font-weight: bold;
+  font-weight: 500;
   color: #3551a4;
 }
 
@@ -796,7 +796,7 @@ export default {
 
 .upload-btn {
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: 500;
   padding: 1rem 2.5rem;
   display: flex;
   align-items: center;
@@ -832,7 +832,7 @@ export default {
 }
 
 .appointment-form label {
-  font-weight: 600;
+  font-weight: 500;
   color: #2c3e50;
   margin-bottom: 0.75rem;
   display: flex;
@@ -877,7 +877,7 @@ export default {
 
 .navigation-buttons .btn {
   min-width: 160px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 1rem 2.25rem;
   font-size: 1.05rem;
   border-radius: 0.75rem;

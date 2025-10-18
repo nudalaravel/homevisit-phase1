@@ -137,9 +137,9 @@ export default {
     checkIndexedDBAvailability() {
       this.indexedDBAvailable = !!(
         this.$indexedDB && 
-        typeof indexedDB !== 'undefined' && 
-        indexedDB && 
-        typeof indexedDB.open === 'function'
+        typeof window !== 'undefined' && 
+        window.indexedDB && 
+        typeof window.indexedDB.open === 'function'
       )
     },
 
@@ -379,7 +379,7 @@ export default {
 .storage-header h4 {
   margin: 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: #2c3e50;
 }
 
@@ -407,7 +407,7 @@ export default {
   display: flex;
   justify-content: space-between;
   margin-bottom: 0.5rem;
-  font-weight: 600;
+  font-weight: 500;
   color: #495057;
 }
 
@@ -464,7 +464,7 @@ export default {
 }
 
 .stat-name {
-  font-weight: 600;
+  font-weight: 500;
   color: #495057;
   font-size: 0.875rem;
 }
@@ -477,7 +477,7 @@ export default {
 
 .stat-count {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 500;
   color: #2c3e50;
 }
 
