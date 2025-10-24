@@ -105,8 +105,14 @@ export const actions = {
         throw new Error("ไม่พบข้อมูลผู้ใช้");
       }
 
-      // ซิงค์ผู้รับบริการ
+      // ส่งการแก้ไข bookings ที่รอ sync ก่อน
+      await app.$systemInit.pushBookingsToAPI();
+
+      // ซิงค์ผู้รับบริการ (getchildsample.php)
       const visitorsSuccess = await app.$systemInit.syncVisitors(username);
+
+      // ซิงค์ข้อมูลวันนัดหมาย (getchildsample_app.php)
+      const bookingsSuccess = await app.$systemInit.syncBookings(username);
 
       if (visitorsSuccess) {
         const syncTime = new Date().toISOString();

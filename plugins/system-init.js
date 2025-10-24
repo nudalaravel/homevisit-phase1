@@ -306,10 +306,15 @@ export default function ({ app, store, $axios }, inject) {
         const localVisitorsMap = new Map();
         localVisitors.forEach((v) => localVisitorsMap.set(v.stid, v));
 
+        // สร้าง Set ของ stid จาก API เพื่อใช้ตรวจสอบรายการที่ถูกลบ
+        const apiStidSet = new Set();
+        apiVisitors.forEach((v) => apiStidSet.add(v.stid));
+
         let newCount = 0;
         let updatedCount = 0;
+        let deletedCount = 0;
 
-        // Merge ข้อมูล
+        // 1. Merge ข้อมูลจาก API (เพิ่ม/อัพเดท)
         for (const apiVisitor of apiVisitors) {
           const localVisitor = localVisitorsMap.get(apiVisitor.stid);
 
@@ -349,6 +354,30 @@ export default function ({ app, store, $axios }, inject) {
           }
         }
 
+        // 2. ลบรายการที่ API ไม่มีแล้ว
+        // ตรวจสอบ visitors ที่มีใน IndexedDB แต่ไม่มีใน API
+        for (const localVisitor of localVisitors) {
+          // ตรวจสอบว่า visitor นี้เป็นของ username ที่กำลัง sync หรือไม่
+          if (localVisitor.homevisitor !== username) {
+            continue; // ข้ามรายการที่ไม่ใช่ของ username นี้
+          }
+
+          // ถ้า API ไม่มี stid นี้แล้ว และไม่ใช่ข้อมูลที่แก้ไขออฟไลน์
+          if (!apiStidSet.has(localVisitor.stid)) {
+            if (localVisitor.dataSource === "local") {
+              // ข้อมูลที่แก้ไขออฟไลน์ - ไม่ลบ เก็บไว้ sync ก่อน
+              console.log(
+                `⚠️ Keeping local changes for deleted visitor: ${localVisitor.stid}`
+              );
+            } else {
+              // ข้อมูลจาก API ที่ถูกลบแล้ว - ลบออกจาก IndexedDB
+              await app.$indexedDB.deleteVisitor(localVisitor.stid);
+              deletedCount++;
+              console.log(`🗑️ Deleted visitor: ${localVisitor.stid}`);
+            }
+          }
+        }
+
         // บันทึกเวลาที่ sync
         await app.$indexedDB.setSetting(
           "visitors_last_sync",
@@ -356,12 +385,199 @@ export default function ({ app, store, $axios }, inject) {
         );
 
         console.log(
-          `✅ Visitors sync completed: ${newCount} new, ${updatedCount} updated`
+          `✅ Visitors sync completed: ${newCount} new, ${updatedCount} updated, ${deletedCount} deleted`
         );
 
         return true;
       } catch (error) {
         console.error("❌ Visitors sync failed:", error);
+        return false;
+      }
+    }
+
+    /**
+     * ซิงค์ข้อมูลการนัดหมายจาก API
+     * API Endpoint: get/homevisit/getchildsample_app.php
+     * ดึงเฉพาะข้อมูลวันนัดหมาย โดยใช้ stid เป็น key
+     */
+    async syncBookings(username) {
+      try {
+        if (!navigator.onLine) {
+          console.log("⚠️ Offline - skipping bookings sync");
+          return false;
+        }
+
+        console.log(`🔄 Syncing bookings for ${username}...`);
+
+        const response = await $axios.$get(
+          `/api/parenting2025_census/get/homevisit/getchildsample_app.php?homevisitor=${username}`
+        );
+
+        if (!response || !response.results) {
+          console.log("⚠️ No bookings data received from API");
+          return false;
+        }
+
+        const apiBookings = response.results;
+        console.log(
+          `📥 Received ${apiBookings.length} booking records from API`
+        );
+
+        // Log sample data เพื่อ debug (เฉพาะ record แรก)
+        if (apiBookings.length > 0) {
+          console.log("📋 Sample booking data:", {
+            stid: apiBookings[0].stid,
+            appointmentDate: apiBookings[0].appointmentDate,
+            appointmentTime: apiBookings[0].appointmentTime,
+          });
+        }
+
+        // ดึงข้อมูลการนัดหมายที่มีในเครื่อง
+        const localBookings = await app.$indexedDB.getBookings();
+        const localBookingsMap = new Map();
+        localBookings.forEach((b) => localBookingsMap.set(b.stid, b));
+
+        let newCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+
+        // Merge ข้อมูล
+        for (const apiBooking of apiBookings) {
+          // ตรวจสอบว่ามี stid (required field)
+          if (!apiBooking.stid) {
+            console.warn("⚠️ Skipping booking without stid:", apiBooking);
+            skippedCount++;
+            continue;
+          }
+
+          // ตรวจสอบว่า API ส่งข้อมูลนัดหมายมาหรือไม่
+          if (!apiBooking.appointmentDate && !apiBooking.appointmentTime) {
+            // ไม่มีข้อมูลนัดหมาย - ข้ามไป
+            continue;
+          }
+
+          const localBooking = localBookingsMap.get(apiBooking.stid);
+
+          if (!localBooking) {
+            // ข้อมูลใหม่จาก API
+            await app.$indexedDB.addBooking({
+              stid: apiBooking.stid,
+              appointmentDate: apiBooking.appointmentDate || null,
+              appointmentTime: apiBooking.appointmentTime || null,
+              dataSource: "api",
+              lastSyncedAt: new Date().toISOString(),
+            });
+            newCount++;
+          } else if (localBooking.dataSource === "local") {
+            // มีข้อมูลในเครื่องที่แก้ไขแล้ว - รักษาข้อมูลที่แก้ไขไว้
+            // ไม่ต้อง overwrite เพราะเราจะ sync กลับไป API ในขั้นตอนถัดไป
+            console.log(
+              `⚠️ Keeping local changes for stid: ${apiBooking.stid}`
+            );
+            skippedCount++;
+          } else {
+            // ข้อมูลจาก API ปกติ - อัพเดททั้งหมด
+            await app.$indexedDB.updateBooking({
+              stid: apiBooking.stid,
+              appointmentDate: apiBooking.appointmentDate || null,
+              appointmentTime: apiBooking.appointmentTime || null,
+              dataSource: "api",
+              lastSyncedAt: new Date().toISOString(),
+            });
+            updatedCount++;
+          }
+        }
+
+        // บันทึกเวลาที่ sync
+        await app.$indexedDB.setSetting(
+          "bookings_last_sync",
+          new Date().toISOString()
+        );
+
+        console.log(
+          `✅ Bookings sync completed: ${newCount} new, ${updatedCount} updated, ${skippedCount} skipped`
+        );
+
+        return true;
+      } catch (error) {
+        console.error("❌ Bookings sync failed:", error);
+        if (error.response) {
+          console.error(
+            "API Response:",
+            error.response.status,
+            error.response.data
+          );
+        }
+        return false;
+      }
+    }
+
+    /**
+     * ส่งข้อมูลการนัดหมายที่แก้ไขออฟไลน์กลับไป API
+     */
+    async pushBookingsToAPI() {
+      try {
+        if (!navigator.onLine) {
+          console.log("⚠️ Offline - skipping bookings push");
+          return false;
+        }
+
+        // ดึงการนัดหมายที่แก้ไขออฟไลน์
+        const unsyncedBookings = await app.$indexedDB.getUnsyncedBookings();
+
+        if (unsyncedBookings.length === 0) {
+          console.log("✅ No unsynced bookings to push");
+          return true;
+        }
+
+        console.log(`🔄 Pushing ${unsyncedBookings.length} bookings to API...`);
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        // ส่งทีละรายการ
+        for (const booking of unsyncedBookings) {
+          try {
+            const payload = {
+              variable: [["appointmentDate", "appointmentTime"]],
+              value: [
+                [booking.appointmentDate || "", booking.appointmentTime || ""],
+              ],
+              pk: [["stid"]],
+              pkval: [[booking.stid]],
+              tb: "homevisitor_sample_students",
+            };
+
+            await $axios.$put(
+              "/api/parenting2025_census/put/homevisit/putdata_arr.php",
+              payload
+            );
+
+            // อัพเดทสถานะเป็น synced
+            await app.$indexedDB.updateBooking({
+              ...booking,
+              dataSource: "api",
+              lastSyncedAt: new Date().toISOString(),
+            });
+
+            successCount++;
+            console.log(`✅ Synced booking for stid: ${booking.stid}`);
+          } catch (error) {
+            errorCount++;
+            console.error(
+              `❌ Failed to sync booking for stid: ${booking.stid}`,
+              error
+            );
+          }
+        }
+
+        console.log(
+          `✅ Bookings push completed: ${successCount} success, ${errorCount} errors`
+        );
+
+        return errorCount === 0;
+      } catch (error) {
+        console.error("❌ Bookings push failed:", error);
         return false;
       }
     }

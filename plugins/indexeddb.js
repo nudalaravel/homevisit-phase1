@@ -6,7 +6,7 @@ export default function ({ app }, inject) {
   class IndexedDBManager {
     constructor() {
       this.dbName = "RipedV2DB"; // ชื่อฐานข้อมูล
-      this.version = 5; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
+      this.version = 6; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
       this.db = null; // Instance ของ database
       this.isInitialized = false; // สถานะการเริ่มต้นงาน
     }
@@ -146,6 +146,19 @@ export default function ({ app }, inject) {
               unique: false,
             });
             visitorStore.createIndex("dataSource", "dataSource", {
+              unique: false,
+            });
+          }
+
+          // 10. Bookings Store - เก็บข้อมูลการนัดหมาย
+          if (!db.objectStoreNames.contains("bookings")) {
+            const bookingStore = db.createObjectStore("bookings", {
+              keyPath: "stid",
+            });
+            bookingStore.createIndex("dataSource", "dataSource", {
+              unique: false,
+            });
+            bookingStore.createIndex("lastSyncedAt", "lastSyncedAt", {
               unique: false,
             });
           }
@@ -997,6 +1010,80 @@ export default function ({ app }, inject) {
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["visitors"], "readonly");
         const store = transaction.objectStore("visitors");
+        const index = store.index("dataSource");
+        const request = index.getAll("local");
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    // ========================================
+    // Bookings Operations (จัดการการนัดหมาย)
+    // ========================================
+
+    /** เพิ่มหรืออัพเดทการนัดหมาย */
+    async addBooking(booking) {
+      return await this.update("bookings", {
+        ...booking,
+        dataSource: booking.dataSource || "local",
+        lastSyncedAt: booking.lastSyncedAt || new Date().toISOString(),
+      });
+    }
+
+    /** เพิ่มการนัดหมายหลายรายการ */
+    async addBookings(bookings) {
+      for (const booking of bookings) {
+        await this.addBooking(booking);
+      }
+    }
+
+    /** ดึงการนัดหมายทั้งหมด */
+    async getBookings() {
+      return await this.getAll("bookings");
+    }
+
+    /** ดึงการนัดหมายด้วย stid */
+    async getBooking(stid) {
+      return await this.get("bookings", stid);
+    }
+
+    /** อัพเดทการนัดหมาย */
+    async updateBooking(booking) {
+      return await this.update("bookings", {
+        ...booking,
+        lastSyncedAt: new Date().toISOString(),
+      });
+    }
+
+    /** ลบการนัดหมาย */
+    async deleteBooking(stid) {
+      return await this.delete("bookings", stid);
+    }
+
+    /** ล้างการนัดหมายทั้งหมด */
+    async clearBookings() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) return;
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["bookings"], "readwrite");
+        const store = transaction.objectStore("bookings");
+        const request = store.clear();
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    /** ดึงการนัดหมายที่ยังไม่ได้ sync (แก้ไขออฟไลน์) */
+    async getUnsyncedBookings() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) return [];
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["bookings"], "readonly");
+        const store = transaction.objectStore("bookings");
         const index = store.index("dataSource");
         const request = index.getAll("local");
 

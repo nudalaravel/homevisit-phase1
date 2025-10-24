@@ -121,7 +121,7 @@
             @blur="validateEditAddress"
           ></b-form-textarea>
         </b-form-group>
-
+<!-- 
         <b-form-group label="จังหวัด" label-for="edit-province">
           <b-form-select
             id="edit-province"
@@ -166,7 +166,7 @@
               <b-form-select-option :value="null">-- เลือกตำบล --</b-form-select-option>
             </template>
           </b-form-select>
-        </b-form-group>
+        </b-form-group> -->
       </b-form>
       <template #modal-footer="{ ok, cancel }">
         <b-button variant="secondary" @click="cancel()">
@@ -382,7 +382,7 @@
           <div class="visit-card visit-card-date">
             <i class="fas fa-calendar-day"></i>
             <div class="visit-card-content">
-              <div class="visit-number-badge">{{ visit.visitNumber }}/{{ visitHistoryForm.totalVisits }}</div>
+              <div class="visit-number-badge">ครั้งที่ {{ visit.visitNumber }}</div>
               <div class="visit-date-text">{{ formatVisitDate(visit.date) }}</div>
               <div class="visit-time-text">{{ visit.time }}</div>
             </div>
@@ -438,19 +438,15 @@ export default {
         name: '',
         nickname: '',
         tel: '', // ชื่อ field ตรงกับ database
-        address: '',
-        prov_code: null,
-        amp_code: null,
-        tam_code: null,
-        latitude: null,
-        longitude: null
+        address: ''
       },
       editFormErrors: {},
-      provinces: [],
-      amphoes: [],
-      tambons: [],
-      filteredAmphoes: [],
-      filteredTambons: [],
+      // Location data - commented out as location fields removed from API
+      // provinces: [],
+      // amphoes: [],
+      // tambons: [],
+      // filteredAmphoes: [],
+      // filteredTambons: [],
       appointmentForm: {
         id: null,
         name: '',
@@ -650,7 +646,7 @@ export default {
         this.isSyncingQueue = false
       }
     },
-    handleOnlineStatusChange() {
+    async handleOnlineStatusChange() {
       if (this.$store.state.isOnline) {
         // Clear timeout ก่อนหน้า (ถ้ามี)
         if (this.syncQueueTimeout) {
@@ -658,8 +654,27 @@ export default {
         }
         
         // Debounce: รอ 2 วินาทีก่อน process (ป้องกันการเรียกซ้ำจาก multiple events)
-        this.syncQueueTimeout = setTimeout(() => {
-          this.processSyncQueue()
+        this.syncQueueTimeout = setTimeout(async () => {
+          // Sync visitor changes from queue
+          await this.processSyncQueue()
+          
+          // Sync bookings that were edited offline
+          if (this.$systemInit && this.$auth.user?.username) {
+            try {
+              // Push unsynced bookings first
+              await this.$systemInit.pushBookingsToAPI()
+              
+              // Then fetch latest bookings from API
+              await this.$systemInit.syncBookings(this.$auth.user.username)
+              
+              // Reload visitors with updated bookings
+              await this.loadVisitors()
+              
+              console.log('✅ Bookings synced after coming online')
+            } catch (error) {
+              console.error('❌ Failed to sync bookings after coming online:', error)
+            }
+          }
         }, 2000)
       }
     },
@@ -671,13 +686,17 @@ export default {
         // Initialize system via store action
         await this.$store.dispatch('initializeSystem', this)
         
-        // Load location data for dropdowns
-        await this.loadLocationData()
-        
-        // Sync visitors if online
+        // Sync data if online
         if (this.$store.state.isOnline && this.$auth.user?.username) {
-          this.loadingMessage = 'กำลังซิงค์ข้อมูล...'
+          this.loadingMessage = 'กำลังซิงค์ข้อมูลผู้รับบริการ...'
           await this.$systemInit.syncVisitors(this.$auth.user.username)
+          
+          this.loadingMessage = 'กำลังซิงค์ข้อมูลการนัดหมาย...'
+          await this.$systemInit.syncBookings(this.$auth.user.username)
+          
+          // Push any unsynced bookings
+          this.loadingMessage = 'กำลังส่งข้อมูลการนัดหมาย...'
+          await this.$systemInit.pushBookingsToAPI()
         }
         
         // Load visitors from IndexedDB
@@ -712,7 +731,16 @@ export default {
         // Load visitors from IndexedDB
         const visitors = await this.$indexedDB.getVisitorsByHomevisitor(username)
         
-        // Map visitors data for UI
+        // Load bookings from IndexedDB
+        const bookings = await this.$indexedDB.getBookings()
+        
+        // Create a map of bookings by stid for quick lookup
+        const bookingsMap = new Map()
+        bookings.forEach(booking => {
+          bookingsMap.set(booking.stid, booking)
+        })
+        
+        // Map visitors data for UI and join with bookings
         this.visitors = visitors.map(visitor => {
           // สร้างชื่อเต็มจาก field ที่มี
           let fullName = ''
@@ -722,6 +750,9 @@ export default {
             fullName = `${visitor.prename || ''}${visitor.fname || ''} ${visitor.lname || ''}`.trim()
           }
           
+          // Get booking data for this visitor
+          const booking = bookingsMap.get(visitor.stid)
+          
           return {
             id: visitor.stid, // ใช้ stid เป็น id
             stid: visitor.stid,
@@ -729,14 +760,9 @@ export default {
             nickname: visitor.nickname || '',
             tel: visitor.tel || '', // ใช้ชื่อ field ตรงกับ database
             address: visitor.address || '',
-            // แปลง location codes เป็น string เพื่อให้ v-model select ทำงานถูกต้อง
-            prov_code: visitor.prov_code ? String(visitor.prov_code) : null,
-            amp_code: visitor.amp_code ? String(visitor.amp_code) : null,
-            tam_code: visitor.tam_code ? String(visitor.tam_code) : null,
-            latitude: visitor.latitude || null,
-            longitude: visitor.longitude || null,
-            appointmentDate: visitor.appointmentDate || null, // จะเพิ่ม field นี้ภายหลัง
-            appointmentTime: visitor.appointmentTime || null,
+            // Join booking data
+            appointmentDate: booking?.appointmentDate || null,
+            appointmentTime: booking?.appointmentTime || null,
             dataSource: visitor.dataSource || 'api',
             lastSyncedAt: visitor.lastSyncedAt || null
           }
@@ -746,6 +772,7 @@ export default {
         this.$toast.error('ไม่สามารถโหลดข้อมูลผู้รับบริการได้')
       }
     },
+    /* Location data methods - commented out as location fields removed from API
     async loadLocationData() {
       try {
         // Load provinces และแปลง prov_code เป็น string
@@ -802,6 +829,7 @@ export default {
       // Reset tambon selection
       this.editForm.tam_code = null
     },
+    */
     initDateOptions() {
       // Generate year options (current year - 2 to current year + 2)
       const currentYear = new Date().getFullYear() + 543 // Thai Buddhist year
@@ -910,29 +938,7 @@ export default {
         name: patient.name,
         nickname: patient.nickname,
         tel: patient.tel || '',
-        address: patient.address || '',
-        prov_code: patient.prov_code || null,
-        amp_code: patient.amp_code || null,
-        tam_code: patient.tam_code || null,
-        latitude: patient.latitude || null,
-        longitude: patient.longitude || null
-      }
-      
-      // Populate filtered dropdowns based on existing selection
-      if (this.editForm.prov_code) {
-        this.filteredAmphoes = this.amphoes.filter(
-          a => String(a.prov_code) === String(this.editForm.prov_code)
-        )
-      } else {
-        this.filteredAmphoes = []
-      }
-      
-      if (this.editForm.amp_code) {
-        this.filteredTambons = this.tambons.filter(
-          t => String(t.amp_code) === String(this.editForm.amp_code)
-        )
-      } else {
-        this.filteredTambons = []
+        address: patient.address || ''
       }
       
       this.editFormErrors = {}
@@ -952,12 +958,7 @@ export default {
           this.visitors[visitorIndex] = {
             ...this.visitors[visitorIndex],
             tel: this.editForm.tel,
-            address: this.editForm.address,
-            prov_code: this.editForm.prov_code,
-            amp_code: this.editForm.amp_code,
-            tam_code: this.editForm.tam_code,
-            latitude: this.editForm.latitude,
-            longitude: this.editForm.longitude
+            address: this.editForm.address
           }
         }
         
@@ -967,11 +968,6 @@ export default {
             stid: this.editForm.stid,
             tel: this.editForm.tel || null,
             address: this.editForm.address || null,
-            prov_code: this.editForm.prov_code || null,
-            amp_code: this.editForm.amp_code || null,
-            tam_code: this.editForm.tam_code || null,
-            latitude: this.editForm.latitude || null,
-            longitude: this.editForm.longitude || null,
             dataSource: 'local',
             lastSyncedAt: new Date().toISOString()
           }
@@ -990,15 +986,10 @@ export default {
           if (this.$store.state.isOnline) {
             try {
               const payload = {
-                variable: [['tel', 'address', 'prov_code', 'amp_code', 'tam_code', 'latitude', 'longitude']],
+                variable: [['tel', 'address']],
                 value: [[
-                  this.editForm.tel || '',
-                  this.editForm.address || '',
-                  this.editForm.prov_code || '',
-                  this.editForm.amp_code || '',
-                  this.editForm.tam_code || '',
-                  this.editForm.latitude || '',
-                  this.editForm.longitude || ''
+                  this.editForm.tel || ''],
+                  [this.editForm.address || ''
                 ]],
                 pk: [['stid']],
                 pkval: [[this.editForm.stid]],
@@ -1032,15 +1023,10 @@ export default {
               stid: this.editForm.stid,
               data: visitorData,
               payload: {
-                variable: [['tel', 'address', 'prov_code', 'amp_code', 'tam_code', 'latitude', 'longitude']],
+                variable: [['tel', 'address']],
                 value: [[
                   this.editForm.tel || '',
-                  this.editForm.address || '',
-                  this.editForm.prov_code || '',
-                  this.editForm.amp_code || '',
-                  this.editForm.tam_code || '',
-                  this.editForm.latitude || '',
-                  this.editForm.longitude || ''
+                  this.editForm.address || ''
                 ]],
                 pk: [['stid']],
                 pkval: [[this.editForm.stid]],
@@ -1072,15 +1058,8 @@ export default {
         name: '',
         nickname: '',
         tel: '',
-        address: '',
-        prov_code: null,
-        amp_code: null,
-        tam_code: null,
-        latitude: null,
-        longitude: null
+        address: ''
       }
-      this.filteredAmphoes = []
-      this.filteredTambons = []
       this.editFormErrors = {}
     },
     // Appointment Form Validation
@@ -1148,38 +1127,79 @@ export default {
       return dateValid && timeValid
     },
     scheduleAppointment(patient) {
-      const now = new Date()
-      const thaiYear = now.getFullYear() + 543
+      let month, day, year
+      
+      // If patient already has an appointment date, use it
+      if (patient.appointmentDate) {
+        const appointmentDate = new Date(patient.appointmentDate)
+        month = appointmentDate.getMonth() + 1
+        day = appointmentDate.getDate()
+        year = appointmentDate.getFullYear() + 543 // Convert to Thai year
+      } else {
+        // Otherwise use current date
+        const now = new Date()
+        month = now.getMonth() + 1
+        day = now.getDate()
+        year = now.getFullYear() + 543
+      }
       
       this.appointmentForm = {
         id: patient.id,
         name: `${patient.name} (${patient.nickname})`,
-        month: now.getMonth() + 1,
-        day: now.getDate(),
-        year: thaiYear,
+        month: month,
+        day: day,
+        year: year,
         time: patient.appointmentTime || '16:00 น.'
       }
       this.appointmentFormErrors = {}
       this.showAppointmentModal = true
     },
-    saveAppointment(bvModalEvt) {
+    async saveAppointment(bvModalEvt) {
       bvModalEvt.preventDefault()
       
       if (!this.validateAppointmentForm()) {
         return
       }
       
-      // Update visitor in local array
+      try {
+        // Update visitor in local array
         const visitor = this.visitors.find(v => v.id === this.appointmentForm.id)
         if (visitor) {
-          visitor.appointmentDate = `${this.appointmentForm.year}-${String(this.appointmentForm.month).padStart(2, '0')}-${String(this.appointmentForm.day).padStart(2, '0')}`
-          visitor.appointmentTime = this.appointmentForm.time
+          // Convert Thai year to Christian year for storage
+          const christianYear = this.appointmentForm.year - 543
+          const appointmentDate = `${christianYear}-${String(this.appointmentForm.month).padStart(2, '0')}-${String(this.appointmentForm.day).padStart(2, '0')}`
+          const appointmentTime = this.appointmentForm.time
+          
+          // Update visitor display
+          visitor.appointmentDate = appointmentDate
+          visitor.appointmentTime = appointmentTime
+          
+          // Save to bookings table with dataSource: "local" for offline tracking
+          await this.$indexedDB.addBooking({
+            stid: visitor.stid,
+            appointmentDate: appointmentDate,
+            appointmentTime: appointmentTime,
+            dataSource: 'local', // Mark as locally edited
+            lastSyncedAt: new Date().toISOString()
+          })
+          
+          // If online, queue for background sync
+          if (navigator.onLine && this.$systemInit) {
+            // Push booking to API in the background
+            this.$systemInit.pushBookingsToAPI().catch(error => {
+              console.error('Background booking sync failed:', error)
+            })
+          }
           
           this.$toast.success('บันทึกนัดหมายสำเร็จ')
           
           this.$nextTick(() => {
             this.showAppointmentModal = false
-        })
+          })
+        }
+      } catch (error) {
+        console.error('Failed to save appointment:', error)
+        this.$toast.error('ไม่สามารถบันทึกนัดหมายได้')
       }
     },
     resetAppointmentForm() {
