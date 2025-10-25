@@ -62,10 +62,26 @@ export default {
     "@nuxtjs/bootstrap-vue",
     "@nuxtjs/pwa",
   ],
-  axios: {
-    baseURL: process.env.API_BASE_URL || "http://localhost:3001",
-    proxy: true,
+  // Public runtime config
+  publicRuntimeConfig: {
+    axios: {
+      browserBaseURL:
+        process.env.BROWSER_BASE_URL || "https://ripedresearch.org",
+    },
   },
+
+  axios: {
+    // Development: ใช้ proxy ผ่าน dev server
+    // Production: ใช้ browserBaseURL จาก publicRuntimeConfig
+    baseURL:
+      process.env.NODE_ENV === "production"
+        ? "https://ripedresearch.org"
+        : "http://localhost:3300",
+    browserBaseURL: process.env.BROWSER_BASE_URL || "https://ripedresearch.org",
+    proxy: process.env.NODE_ENV !== "production",
+  },
+
+  // Proxy config (ทำงานเฉพาะใน development เท่านั้น)
   proxy: {
     "/api/": {
       target: "https://ripedresearch.org",

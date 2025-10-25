@@ -1,5 +1,7 @@
 <template>
   <div>
+    <Loading :show="loading" :message="loadingMessage" />
+    
     <!-- Step 1: ผู้ปกครองสามารถควบคุมหากิจกรรม -->
     <div v-if="currentStep === 1" class="survey-step">
       <h4 class="question-title">1.ผู้ปกครองสามารถควบคุมหากิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
@@ -7,16 +9,16 @@
       <div class="options-container">
         <button
           class="option-btn"
-          :class="{ 'selected': step1Answer === 1 }"
-          @click="step1Answer = 1"
+          :class="{ 'selected': answers.q1 === 1 }"
+          @click="answers.q1 = 1"
         >
           ได้ (1)
         </button>
         
         <button
           class="option-btn"
-          :class="{ 'selected': step1Answer === 3 }"
-          @click="step1Answer = 3"
+          :class="{ 'selected': answers.q1 === 3 }"
+          @click="answers.q1 = 3"
         >
           ไม่ได้ (3)
         </button>
@@ -32,20 +34,25 @@
       </div>
     </div>
 
-    <!-- Step 2: การเยี่ยมบ้านครั้งนี้ -->
+    <!-- Step 2: เด็กสามารถควบคุมหากิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
     <div v-if="currentStep === 2" class="survey-step">
-      <h4 class="question-title">การเยี่ยมบ้านครั้งนี้</h4>
-      <p class="question-subtitle">7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
+      <h4 class="question-title">2.เด็กสามารถควบคุมหากิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
       
-      <div class="options-container multi-select">
+      <div class="options-container">
         <button
-          v-for="option in step2Options"
-          :key="option.value"
           class="option-btn"
-          :class="{ 'selected': step2Answer.includes(option.value) }"
-          @click="toggleStep2Answer(option.value)"
+          :class="{ 'selected': answers.q2 === 1 }"
+          @click="answers.q2 = 1"
         >
-          {{ option.label }}
+          ได้ (1)
+        </button>
+        
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q2 === 3 }"
+          @click="answers.q2 = 3"
+        >
+          ไม่ได้ (3)
         </button>
       </div>
 
@@ -59,30 +66,314 @@
       </div>
     </div>
 
-    <!-- Step 3: บันทึกผู้เยี่ยมบ้าน -->
+    <!-- Step 3: ไม่มีใครที่สำคัญ -->
     <div v-if="currentStep === 3" class="survey-step">
+      <h4 class="question-title">3 : ไม่มีใครที่สำคัญ ใครเป็นคนทำกิจกรรมที่ได้รากการเยี่ยมบ้านร่วมกับเด็ก (ทบทวนการเยี่ยมบ้านที่ผ่านมา)</h4>
+      
+      <div class="options-container multi-select">
+        <button
+          v-for="option in q3Options"
+          :key="option.value"
+          class="option-btn"
+          :class="{ 'selected': answers.q3.includes(option.value) }"
+          @click="toggleQ3Answer(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
+      <!-- Show input when "อื่นๆ (13)" is selected -->
+      <div v-if="answers.q3.includes(13)" class="form-container" style="margin-top: 2rem;">
+        <b-form-group label="อื่นๆ ระบุ:" label-for="q4-input">
+          <b-form-input
+            id="q4-input"
+            v-model="answers.q4"
+            placeholder="กรอกคำอธิบาย..."
+          ></b-form-input>
+        </b-form-group>
+      </div>
+
+      <div class="navigation-buttons">
+        <b-button variant="primary" size="lg" @click="prevStep">
+          ย้อนกลับ
+        </b-button>
+        <b-button variant="info" size="lg" @click="nextStep">
+          ถัดไป
+        </b-button>
+      </div>
+    </div>
+
+    <!-- Step 4: ใช้ผู้เยี่ยมบ้านใส่ (Dynamic Activities like Q9) -->
+    <div v-if="currentStep === 4" class="survey-step">
+      <div v-if="activities.length === 0" class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time_visit }}
+      </div>
+
+      <div v-else>
+        <!-- Show current activity question for Q5 -->
+        <div v-if="currentQ5Index < activities.length">
+          <h4 class="question-title">
+            5 : ใช้ผู้เยี่ยมบ้านใส่ลงบันทุกทองแบบทดสองการเยี่ยมบ้านครั้งนี้ที่ผ่านมา
+          </h4>
+          <p class="question-subtitle">
+            กิจกรรมที่ {{ currentQ5Index + 1 }} / {{ activities.length }}
+          </p>
+          <div class="activity-description">
+            {{ activities[currentQ5Index].title || 'ไม่มีรายละเอียด' }}
+            <i 
+              class="fas fa-info-circle activity-info-icon" 
+              @click="showActivityDetailModal(activities[currentQ5Index])"
+              title="ดูรายละเอียด"
+            ></i>
+          </div>
+
+          <div class="options-container">
+            <button
+              class="option-btn"
+              :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 1 }"
+              @click="setQ5Answer(activities[currentQ5Index].no, 1)"
+            >
+              ทำได้ (1)
+            </button>
+            
+            <button
+              class="option-btn"
+              :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 2 }"
+              @click="setQ5Answer(activities[currentQ5Index].no, 2)"
+            >
+              ทำได้บ้าง (2)
+            </button>
+
+            <button
+              class="option-btn"
+              :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 3 }"
+              @click="setQ5Answer(activities[currentQ5Index].no, 3)"
+            >
+              ทำไม่ได้ (3)
+            </button>
+          </div>
+
+          <div class="navigation-buttons">
+            <b-button 
+              variant="primary" 
+              size="lg" 
+              @click="prevQ5Activity"
+            >
+              ย้อนกลับ
+            </b-button>
+            <b-button 
+              variant="info" 
+              size="lg" 
+              @click="nextQ5Activity"
+            >
+              ถัดไป
+            </b-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: ใครเป็นคนทำกิจกรรมกับเด็ก -->
+    <div v-if="currentStep === 5" class="survey-step">
+      <h4 class="question-title">6 : ใครเป็นคนทำกิจกรรมกับเด็ก(การเยี่ยมบ้านครั้งนี้กับเด็ก)</h4>
+      
+      <div class="options-container multi-select">
+        <button
+          v-for="option in q6Options"
+          :key="option.value"
+          class="option-btn"
+          :class="{ 'selected': answers.q6.includes(option.value) }"
+          @click="toggleQ6Answer(option.value)"
+        >
+          {{ option.label }}
+          </button>
+        </div>
+
+      <!-- Show input when "อื่นๆ (13)" is selected -->
+      <div v-if="answers.q6.includes(13)" class="form-container" style="margin-top: 2rem;">
+        <b-form-group label="อื่นๆ ระบุ:" label-for="q6-other-input">
+          <b-form-input
+            id="q6-other-input"
+            v-model="answers.q6_other"
+            placeholder="กรอกคำอธิบาย..."
+          ></b-form-input>
+        </b-form-group>
+      </div>
+
+      <div class="navigation-buttons">
+        <b-button variant="primary" size="lg" @click="prevStep">
+          ย้อนกลับ
+        </b-button>
+        <b-button variant="info" size="lg" @click="nextStep">
+          ถัดไป
+        </b-button>
+      </div>
+    </div>
+
+    <!-- Step 6: มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ -->
+    <div v-if="currentStep === 6" class="survey-step">
+      <h4 class="question-title">การเยี่ยมบ้านครั้งนี้</h4>
+      <p class="question-subtitle">7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
+      
+      <div class="options-container">
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q7 === 1 }"
+          @click="answers.q7 = 1"
+        >
+          มี (1)
+        </button>
+        
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q7 === 3 }"
+          @click="answers.q7 = 3"
+        >
+          ไม่มี (3)
+        </button>
+      </div>
+
+      <div class="navigation-buttons">
+        <b-button variant="primary" size="lg" @click="prevStep">
+          ย้อนกลับ
+        </b-button>
+        <b-button variant="info" size="lg" @click="nextStep">
+          ถัดไป
+        </b-button>
+      </div>
+    </div>
+
+    <!-- Step 7: มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็ก -->
+    <div v-if="currentStep === 7" class="survey-step">
+      <h4 class="question-title">8 : มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ) (การเยี่ยมบ้านครั้งนี้)</h4>
+      
+      <div class="options-container">
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q8 === 1 }"
+          @click="answers.q8 = 1"
+        >
+          มี (1)
+        </button>
+        
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q8 === 3 }"
+          @click="answers.q8 = 3"
+        >
+          ไม่มี (3)
+        </button>
+      </div>
+
+      <div class="navigation-buttons">
+        <b-button variant="primary" size="lg" @click="prevStep">
+          ย้อนกลับ
+        </b-button>
+        <b-button variant="info" size="lg" @click="nextStep">
+          ถัดไป
+        </b-button>
+      </div>
+    </div>
+
+    <!-- Step 8: Dynamic Activities Questions -->
+    <div v-if="currentStep === 8" class="survey-step">
+      <div v-if="activities.length === 0" class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time_visit }}
+      </div>
+
+      <div v-else>
+        <!-- Show current activity question -->
+        <div v-if="currentActivityIndex < activities.length">
+          <h4 class="question-title">
+            9 : ใช้ผู้เยี่ยมบ้านใส่ลงบันทุกทองแบบทดสองการเยี่ยมบ้านครั้งนี้กับเด็ก โดยจะใช้ผู้ปกครองลงบันทุกทองแบบทดสองการเยี่ยมบ้านครั้งนี้กับเด็ก
+          </h4>
+          <p class="question-subtitle">
+            กิจกรรมที่ {{ currentActivityIndex + 1 }} / {{ activities.length }}
+          </p>
+          <div class="activity-description">
+            {{ activities[currentActivityIndex].title || 'ไม่มีรายละเอียด' }}
+            <i 
+              class="fas fa-info-circle activity-info-icon" 
+              @click="showActivityDetailModal(activities[currentActivityIndex])"
+              title="ดูรายละเอียด"
+            ></i>
+          </div>
+
+          <div class="options-container">
+            <button
+              class="option-btn"
+              :class="{ 'selected': answers.q9[activities[currentActivityIndex].no] === 1 }"
+              @click="setActivityAnswer(activities[currentActivityIndex].no, 1)"
+            >
+              ทำได้ (1)
+            </button>
+            
+            <button
+              class="option-btn"
+              :class="{ 'selected': answers.q9[activities[currentActivityIndex].no] === 2 }"
+              @click="setActivityAnswer(activities[currentActivityIndex].no, 2)"
+            >
+              ทำได้บ้าง (2)
+            </button>
+
+            <button
+              class="option-btn"
+              :class="{ 'selected': answers.q9[activities[currentActivityIndex].no] === 3 }"
+              @click="setActivityAnswer(activities[currentActivityIndex].no, 3)"
+            >
+              ทำไม่ได้ (3)
+            </button>
+          </div>
+
+          <div class="navigation-buttons">
+            <b-button 
+              variant="primary" 
+              size="lg" 
+              @click="prevActivity"
+            >
+              ย้อนกลับ
+            </b-button>
+            <b-button 
+              variant="info" 
+              size="lg" 
+              @click="nextActivity"
+            >
+             ถัดไป
+            </b-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Special Step 1: บันทึกผู้เยี่ยมบ้าน -->
+    <div v-if="currentStep === 9" class="survey-step">
       <h4 class="question-title">บันทึกผู้เยี่ยมบ้าน</h4>
       
       <div class="form-container">
         <b-form-textarea
-          v-model="step3Notes"
+          v-model="answers.notes"
           placeholder="กรอกข้อมูล..."
           rows="8"
           class="notes-textarea"
         ></b-form-textarea>
 
+        <div class="time-end-section">
+          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม</label>
         <div class="dropdown-row">
           <b-form-select
-            v-model="step3Select1"
-            :options="selectOptions"
+              v-model="answers.endHour"
+              :options="hourOptions"
             class="select-field"
           ></b-form-select>
           <span class="colon">:</span>
           <b-form-select
-            v-model="step3Select2"
-            :options="selectOptions"
+              v-model="answers.endMinute"
+              :options="minuteOptions"
             class="select-field"
           ></b-form-select>
+          </div>
         </div>
       </div>
 
@@ -96,17 +387,17 @@
       </div>
     </div>
 
-    <!-- Step 4: อัพโหลดรูป -->
-    <div v-if="currentStep === 4" class="survey-step">
+    <!-- Special Step 2: รูปผู้เยี่ยมบ้าน -->
+    <div v-if="currentStep === 10" class="survey-step">
       <h4 class="question-title">อัพโหลดรูปถ่ายกิจกรรมกับผู้ปกครองและเด็ก</h4>
       
       <div class="upload-container">
-        <div v-if="!step4Image" class="upload-placeholder">
+        <div v-if="!surveyImage" class="upload-placeholder">
           <i class="fas fa-image"></i>
           <p>ยังไม่มีรูปภาพ</p>
         </div>
         <div v-else class="image-preview">
-          <img :src="step4Image" alt="Uploaded image" />
+          <img :src="surveyImage" alt="Uploaded image" />
           <button class="remove-image-btn" @click="removeImage">
             <i class="fas fa-times"></i>
           </button>
@@ -128,7 +419,7 @@
           @click="$refs.fileInput.click()"
         >
           <i class="fas fa-camera"></i>
-          {{ step4Image ? 'เลือกรูปใหม่' : 'กดเพื่ออัพโหลดไฟล์ใหม่' }}
+          {{ surveyImage ? 'เลือกรูปใหม่' : 'กดเพื่ออัพโหลดไฟล์ใหม่' }}
         </b-button>
       </div>
 
@@ -142,63 +433,105 @@
       </div>
     </div>
 
-    <!-- Step 5: นัดหมายครั้งถัดไป -->
-    <div v-if="currentStep === 5" class="survey-step">
+    <!-- Step 11: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
+    <div v-if="currentStep === 11" class="survey-step">
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
       
-      <div class="appointment-form">
-        <b-form-group label="วัน" label-for="day-select">
+      <div class="appointment-form-wrapper">
+        <div class="appointment-form-grid">
+          <div class="appointment-field">
+            <label class="appointment-label">
+              <i class="fas fa-calendar-day"></i>
+              วัน
+            </label>
           <b-form-select
-            id="day-select"
-            v-model="step5Day"
+              v-model="newAppointment.day"
             :options="currentDayOptions"
+              class="appointment-select"
           ></b-form-select>
-        </b-form-group>
+          </div>
 
-        <b-form-group label="เดือน" label-for="month-select">
+          <div class="appointment-field">
+            <label class="appointment-label">
+              <i class="fas fa-calendar-alt"></i>
+              เดือน
+            </label>
           <b-form-select
-            id="month-select"
-            v-model="step5Month"
+              v-model="newAppointment.month"
             :options="monthOptions"
             @change="onMonthChange"
+              class="appointment-select"
           ></b-form-select>
-        </b-form-group>
+          </div>
 
-        <b-form-group label="ปี" label-for="year-select">
+          <div class="appointment-field">
+            <label class="appointment-label">
+              <i class="fas fa-calendar"></i>
+              ปี
+            </label>
           <b-form-select
-            id="year-select"
-            v-model="step5Year"
+              v-model="newAppointment.year"
             :options="yearOptions"
             @change="onYearChange"
+              class="appointment-select"
           ></b-form-select>
-        </b-form-group>
+          </div>
 
-        <b-form-group label="เวลา" label-for="time-select">
+          <div class="appointment-field">
+            <label class="appointment-label">
+              <i class="fas fa-clock"></i>
+              เวลา
+            </label>
           <b-form-select
-            id="time-select"
-            v-model="step5Time"
+              v-model="newAppointment.time"
             :options="timeOptions"
+              class="appointment-select"
           ></b-form-select>
-        </b-form-group>
+          </div>
+        </div>
+
+        <div v-if="newAppointment.day && newAppointment.month && newAppointment.year && newAppointment.time" class="appointment-preview">
+          <i class="fas fa-info-circle"></i>
+          <span>นัดหมาย: วันที่ {{ newAppointment.day }} {{ getMonthName(newAppointment.month) }} {{ newAppointment.year }} เวลา {{ newAppointment.time }}</span>
+        </div>
       </div>
 
       <div class="navigation-buttons">
         <b-button variant="primary" size="lg" @click="prevStep">
-          ย้อนกลับ
+          <i class="fas fa-arrow-left"></i> ย้อนกลับ
         </b-button>
-        <b-button variant="info" size="lg" @click="submitSurvey">
-          ถัดไป
+        <b-button variant="success" size="lg" @click="submitSurvey">
+          <i class="fas fa-check-circle"></i> บันทึกและสิ้นสุด
         </b-button>
       </div>
     </div>
 
-    <!-- Loading indicator -->
+    <!-- Processing overlay -->
     <div v-if="processing" class="processing-overlay">
       <div class="spinner-container">
         <b-spinner variant="primary"></b-spinner>
-        <p>กำลังประมวลผลรูปภาพ...</p>
+        <p>กำลังบันทึกข้อมูล...</p>
       </div>
     </div>
+
+    <!-- Activity Detail Modal -->
+    <b-modal
+      v-model="activityDetailModalVisible"
+      title="รายละเอียดกิจกรรม"
+      size="lg"
+      ok-only
+      ok-title="ปิด"
+      ok-variant="primary"
+    >
+      <div v-if="selectedActivity" class="activity-detail-content">
+        <h5 v-if="selectedActivity.title" class="activity-detail-title">
+          {{ selectedActivity.title }}
+        </h5>
+        <div class="activity-detail-text">
+          {{ selectedActivity.objective || 'ไม่มีรายละเอียด' }}
+        </div>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -208,46 +541,79 @@ export default {
   middleware: 'auth',
   data() {
     return {
-      currentStep: 1,
+      loading: false,
+      loadingMessage: '',
       processing: false,
+      currentStep: 1,
+      currentActivityIndex: 0,
+      currentQ5Index: 0,
       
-      // Step 1
-      step1Answer: null,
+      // Visitor and survey metadata
+      visitorData: null,
+      surveyId: null,
+      timeStart: null,
+      timeEnd: null,
       
-      // Step 2
-      step2Answer: [],
-      step2Options: [
-        { value: 1, label: 'มี (1)' },
-        { value: 2, label: 'แม่ (1)' },
+      // Activities from database
+      activities: [],
+      
+      // Image upload
+      surveyImage: null,
+      surveyImageKey: null,
+      
+      // Activity detail modal
+      activityDetailModalVisible: false,
+      selectedActivity: null,
+      
+      // Answers object
+      answers: {
+        q1: null,
+        q2: null,
+        q3: [],
+        q4: '',
+        q5: {}, // Changed to object like q9
+        q6: [],
+        q6_other: '',
+        q7: null,
+        q8: null,
+        q9: {}, // { activityId: answer }
+        notes: '',
+        endHour: null,
+        endMinute: null
+      },
+      
+      // Options for multi-select questions
+      q3Options: [
+        { value: 1, label: 'แม่ (1)' },
         { value: 3, label: 'พ่อ (3)' },
-        { value: 5, label: 'ป่า/ยาย (5)' },
+        { value: 5, label: 'ย่า/ยาย (5)' },
         { value: 7, label: 'ปู่/ตา (7)' },
         { value: 9, label: 'พี่/น้อง (9)' },
         { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 13, label: 'อื่นๆ (13)' },
-        { value: 3, label: 'ไม่มี (3)' }
+        { value: 13, label: 'อื่นๆ (13)' }
       ],
       
-      // Step 3
-      step3Notes: '',
-      step3Select1: null,
-      step3Select2: null,
-      selectOptions: [
-        { value: null, text: '-เลือก-' },
-        { value: 1, text: 'ตัวเลือก 1' },
-        { value: 2, text: 'ตัวเลือก 2' },
-        { value: 3, text: 'ตัวเลือก 3' }
+      q6Options: [
+        { value: 1, label: 'แม่ (1)' },
+        { value: 3, label: 'พ่อ (3)' },
+        { value: 5, label: 'ย่า/ยาย (5)' },
+        { value: 7, label: 'ปู่/ตา (7)' },
+        { value: 9, label: 'พี่/น้อง (9)' },
+        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
+        { value: 13, label: 'อื่นๆ (13)' }
       ],
       
-      // Step 4
-      step4Image: null,
-      step4ImageKey: null,
+      // Time options for end time
+      hourOptions: [],
+      minuteOptions: [],
       
-      // Step 5
-      step5Day: null,
-      step5Month: null,
-      step5Year: null,
-      step5Time: '09:00 น.',
+      // New appointment data
+      newAppointment: {
+        day: null,
+        month: null,
+        year: null,
+        time: '09:00 น.'
+      },
       
       monthOptions: [
         { value: 1, text: 'มกราคม' },
@@ -281,8 +647,8 @@ export default {
   },
   computed: {
     currentDayOptions() {
-      const month = this.step5Month
-      const year = this.step5Year
+      const month = this.newAppointment.month
+      const year = this.newAppointment.year
       
       if (!month || !year) {
         return this.generateDayOptions(31)
@@ -292,23 +658,743 @@ export default {
       return this.generateDayOptions(daysInMonth)
     }
   },
-  mounted() {
-    this.initDateOptions()
+  async mounted() {
+    this.initTimeOptions()
+    await this.initializeSurvey()
   },
   methods: {
+    initTimeOptions() {
+      // Generate hour options (00-23)
+      this.hourOptions = [{ value: null, text: '-ชั่วโมง-' }]
+      for (let i = 0; i < 24; i++) {
+        const hour = String(i).padStart(2, '0')
+        this.hourOptions.push({ value: hour, text: hour })
+      }
+      
+      // Generate minute options (00-59)
+      this.minuteOptions = [{ value: null, text: '-นาที-' }]
+      for (let i = 0; i < 60; i++) {
+        const minute = String(i).padStart(2, '0')
+        this.minuteOptions.push({ value: minute, text: minute })
+      }
+      
+      // Set default to current time
+      const now = new Date()
+      this.answers.endHour = String(now.getHours()).padStart(2, '0')
+      this.answers.endMinute = String(now.getMinutes()).padStart(2, '0')
+    },
+    
+    showActivityDetailModal(activity) {
+      this.selectedActivity = activity
+      this.activityDetailModalVisible = true
+    },
+    
+    async loadPatientsCount() {
+      try {
+        // Get current user's username
+        const username = this.$offlineAuth?.getUser?.()?.username
+        
+        if (!username) {
+          return
+        }
+        
+        // Load visitors from IndexedDB to get count
+        const visitors = await this.$indexedDB.getVisitorsByHomevisitor(username)
+        
+        // อัพเดทจำนวนในระบบ
+        this.$store.commit('setPatientsCount', visitors.length)
+      } catch (error) {
+        // จัดการข้อผิดพลาด
+      }
+    },
+    
+    async initializeSurvey() {
+      try {
+        this.loading = true
+        this.loadingMessage = 'กำลังโหลดข้อมูล...'
+        
+        // โหลดจำนวนผู้รับบริการและอัพเดทข้อมูลในระบบ
+        await this.loadPatientsCount()
+        
+        // ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
+        const editDataStr = localStorage.getItem('surveyEdit')
+        if (editDataStr) {
+          // โหมดแก้ไข
+          await this.loadEditMode(JSON.parse(editDataStr))
+          localStorage.removeItem('surveyEdit')
+        } else {
+          // โหมดสร้างใหม่
+          await this.loadNewSurveyMode()
+        }
+        
+        // ดึงข้อมูลจาก API
+        await this.fetchSurveyData()
+        
+        // โหลดกิจกรรมสำหรับคำถาม
+        await this.loadActivities()
+        
+        // เตรียมตัวเลือกวันที่สำหรับนัดหมาย
+        this.initDateOptions()
+        
+        this.loading = false
+      } catch (error) {
+        this.loading = false
+        this.$toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล')
+      }
+    },
+    
+    async loadEditMode(editData) {
+      // โหลดข้อมูลสำหรับแก้ไข
+      const survey = await this.$indexedDB.getSurveyProgressById(editData.surveyId)
+      if (!survey) {
+        this.$toast.error('ไม่พบข้อมูลการเยี่ยมบ้านที่ต้องการแก้ไข')
+        this.$router.push('/')
+        return
+      }
+      
+      // ตั้งค่าข้อมูลผู้รับบริการ
+      this.visitorData = {
+        stid: editData.stid,
+        name: editData.name,
+        nickname: editData.nickname,
+        time_visit: editData.time_visit,
+        month_age: survey.month_age,
+        appointmentDate: survey.appointmentDate,
+        appointmentTime: survey.appointmentTime
+      }
+      
+      // โหลดข้อมูลแบบสอบถามเดิม
+      this.loadExistingSurvey(survey)
+      this.$toast.info('กำลังแก้ไขบันทึกการเยี่ยมบ้าน')
+    },
+    
+    async loadNewSurveyMode() {
+      // ดึงข้อมูลผู้รับบริการจาก localStorage
+      const visitorDataStr = localStorage.getItem('surveyPatient')
+      if (!visitorDataStr) {
+        this.$toast.error('ไม่พบข้อมูลผู้รับบริการ')
+        this.$router.push('/')
+        return
+      }
+      
+      this.visitorData = JSON.parse(visitorDataStr)
+      
+      // ตรวจสอบแบบสอบถามที่ยังไม่เสร็จ
+      const existingSurvey = await this.$indexedDB.getSurveyProgress(
+        this.visitorData.stid,
+        this.visitorData.time_visit
+      )
+      
+      if (existingSurvey) {
+        // โหลดแบบสอบถามที่ค้างไว้
+        this.loadExistingSurvey(existingSurvey)
+        this.$toast.info('พบแบบสอบถามที่ยังไม่เสร็จสิ้น กำลังโหลดความคืบหน้า...')
+      } else {
+        // สร้างแบบสอบถามใหม่
+        await this.createNewSurvey()
+      }
+    },
+    
+    async createNewSurvey() {
+      // สร้างรหัสแบบสอบถาม
+      this.surveyId = `survey_${this.visitorData.stid}_${this.visitorData.time_visit}_${Date.now()}`
+      
+      // ตั้งค่าเวลาเริ่มต้นจากวันที่นัดหมาย
+      if (this.visitorData.appointmentDate && this.visitorData.appointmentTime) {
+        const date = this.visitorData.appointmentDate
+        const time = this.visitorData.appointmentTime.replace(' น.', '')
+        this.timeStart = `${date} ${time}:00`
+      } else {
+        // ใช้เวลาปัจจุบัน
+        this.timeStart = new Date().toISOString().slice(0, 19).replace('T', ' ')
+      }
+      
+      // บันทึกความคืบหน้าเริ่มต้น
+      await this.saveProgress()
+    },
+    
+    loadExistingSurvey(survey) {
+      this.surveyId = survey.id
+      this.timeStart = survey.timeStart
+      this.timeEnd = survey.timeEnd || null
+      this.currentStep = survey.currentStep || 1
+      this.answers = survey.answers || this.answers
+      this.currentActivityIndex = survey.currentActivityIndex || 0
+      this.currentQ5Index = survey.currentQ5Index || 0
+      this.surveyImage = survey.surveyImage || null
+      this.surveyImageKey = survey.surveyImageKey || null
+      
+      // ถ้าอยู่ขั้นตอนที่ 11 โหลดข้อมูลนัดหมาย
+      if (this.currentStep === 11 && survey.newAppointment) {
+        this.newAppointment = survey.newAppointment
+      }
+      
+      // โหลดข้อมูลสถานะสำหรับแบบสอบถามที่เสร็จแล้ว
+      if (survey.completed) {
+        // ดึงชั่วโมงและนาทีจากเวลาสิ้นสุด
+        if (survey.timeEnd) {
+          const timeEndDate = new Date(survey.timeEnd)
+          this.answers.endHour = String(timeEndDate.getHours()).padStart(2, '0')
+          this.answers.endMinute = String(timeEndDate.getMinutes()).padStart(2, '0')
+        }
+      }
+    },
+    
+    async fetchSurveyData() {
+      try {
+        const username = this.$offlineAuth?.getUser?.()?.username
+        if (!username) {
+        return
+      }
+      
+        const response = await this.$axios.$get(
+          '/api/parenting2025_census/get/homevisit/getchildsample_result.php',
+          {
+            params: {
+              homevisitor: username,
+              stid: this.visitorData.stid,
+              time_visit: this.visitorData.time_visit
+            }
+          }
+        )
+        
+        if (response && response.results && response.results.length > 0) {
+          // มีข้อมูลจาก API
+        } else {
+          // ไม่มีข้อมูลจาก API สร้างใหม่
+        }
+      } catch (error) {
+        // ดำเนินการต่อ ข้อมูลจะถูกบันทึกในเครื่อง
+      }
+    },
+    
+    async loadActivities() {
+      try {
+        // ดึงกิจกรรมทั้งหมดจาก IndexedDB
+        const allActivities = await this.$indexedDB.getActivities()
+        
+        // กรองกิจกรรมที่ตรงกับอายุและครั้งที่เยี่ยม
+        const matchingActivities = allActivities.filter(activity => {
+          return Number(activity.month_age) === Number(this.visitorData.month_age) &&
+                 Number(activity.time) === Number(this.visitorData.time_visit)
+        })
+        
+        this.activities = matchingActivities
+      } catch (error) {
+        this.activities = []
+      }
+    },
+    
+    async saveProgress() {
+      try {
+        // ตรวจสอบว่าแบบสอบถามเสร็จแล้วหรือยัง
+        const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
+        const isCompleted = existingSurvey?.completed || false
+        
+        const progressData = {
+          id: this.surveyId,
+          stid: this.visitorData.stid,
+          time_visit: this.visitorData.time_visit,
+          month_age: this.visitorData.month_age,
+          timeStart: this.timeStart,
+          timeEnd: this.timeEnd,
+          appointmentDate: this.visitorData.appointmentDate,
+          currentStep: this.currentStep,
+          currentActivityIndex: this.currentActivityIndex,
+          currentQ5Index: this.currentQ5Index,
+          answers: this.answers,
+          newAppointment: this.newAppointment,
+          surveyImage: this.surveyImage,
+          surveyImageKey: this.surveyImageKey,
+          completed: isCompleted, // เก็บสถานะเดิม
+          synced: existingSurvey?.synced || false, // เก็บสถานะซิงค์
+          approve_status: existingSurvey?.approve_status || 0 // เก็บสถานะการอนุมัติ
+        }
+        
+        await this.$indexedDB.saveSurveyProgress(progressData)
+      } catch (error) {
+        // จัดการข้อผิดพลาด
+      }
+    },
+    
+    // สลับคำตอบแบบหลายตัวเลือก
+    toggleQ3Answer(value) {
+      const index = this.answers.q3.indexOf(value)
+      if (index > -1) {
+        this.answers.q3.splice(index, 1)
+      } else {
+        this.answers.q3.push(value)
+      }
+    },
+    
+    toggleQ6Answer(value) {
+      const index = this.answers.q6.indexOf(value)
+      if (index > -1) {
+        this.answers.q6.splice(index, 1)
+      } else {
+        this.answers.q6.push(value)
+      }
+    },
+    
+    // จัดการคำตอบกิจกรรมคำถามที่ 5
+    setQ5Answer(activityId, answer) {
+      this.$set(this.answers.q5, activityId, answer)
+    },
+    
+    async nextQ5Activity() {
+      // ตรวจสอบคำตอบกิจกรรมปัจจุบัน
+      if (!this.answers.q5[this.activities[this.currentQ5Index].no]) {
+        this.$toast.warning('กรุณาเลือกคำตอบ')
+        return
+      }
+      
+      if (this.currentQ5Index < this.activities.length - 1) {
+        this.currentQ5Index++
+        await this.saveProgress()
+      } else {
+        // ตอบครบทุกกิจกรรมแล้ว ไปขั้นตอนถัดไป
+        await this.nextStep()
+      }
+    },
+    
+    async prevQ5Activity() {
+      if (this.currentQ5Index > 0) {
+        this.currentQ5Index--
+        await this.saveProgress()
+      } else {
+        // กลับไปขั้นตอนก่อนหน้า
+        await this.prevStep()
+      }
+    },
+    
+    // จัดการคำตอบกิจกรรมคำถามที่ 9
+    setActivityAnswer(activityId, answer) {
+      this.$set(this.answers.q9, activityId, answer)
+    },
+    
+    async nextActivity() {
+      // ตรวจสอบคำตอบกิจกรรมปัจจุบัน
+      if (!this.answers.q9[this.activities[this.currentActivityIndex].no]) {
+        this.$toast.warning('กรุณาเลือกคำตอบ')
+        return
+      }
+      
+      if (this.currentActivityIndex < this.activities.length - 1) {
+        this.currentActivityIndex++
+        await this.saveProgress()
+      } else {
+        // ตอบครบทุกกิจกรรมแล้ว ไปขั้นตอนถัดไป
+        await this.nextStep()
+      }
+    },
+    
+    async prevActivity() {
+      if (this.currentActivityIndex > 0) {
+        this.currentActivityIndex--
+        await this.saveProgress()
+      } else {
+        // กลับไปขั้นตอนก่อนหน้า
+        await this.prevStep()
+      }
+    },
+    
+    // จัดการอัพโหลดรูปภาพ
+    async handleFileSelect(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      
+      // ตรวจสอบประเภทไฟล์
+      if (!file.type.startsWith('image/')) {
+        this.$toast.error('กรุณาเลือกไฟล์รูปภาพเท่านั้น')
+        return
+      }
+      
+      // ตรวจสอบขนาดไฟล์ สูงสุด 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        this.$toast.error('ไฟล์รูปภาพมีขนาดใหญ่เกินไป (สูงสุด 10MB)')
+        return
+      }
+      
+      this.processing = true
+      
+      try {
+        // แปลงเป็น WebP และปรับขนาด
+        const webpBase64 = await this.convertToWebP(file)
+        this.surveyImage = webpBase64
+        
+        // บันทึกลง IndexedDB
+        await this.saveImageToIndexedDB(webpBase64)
+        
+        this.$toast.success('อัพโหลดรูปภาพสำเร็จ')
+      } catch (error) {
+        this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
+      } finally {
+        this.processing = false
+      }
+    },
+    
+    async convertToWebP(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        
+        reader.onload = (e) => {
+          const img = new Image()
+          
+          img.onload = () => {
+            // คำนวณขนาดใหม่ ความกว้างสูงสุด 1000px
+            let width = img.width
+            let height = img.height
+            const maxWidth = 1000
+            
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width)
+              width = maxWidth
+            }
+            
+            // สร้าง canvas
+            const canvas = document.createElement('canvas')
+            canvas.width = width
+            canvas.height = height
+            
+            const ctx = canvas.getContext('2d')
+            ctx.drawImage(img, 0, 0, width, height)
+            
+            // แปลงเป็น WebP
+            try {
+              const webpDataUrl = canvas.toBlob ? 
+                canvas.toDataURL('image/webp', 0.90) :
+                canvas.toDataURL('image/jpeg', 0.90)
+              
+              resolve(webpDataUrl)
+            } catch (error) {
+              reject(error)
+            }
+          }
+          
+          img.onerror = reject
+          img.src = e.target.result
+        }
+        
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+    },
+    
+    async saveImageToIndexedDB(base64Image) {
+      if (!this.$indexedDB) {
+        return
+      }
+      
+      try {
+        const key = `survey_image_${Date.now()}`
+        await this.$indexedDB.saveImage(key, base64Image)
+        
+        this.surveyImageKey = key
+      } catch (error) {
+        // จัดการข้อผิดพลาด
+      }
+    },
+    
+    async removeImage() {
+      if (this.surveyImageKey && this.$indexedDB) {
+        try {
+          await this.$indexedDB.deleteImage(this.surveyImageKey)
+        } catch (error) {
+          // จัดการข้อผิดพลาด
+        }
+      }
+      
+      this.surveyImage = null
+      this.surveyImageKey = null
+      
+      // รีเซ็ตช่องเลือกไฟล์
+      if (this.$refs.fileInput) {
+        this.$refs.fileInput.value = ''
+      }
+    },
+    
+    // การนำทาง
+    async nextStep() {
+      // ตรวจสอบความถูกต้อง
+      if (!this.validateCurrentStep()) {
+        return
+      }
+      
+      // จัดการพิเศษสำหรับขั้นตอนที่ 4 กิจกรรมคำถามที่ 5
+      if (this.currentStep === 4) {
+        // ตรวจสอบว่าตอบครบทุกกิจกรรมแล้ว
+        const allAnswered = this.activities.every(activity => 
+          this.answers.q5[activity.no] !== undefined && this.answers.q5[activity.no] !== null
+        )
+        
+        if (!allAnswered) {
+          this.$toast.warning('กรุณาตอบคำถามกิจกรรมทั้งหมด')
+        return
+        }
+      }
+      
+      // จัดการพิเศษสำหรับขั้นตอนที่ 8 กิจกรรมคำถามที่ 9
+      if (this.currentStep === 8) {
+        // ตรวจสอบว่าตอบครบทุกกิจกรรมแล้ว
+        const allAnswered = this.activities.every(activity => 
+          this.answers.q9[activity.no] !== undefined && this.answers.q9[activity.no] !== null
+        )
+        
+        if (!allAnswered) {
+          this.$toast.warning('กรุณาตอบคำถามกิจกรรมทั้งหมด')
+        return
+        }
+      }
+      
+      this.currentStep++
+      this.currentActivityIndex = 0
+      this.currentQ5Index = 0
+      await this.saveProgress()
+    },
+    
+    async prevStep() {
+      if (this.currentStep > 1) {
+        // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 5 ไป 4
+        if (this.currentStep === 5 && this.activities.length > 0) {
+          this.currentQ5Index = this.activities.length - 1
+        }
+        
+        // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 9 ไป 8
+        if (this.currentStep === 9 && this.activities.length > 0) {
+          this.currentActivityIndex = this.activities.length - 1
+        }
+        
+        this.currentStep--
+        await this.saveProgress()
+      }
+    },
+    
+    validateCurrentStep() {
+      switch(this.currentStep) {
+        case 1:
+          if (this.answers.q1 === null) {
+            this.$toast.warning('กรุณาเลือกคำตอบ')
+            return false
+          }
+          break
+        case 2:
+          if (this.answers.q2 === null) {
+            this.$toast.warning('กรุณาเลือกคำตอบ')
+            return false
+          }
+          break
+        case 3:
+          if (this.answers.q3.length === 0) {
+            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
+            return false
+          }
+          break
+        case 5:
+          if (this.answers.q6.length === 0) {
+            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
+            return false
+          }
+          break
+        case 6:
+          if (this.answers.q7 === null) {
+            this.$toast.warning('กรุณาเลือกคำตอบ')
+            return false
+          }
+          break
+        case 7:
+          if (this.answers.q8 === null) {
+            this.$toast.warning('กรุณาเลือกคำตอบ')
+            return false
+          }
+          break
+        case 9:
+          if (!this.answers.endHour || !this.answers.endMinute) {
+            this.$toast.warning('กรุณาเลือกเวลาสิ้นสุดการเยี่ยม')
+            return false
+          }
+          break
+        case 11:
+          if (!this.newAppointment.day || !this.newAppointment.month || !this.newAppointment.year || !this.newAppointment.time) {
+            this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
+            return false
+          }
+          break
+      }
+      return true
+    },
+    
+    goBack() {
+      this.$router.push('/')
+    },
+    
+    async submitSurvey() {
+      try {
+        if (!this.validateCurrentStep()) {
+        return
+      }
+      
+        this.processing = true
+        
+        // ตรวจสอบว่าเป็นการแก้ไขแบบสอบถามที่เสร็จแล้วหรือไม่
+        const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
+        const wasCompleted = existingSurvey?.completed || false
+        
+        // ตั้งค่าเวลาสิ้นสุดจากเวลาที่เลือก
+      const today = new Date()
+        const dateStr = today.toISOString().slice(0, 10)
+        this.timeEnd = `${dateStr} ${this.answers.endHour}:${this.answers.endMinute}:00`
+        
+        if (wasCompleted) {
+          // แก้ไขแบบสอบถามที่เสร็จแล้ว
+          await this.saveProgress()
+          this.$toast.success('บันทึกการแก้ไขสำเร็จ')
+          
+          // เพิ่มเข้าคิวซิงค์
+          await this.addSurveyToSyncQueue()
+        } else {
+          // เสร็จสิ้นแบบสอบถามใหม่
+          // ทำเครื่องหมายว่าเสร็จสิ้น
+          await this.$indexedDB.markSurveyCompleted(this.surveyId, this.timeEnd)
+          
+          // สร้างนัดหมายใหม่
+          await this.createNewAppointment()
+          
+          // เพิ่มเข้าคิวซิงค์
+          await this.addSurveyToSyncQueue()
+          
+          this.$toast.success('บันทึกแบบสอบถามสำเร็จ รอการซิงค์ขึ้นเซิร์ฟเวอร์')
+        }
+        
+        // ลบข้อมูล localStorage
+        localStorage.removeItem('surveyPatient')
+        
+        // กลับไปหน้าแรก
+        setTimeout(() => {
+          this.$router.push('/')
+        }, 1500)
+      } catch (error) {
+        this.$toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล')
+        this.processing = false
+      }
+    },
+    
+    async addSurveyToSyncQueue() {
+      try {
+        const username = this.$offlineAuth?.getUser?.()?.username
+        if (!username) {
+        return
+      }
+      
+        // ดึงข้อมูลแบบสอบถามที่เสร็จแล้ว
+        const survey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
+        if (!survey) {
+          return
+        }
+        
+        // เตรียมข้อมูลสำหรับ API
+      const surveyData = {
+          type: 'SUBMIT_SURVEY',
+          surveyId: this.surveyId,
+          stid: this.visitorData.stid,
+          time_visit: this.visitorData.time_visit,
+          month_age: this.visitorData.month_age,
+          data: survey,
+          timestamp: new Date().toISOString()
+        }
+        
+        // เพิ่มเข้าคิวซิงค์
+        await this.$indexedDB.addToSyncQueue(surveyData)
+      } catch (error) {
+        // จัดการข้อผิดพลาด
+      }
+    },
+    
+    async createNewAppointment() {
+      try {
+        // แปลงปีพุทธศักราชเป็นคริสต์ศักราช
+        const christianYear = this.newAppointment.year - 543
+        const appointmentDate = `${christianYear}-${String(this.newAppointment.month).padStart(2, '0')}-${String(this.newAppointment.day).padStart(2, '0')}`
+        const appointmentTime = this.newAppointment.time
+        
+        // คำนวณอายุเดือนและครั้งที่เยี่ยมใหม่
+        const visitor = await this.$indexedDB.getVisitor(this.visitorData.stid)
+        const existingBooking = await this.$indexedDB.getBooking(this.visitorData.stid)
+        
+        // คำนวณอายุเดือนจากวันเกิดถึงวันนี้
+      const today = new Date()
+        const birthYear = parseInt(visitor.year_birth) - 543
+        const birthMonth = parseInt(visitor.month_birth)
+        let calculatedMonthAge = (today.getFullYear() - birthYear) * 12 + (today.getMonth() + 1 - birthMonth)
+        
+        // จำกัดไว้ที่ 48 เดือน
+        if (calculatedMonthAge > 48) calculatedMonthAge = 48
+        if (calculatedMonthAge < 0) calculatedMonthAge = 0
+        
+        // คำนวณครั้งที่เยี่ยม
+        let newMonthAge = calculatedMonthAge
+        let newTimeVisit = 1
+        
+        if (existingBooking && existingBooking.last_visit_date) {
+          const lastVisitDate = new Date(existingBooking.last_visit_date)
+          const daysSinceLastVisit = Math.floor((today - lastVisitDate) / (1000 * 60 * 60 * 24))
+          
+          if (daysSinceLastVisit > 21) {
+            newMonthAge = calculatedMonthAge
+            newTimeVisit = (existingBooking.time_visit || 0) + 1
+            
+            if (existingBooking.time_visit === 4) {
+              newTimeVisit = 1
+            } else if (newTimeVisit > 4) {
+              newTimeVisit = 4
+            }
+          } else {
+            newMonthAge = existingBooking.month_age || calculatedMonthAge
+            newTimeVisit = (existingBooking.time_visit || 0) + 1
+            
+            if (existingBooking.time_visit === 4) {
+              newMonthAge = (existingBooking.month_age || 0) + 1
+              newTimeVisit = 1
+            } else if (newTimeVisit > 4) {
+              newTimeVisit = 4
+            }
+          }
+          
+          if (newMonthAge > 48) newMonthAge = 48
+        }
+        
+        // บันทึกนัดหมายใหม่
+        await this.$indexedDB.addBooking({
+          stid: this.visitorData.stid,
+          appointmentDate: appointmentDate,
+          appointmentTime: appointmentTime,
+          month_age: newMonthAge,
+          time_visit: newTimeVisit,
+          last_visit_date: new Date().toISOString(),
+          dataSource: 'local',
+          lastSyncedAt: new Date().toISOString()
+        })
+        } catch (error) {
+        throw error
+      }
+    },
+    
+    // ฟังก์ชันช่วยเหลือด้านวันที่
     initDateOptions() {
       const now = new Date()
       const currentYear = now.getFullYear() + 543
       
-      // Generate year options
+      // สร้างตัวเลือกปี
       for (let i = currentYear; i <= currentYear + 2; i++) {
         this.yearOptions.push({ value: i, text: i.toString() })
       }
       
-      // Set default date to today
-      this.step5Day = now.getDate()
-      this.step5Month = now.getMonth() + 1
-      this.step5Year = currentYear
+      // ตั้งค่าวันที่เริ่มต้นเป็นวันนี้บวก 1 เดือน
+      const nextMonth = new Date(now)
+      nextMonth.setMonth(nextMonth.getMonth() + 1)
+      
+      this.newAppointment.day = nextMonth.getDate()
+      this.newAppointment.month = nextMonth.getMonth() + 1
+      this.newAppointment.year = nextMonth.getFullYear() + 543
     },
     
     isLeapYear(year) {
@@ -335,244 +1421,28 @@ export default {
     },
     
     onMonthChange() {
-      if (this.step5Day && this.step5Year) {
-        const daysInMonth = this.getDaysInMonth(this.step5Month, this.step5Year)
+      if (this.newAppointment.day && this.newAppointment.year) {
+        const daysInMonth = this.getDaysInMonth(this.newAppointment.month, this.newAppointment.year)
         
-        if (this.step5Day > daysInMonth) {
-          this.step5Day = daysInMonth
-          this.$toast.info(`เดือนนี้มี ${daysInMonth} วัน ปรับวันที่เป็น ${daysInMonth} แล้ว`)
+        if (this.newAppointment.day > daysInMonth) {
+          this.newAppointment.day = daysInMonth
         }
       }
     },
     
     onYearChange() {
-      if (this.step5Day && this.step5Month === 2) {
-        const daysInMonth = this.getDaysInMonth(2, this.step5Year)
+      if (this.newAppointment.day && this.newAppointment.month === 2) {
+        const daysInMonth = this.getDaysInMonth(2, this.newAppointment.year)
         
-        if (this.step5Day > daysInMonth) {
-          this.step5Day = daysInMonth
-          this.$toast.info(`กุมภาพันธ์ปีนี้มี ${daysInMonth} วัน ปรับวันที่เป็น ${daysInMonth} แล้ว`)
+        if (this.newAppointment.day > daysInMonth) {
+          this.newAppointment.day = daysInMonth
         }
       }
     },
     
-    toggleStep2Answer(value) {
-      const index = this.step2Answer.indexOf(value)
-      if (index > -1) {
-        this.step2Answer.splice(index, 1)
-      } else {
-        this.step2Answer.push(value)
-      }
-    },
-    
-    async handleFileSelect(event) {
-      const file = event.target.files[0]
-      if (!file) return
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        this.$toast.error('กรุณาเลือกไฟล์รูปภาพเท่านั้น')
-        return
-      }
-      
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        this.$toast.error('ไฟล์รูปภาพมีขนาดใหญ่เกินไป (สูงสุด 10MB)')
-        return
-      }
-      
-      this.processing = true
-      
-      try {
-        // Convert to WebP and resize
-        const webpBase64 = await this.convertToWebP(file)
-        this.step4Image = webpBase64
-        
-        // Save to IndexedDB
-        await this.saveImageToIndexedDB(webpBase64)
-        
-        this.$toast.success('อัพโหลดรูปภาพสำเร็จ')
-      } catch (error) {
-        console.error('Error processing image:', error)
-        this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
-      } finally {
-        this.processing = false
-      }
-    },
-    
-    async convertToWebP(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        
-        reader.onload = (e) => {
-          const img = new Image()
-          
-          img.onload = () => {
-            // Calculate new dimensions (max width 1000px)
-            let width = img.width
-            let height = img.height
-            const maxWidth = 1000
-            
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width)
-              width = maxWidth
-            }
-            
-            // Create canvas
-            const canvas = document.createElement('canvas')
-            canvas.width = width
-            canvas.height = height
-            
-            const ctx = canvas.getContext('2d')
-            ctx.drawImage(img, 0, 0, width, height)
-            
-            // Convert to WebP
-            try {
-              const webpDataUrl = canvas.toBlob ? 
-                canvas.toDataURL('image/webp', 0.90) :
-                canvas.toDataURL('image/jpeg', 0.90)
-              
-              resolve(webpDataUrl)
-            } catch (error) {
-              reject(error)
-            }
-          }
-          
-          img.onerror = reject
-          img.src = e.target.result
-        }
-        
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-    },
-    
-    async saveImageToIndexedDB(base64Image) {
-      if (!this.$indexedDB) {
-        console.warn('IndexedDB not available')
-        return
-      }
-      
-      try {
-        const key = `survey_image_${Date.now()}`
-        await this.$indexedDB.saveData('images', {
-          id: key,
-          image: base64Image,
-          timestamp: new Date().toISOString()
-        })
-        
-        this.step4ImageKey = key
-      } catch (error) {
-        console.error('Failed to save image to IndexedDB:', error)
-      }
-    },
-    
-    async removeImage() {
-      if (this.step4ImageKey && this.$indexedDB) {
-        try {
-          await this.$indexedDB.deleteData('images', this.step4ImageKey)
-        } catch (error) {
-          console.error('Failed to delete image from IndexedDB:', error)
-        }
-      }
-      
-      this.step4Image = null
-      this.step4ImageKey = null
-      
-      // Reset file input
-      if (this.$refs.fileInput) {
-        this.$refs.fileInput.value = ''
-      }
-    },
-    
-    nextStep() {
-      // Validate current step
-      if (this.currentStep === 1 && this.step1Answer === null) {
-        this.$toast.warning('กรุณาเลือกคำตอบ')
-        return
-      }
-      
-      if (this.currentStep === 2 && this.step2Answer.length === 0) {
-        this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
-        return
-      }
-      
-      if (this.currentStep === 5) {
-        this.submitSurvey()
-        return
-      }
-      
-      this.currentStep++
-    },
-    
-    prevStep() {
-      if (this.currentStep > 1) {
-        this.currentStep--
-      }
-    },
-    
-    goBack() {
-      this.$router.push('/')
-    },
-    
-    async submitSurvey() {
-      // Validate appointment date
-      if (!this.step5Day || !this.step5Month || !this.step5Year || !this.step5Time) {
-        this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
-        return
-      }
-      
-      // Validate date is not in the past
-      const selectedDate = new Date(
-        this.step5Year - 543,
-        this.step5Month - 1,
-        this.step5Day
-      )
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      if (selectedDate < today) {
-        this.$toast.error('ไม่สามารถเลือกวันที่ในอดีตได้')
-        return
-      }
-      
-      // Prepare survey data
-      const surveyData = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        step1: this.step1Answer,
-        step2: this.step2Answer,
-        step3: {
-          notes: this.step3Notes,
-          select1: this.step3Select1,
-          select2: this.step3Select2
-        },
-        step4: {
-          imageKey: this.step4ImageKey
-        },
-        step5: {
-          day: this.step5Day,
-          month: this.step5Month,
-          year: this.step5Year,
-          time: this.step5Time
-        }
-      }
-      
-      // Save to IndexedDB
-      if (this.$indexedDB) {
-        try {
-          await this.$indexedDB.saveData('surveys', surveyData)
-        } catch (error) {
-          console.error('Failed to save survey to IndexedDB:', error)
-        }
-      }
-      
-      this.$toast.success('บันทึกแบบสอบถามสำเร็จ')
-      
-      // Redirect to home
-      setTimeout(() => {
-        this.$router.push('/')
-      }, 1500)
+    getMonthName(monthValue) {
+      const month = this.monthOptions.find(m => m.value === monthValue)
+      return month ? month.text : ''
     }
   }
 }
@@ -590,7 +1460,7 @@ export default {
 
 .question-title {
   color: #2c3e50;
-  font-size: 1.35rem;
+  font-size: 1.62rem;
   font-weight: 500;
   margin-bottom: 2rem;
   text-align: left;
@@ -611,11 +1481,59 @@ export default {
 
 .question-subtitle {
   color: #495057;
-  font-size: 1.05rem;
+  font-size: 1.26rem;
   margin-bottom: 2rem;
   text-align: left;
   padding-left: 0.75rem;
   border-left: 3px solid #17a2b8;
+}
+
+.activity-description {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+  font-size: 1.32rem;
+  line-height: 1.6;
+  color: #2c3e50;
+  border: 2px solid #dee2e6;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.activity-info-icon {
+  color: #17a2b8;
+  font-size: 1.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.activity-info-icon:hover {
+  color: #138496;
+  transform: scale(1.15);
+}
+
+.activity-detail-content {
+  padding: 1rem 0;
+}
+
+.activity-detail-title {
+  color: #3551a4;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.activity-detail-text {
+  color: #495057;
+  font-size: 1.26rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
 }
 
 /* Options Container */
@@ -638,7 +1556,7 @@ export default {
   color: #495057;
   padding: 1.25rem 1.75rem;
   border-radius: 0.75rem;
-  font-size: 1.05rem;
+  font-size: 1.26rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -664,10 +1582,54 @@ export default {
   margin-bottom: 2.5rem;
 }
 
+/* Form Groups and Controls (matching index.vue) */
+::v-deep .form-group {
+  margin-bottom: 1.75rem;
+}
+
+::v-deep .form-group label {
+  font-size: 1.44rem;
+  font-weight: 400;
+  color: #2c3e50;
+  margin-bottom: 0.75rem;
+}
+
+::v-deep .form-control,
+::v-deep .custom-select {
+  font-size: 1.44rem;
+  padding: 0.975rem 1.1rem;
+  border: 2px solid #ced4da;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+  font-weight: 300;
+}
+
+::v-deep .form-control:focus,
+::v-deep .custom-select:focus {
+  border-color: #3551a4;
+  box-shadow: 0 0 0 0.2rem rgba(53, 81, 164, 0.15);
+}
+
+::v-deep .form-control:disabled {
+  background-color: #f8f9fa;
+  font-weight: 400;
+}
+
+::v-deep textarea.form-control {
+  min-height: 120px;
+}
+
+::v-deep .invalid-feedback {
+  font-size: 1.32rem;
+  font-weight: 400;
+  margin-top: 0.5rem;
+}
+
+/* Notes Section */
 .notes-textarea {
   width: 100%;
   margin-bottom: 1.5rem;
-  font-size: 1rem;
+  font-size: 1.2rem;
   padding: 1.25rem;
   border: 2px solid #dee2e6;
   border-radius: 0.75rem;
@@ -681,28 +1643,42 @@ export default {
   box-shadow: 0 0 0 0.2rem rgba(53, 81, 164, 0.15);
 }
 
+.time-end-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 0.75rem;
+  border: 2px solid #dee2e6;
+}
+
+.time-end-label {
+  display: block;
+  font-size: 1.44rem;
+  font-weight: 500;
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  padding-left: 0.5rem;
+}
+
 .dropdown-row {
   display: flex;
   align-items: center;
   gap: 1.5rem;
   justify-content: center;
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
 }
 
 .select-field {
   flex: 1;
   max-width: 220px;
-  font-size: 1.2rem;
-  /* padding: 0 0.875rem; */
+  font-size: 1.44rem;
+  padding: 0.975rem 1.1rem;
   border: 2px solid #dee2e6;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   background: white;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   height: 50px;
   color: #495057;
-  font-weight: 500;
+  font-weight: 300;
 }
 
 .select-field:focus {
@@ -712,7 +1688,7 @@ export default {
 }
 
 .colon {
-  font-size: 1.75rem;
+  font-size: 2.1rem;
   font-weight: 500;
   color: #3551a4;
 }
@@ -741,13 +1717,13 @@ export default {
 }
 
 .upload-placeholder i {
-  font-size: 5rem;
+  font-size: 6rem;
   margin-bottom: 1.5rem;
   color: rgba(255, 255, 255, 0.5);
 }
 
 .upload-placeholder p {
-  font-size: 1.2rem;
+  font-size: 1.44rem;
   margin: 0;
   color: rgba(255, 255, 255, 0.8);
   font-weight: 500;
@@ -784,7 +1760,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1.56rem;
   transition: all 0.3s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -795,7 +1771,7 @@ export default {
 }
 
 .upload-btn {
-  font-size: 1.05rem;
+  font-size: 1.26rem;
   font-weight: 500;
   padding: 1rem 2.5rem;
   display: flex;
@@ -812,58 +1788,100 @@ export default {
 }
 
 .upload-btn i {
-  font-size: 1.3rem;
+  font-size: 1.56rem;
 }
 
 /* Appointment Form */
-.appointment-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.75rem;
+.appointment-form-wrapper {
   margin-bottom: 2.5rem;
-  padding: 2rem;
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  border-radius: 1rem;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.appointment-form .form-group {
-  margin-bottom: 0;
+.appointment-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
-.appointment-form label {
+.appointment-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.appointment-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.32rem;
   font-weight: 500;
   color: #2c3e50;
   margin-bottom: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.95rem;
+  padding: 0.5rem;
+  background: linear-gradient(135deg, #f8f9fa, #ffffff);
+  border-radius: 0.5rem;
 }
 
-.appointment-form label::before {
-  content: '•';
+.appointment-label i {
   color: #3551a4;
-  font-size: 1.5rem;
+  font-size: 1.44rem;
+  width: 24px;
+  text-align: center;
 }
 
-.appointment-form select {
+.appointment-select {
   width: 100%;
-  font-size: 1.2rem;
-  padding: 0 0.875rem;
-  height: 50px;
+  font-size: 1.44rem;
+  padding: 1rem 1.2rem;
+  height: 60px;
   border: 2px solid #dee2e6;
   border-radius: 0.75rem;
   background: white;
   color: #495057;
   font-weight: 500;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: all 0.3s ease;
+  cursor: pointer;
 }
 
-.appointment-form select:focus {
+.appointment-select:hover {
+  border-color: #3551a4;
+  box-shadow: 0 2px 8px rgba(53, 81, 164, 0.1);
+}
+
+.appointment-select:focus {
   border-color: #3551a4;
   outline: none;
-  box-shadow: 0 0 0 0.2rem rgba(53, 81, 164, 0.15);
+  box-shadow: 0 0 0 0.3rem rgba(53, 81, 164, 0.2);
+  transform: translateY(-2px);
+}
+
+.appointment-preview {
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  padding: 1.5rem 2rem;
+  border-radius: 0.75rem;
+  border: 2px solid #2196f3;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 1.32rem;
+  color: #1565c0;
+  font-weight: 500;
+  animation: slideIn 0.3s ease;
+}
+
+.appointment-preview i {
+  font-size: 1.56rem;
+  color: #1976d2;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Navigation Buttons */
@@ -879,10 +1897,18 @@ export default {
   min-width: 160px;
   font-weight: 500;
   padding: 1rem 2.25rem;
-  font-size: 1.05rem;
+  font-size: 1.26rem;
   border-radius: 0.75rem;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.navigation-buttons .btn i {
+  font-size: 1.32rem;
 }
 
 .navigation-buttons .btn:hover {
@@ -908,6 +1934,15 @@ export default {
   background: linear-gradient(135deg, #138496, #0f6674);
 }
 
+.navigation-buttons .btn-success {
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  border: none;
+}
+
+.navigation-buttons .btn-success:hover {
+  background: linear-gradient(135deg, #1e7e34, #155724);
+}
+
 /* Processing Overlay */
 .processing-overlay {
   position: fixed;
@@ -929,7 +1964,7 @@ export default {
 
 .spinner-container p {
   margin-top: 1rem;
-  font-size: 1.1rem;
+  font-size: 1.32rem;
 }
 
 /* Responsive */
@@ -940,11 +1975,11 @@ export default {
   }
   
   .question-title {
-    font-size: 1.15rem;
+    font-size: 1.38rem;
   }
   
   .question-subtitle {
-    font-size: 0.95rem;
+    font-size: 1.14rem;
   }
   
   .options-container.multi-select {
@@ -955,18 +1990,13 @@ export default {
     padding: 1rem 1.25rem;
   }
   
-  .dropdown-row {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .select-field {
-    max-width: 100%;
-  }
-  
-  .appointment-form {
+  .appointment-form-grid {
     grid-template-columns: 1fr;
-    padding: 1.5rem;
+  }
+  
+  .appointment-preview {
+    font-size: 1.14rem;
+    padding: 1.25rem 1.5rem;
   }
   
   .navigation-buttons {
@@ -977,17 +2007,5 @@ export default {
   .navigation-buttons .btn {
     width: 100%;
   }
-  
-  .upload-placeholder,
-  .image-preview {
-    height: 250px;
-    max-width: 100%;
-  }
-  
-  .upload-btn {
-    width: 100%;
-    justify-content: center;
-  }
 }
 </style>
-

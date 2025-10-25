@@ -149,7 +149,7 @@ export default function ({ app, store }, inject) {
       }
     }
 
-    // ฟังก์ชัน Login ขั้นสูง - ใช้ได้เฉพาะ online เท่านั้น
+    // ฟังก์ชัน Login - ใช้ได้เฉพาะ online เท่านั้น
     async login(credentials) {
       // ตรวจสอบว่าออนไลน์หรือไม่ - login ได้เฉพาะตอนออนไลน์เท่านั้น
       if (!navigator.onLine) {
@@ -181,7 +181,7 @@ export default function ({ app, store }, inject) {
       }
     }
 
-    // ฟังก์ชัน Logout ขั้นสูง - ใช้ได้ทั้ง online และ offline
+    // ฟังก์ชัน Logout - ใช้ได้ทั้ง online และ offline
     async logout() {
       try {
         // ขั้นตอนที่ 1: ล้างสถานะ auth ใน Vuex ก่อนเพื่อป้องกันปัญหา middleware

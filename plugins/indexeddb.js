@@ -6,7 +6,7 @@ export default function ({ app }, inject) {
   class IndexedDBManager {
     constructor() {
       this.dbName = "RipedV2DB"; // ชื่อฐานข้อมูล
-      this.version = 6; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
+      this.version = 8; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
       this.db = null; // Instance ของ database
       this.isInitialized = false; // สถานะการเริ่มต้นงาน
     }
@@ -159,6 +159,26 @@ export default function ({ app }, inject) {
               unique: false,
             });
             bookingStore.createIndex("lastSyncedAt", "lastSyncedAt", {
+              unique: false,
+            });
+          }
+
+          // 11. Survey Progress Store - เก็บความคืบหน้าการทำแบบสอบถาม
+          if (!db.objectStoreNames.contains("survey_progress")) {
+            const surveyProgressStore = db.createObjectStore(
+              "survey_progress",
+              {
+                keyPath: "id",
+              }
+            );
+            surveyProgressStore.createIndex("stid", "stid", { unique: false });
+            surveyProgressStore.createIndex("time_visit", "time_visit", {
+              unique: false,
+            });
+            surveyProgressStore.createIndex("completed", "completed", {
+              unique: false,
+            });
+            surveyProgressStore.createIndex("lastUpdated", "lastUpdated", {
               unique: false,
             });
           }
@@ -373,6 +393,15 @@ export default function ({ app }, inject) {
     /** ลบข้อมูลทั่วไป */
     async deleteData(storeName, key) {
       return await this.delete(storeName, key);
+    }
+
+    /** บันทึกรูปภาพ */
+    async saveImage(key, base64Data) {
+      return await this.update("images", {
+        id: key,
+        data: base64Data,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     /** ดึงรูปภาพด้วย ID */
@@ -943,6 +972,87 @@ export default function ({ app }, inject) {
       });
     }
 
+    /** ดึงกิจกรรมตามอายุเดือนและครั้งที่เยี่ยม */
+    async getActivityByMonthAgeAndTime(monthAge, timeVisit) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.error("IndexedDB not initialized");
+        return null;
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["activities"], "readonly");
+        const store = transaction.objectStore("activities");
+        const request = store.openCursor();
+        const matchingActivities = [];
+        let totalScanned = 0;
+
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            const activity = cursor.value;
+            totalScanned++;
+
+            // Debug first few records to see data structure
+            if (totalScanned <= 3) {
+              console.log(`📋 Sample activity #${totalScanned}:`, {
+                month_age: activity.month_age,
+                month_age_type: typeof activity.month_age,
+                time: activity.time,
+                time_type: typeof activity.time,
+                title: activity.title,
+              });
+            }
+
+            // Convert both to numbers for comparison since API returns strings
+            if (
+              Number(activity.month_age) === Number(monthAge) &&
+              Number(activity.time) === Number(timeVisit)
+            ) {
+              matchingActivities.push(activity);
+            }
+            cursor.continue();
+          } else {
+            console.log(
+              `📊 Scanned ${totalScanned} activities, found ${matchingActivities.length} matches`
+            );
+
+            // Return null if no matches, or merge all matching activities
+            if (matchingActivities.length === 0) {
+              resolve(null);
+            } else if (matchingActivities.length === 1) {
+              resolve(matchingActivities[0]);
+            } else {
+              // Merge multiple activities into one object
+              const merged = {
+                month_age: monthAge,
+                time: timeVisit,
+                activity: matchingActivities
+                  .map((a) => a.title || a.activity)
+                  .filter(Boolean)
+                  .join("\n\n"),
+                objective: matchingActivities
+                  .map((a) => a.objective)
+                  .filter(Boolean)
+                  .join("\n\n"),
+                song:
+                  matchingActivities
+                    .map((a) => a.song || a.description)
+                    .filter(Boolean)
+                    .join("\n\n") || null,
+              };
+              console.log(`🔀 Merged ${matchingActivities.length} activities`);
+              resolve(merged);
+            }
+          }
+        };
+        request.onerror = () => {
+          console.error("Error reading activities:", request.error);
+          reject(request.error);
+        };
+      });
+    }
+
     // ========================================
     // Visitors Operations (จัดการผู้รับบริการ)
     // ========================================
@@ -1086,6 +1196,141 @@ export default function ({ app }, inject) {
         const store = transaction.objectStore("bookings");
         const index = store.index("dataSource");
         const request = index.getAll("local");
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    // ========================================
+    // Survey Progress Operations
+    // ========================================
+
+    /** บันทึกความคืบหน้าแบบสอบถาม */
+    async saveSurveyProgress(data) {
+      const surveyData = {
+        ...data,
+        lastUpdated: new Date().toISOString(),
+      };
+      return await this.update("survey_progress", surveyData);
+    }
+
+    /** ดึงความคืบหน้าแบบสอบถามที่ยังไม่สำเร็จ */
+    async getSurveyProgress(stid, time_visit) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return null;
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(
+          ["survey_progress"],
+          "readonly"
+        );
+        const store = transaction.objectStore("survey_progress");
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          const surveys = request.result;
+          // Find incomplete survey with matching stid and time_visit
+          const incompleteSurvey = surveys.find(
+            (s) =>
+              s.stid === stid && s.time_visit === time_visit && !s.completed
+          );
+          resolve(incompleteSurvey || null);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    /** ดึงความคืบหน้าแบบสอบถามด้วย ID */
+    async getSurveyProgressById(id) {
+      return await this.get("survey_progress", id);
+    }
+
+    /** ลบความคืบหน้าแบบสอบถาม */
+    async deleteSurveyProgress(id) {
+      return await this.delete("survey_progress", id);
+    }
+
+    /** ทำเครื่องหมายแบบสอบถามว่าเสร็จสิ้น */
+    async markSurveyCompleted(id, timeEnd) {
+      const survey = await this.getSurveyProgressById(id);
+      if (survey) {
+        return await this.update("survey_progress", {
+          ...survey,
+          completed: true,
+          timeEnd: timeEnd,
+          synced: false, // ยังไม่ได้ sync ขึ้น server
+          approve_status: 0, // 0 = ยังไม่อนุมัติ, 1 = อนุมัติแล้ว
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+      return null;
+    }
+
+    /** อัพเดตสถานะ sync ของแบบสอบถาม */
+    async updateSurveySyncStatus(id, synced, approveStatus = 0) {
+      const survey = await this.getSurveyProgressById(id);
+      if (survey) {
+        return await this.update("survey_progress", {
+          ...survey,
+          synced: synced,
+          approve_status: approveStatus,
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+      return null;
+    }
+
+    /** ดึงแบบสอบถามที่เสร็จสิ้นโดย stid */
+    async getCompletedSurveysByStid(stid) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return [];
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(
+          ["survey_progress"],
+          "readonly"
+        );
+        const store = transaction.objectStore("survey_progress");
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          const surveys = request.result;
+          const completedSurveys = surveys.filter(
+            (s) => s.stid === stid && s.completed
+          );
+          // Sort by timeStart descending (newest first)
+          completedSurveys.sort(
+            (a, b) => new Date(b.timeStart) - new Date(a.timeStart)
+          );
+          resolve(completedSurveys);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    /** ดึงแบบสอบถามที่เสร็จสิ้นทั้งหมด */
+    async getCompletedSurveys() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return [];
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(
+          ["survey_progress"],
+          "readonly"
+        );
+        const store = transaction.objectStore("survey_progress");
+        const index = store.index("completed");
+        const request = index.getAll(true);
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
