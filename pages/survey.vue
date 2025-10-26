@@ -2,9 +2,9 @@
   <div>
     <Loading :show="loading" :message="loadingMessage" />
     
-    <!-- Step 1: ผู้ปกครองสามารถควบคุมหากิจกรรม -->
+    <!-- Step 1: ผู้ปกครองสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
     <div v-if="currentStep === 1" class="survey-step">
-      <h4 class="question-title">1.ผู้ปกครองสามารถควบคุมหากิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
+      <h4 class="question-title">1.ผู้ปกครองสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
       
       <div class="options-container">
         <button
@@ -24,6 +24,17 @@
         </button>
       </div>
 
+      <!-- Show input when "ไม่ได้" is selected -->
+      <div v-if="answers.q1 === 3" class="form-container" style="margin-top: 2rem;">
+        <b-form-group label="โปรดให้เหตุผล:" label-for="q1-des-input">
+          <b-form-input
+            id="q1-des-input"
+            v-model="answers.q1_des"
+            placeholder="กรอกเหตุผล..."
+          ></b-form-input>
+        </b-form-group>
+      </div>
+
       <div class="navigation-buttons">
         <b-button variant="primary" size="lg" @click="goBack">
           ย้อนกลับ
@@ -34,9 +45,9 @@
       </div>
     </div>
 
-    <!-- Step 2: เด็กสามารถควบคุมหากิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
+    <!-- Step 2: เด็กสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
     <div v-if="currentStep === 2" class="survey-step">
-      <h4 class="question-title">2.เด็กสามารถควบคุมหากิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
+      <h4 class="question-title">2.เด็กสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
       
       <div class="options-container">
         <button
@@ -56,6 +67,17 @@
         </button>
       </div>
 
+      <!-- Show input when "ไม่ได้" is selected -->
+      <div v-if="answers.q2 === 3" class="form-container" style="margin-top: 2rem;">
+        <b-form-group label="โปรดให้เหตุผล:" label-for="q2-des-input">
+          <b-form-input
+            id="q2-des-input"
+            v-model="answers.q2_des"
+            placeholder="กรอกเหตุผล..."
+          ></b-form-input>
+        </b-form-group>
+      </div>
+
       <div class="navigation-buttons">
         <b-button variant="primary" size="lg" @click="prevStep">
           ย้อนกลับ
@@ -66,9 +88,9 @@
       </div>
     </div>
 
-    <!-- Step 3: ไม่มีใครที่สำคัญ -->
+    <!-- Step 3: ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก -->
     <div v-if="currentStep === 3" class="survey-step">
-      <h4 class="question-title">3 : ไม่มีใครที่สำคัญ ใครเป็นคนทำกิจกรรมที่ได้รากการเยี่ยมบ้านร่วมกับเด็ก (ทบทวนการเยี่ยมบ้านที่ผ่านมา)</h4>
+      <h4 class="question-title">3 : ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก (ทบทวนการเยี่ยมบ้านที่ผ่านมา)</h4>
       
       <div class="options-container multi-select">
         <button
@@ -84,11 +106,11 @@
 
       <!-- Show input when "อื่นๆ (13)" is selected -->
       <div v-if="answers.q3.includes(13)" class="form-container" style="margin-top: 2rem;">
-        <b-form-group label="อื่นๆ ระบุ:" label-for="q4-input">
+        <b-form-group label="อื่นๆ ระบุ:" label-for="q3-other-input">
           <b-form-input
-            id="q4-input"
-            v-model="answers.q4"
-            placeholder="กรอกคำอธิบาย..."
+            id="q3-other-input"
+            v-model="answers.q3_des"
+            placeholder="โปรดระบุ..."
           ></b-form-input>
         </b-form-group>
       </div>
@@ -102,9 +124,52 @@
         </b-button>
       </div>
     </div>
+<div v-if="currentStep === 4" class="survey-step">
+      <h4 class="question-title">4. ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน ? (ทบทวนการเยี่ยมบ้านที่ผ่านมา)</h4>
+      
+      <div class="options-container">
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q4 === 1 }"
+          @click="answers.q4 = 1"
+        >
+          ไม่ทำเลย
+        </button>
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q4 === 2 }"
+          @click="answers.q4 = 2"
+        >
+          ทำน้อย (1-2 วัน)
+        </button>
+        
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q4 === 3 }"
+          @click="answers.q4 = 3"
+        >
+          ทำบ้างเป็นบางวัน (3-4 วัน)
+        </button>
+         <button
+          class="option-btn"
+          :class="{ 'selected': answers.q4 === 4 }"
+          @click="answers.q4 = 4"
+        >
+          ทำเกือบทุกวัน (5-7 วัน)
+        </button>
+      </div>
 
-    <!-- Step 4: ใช้ผู้เยี่ยมบ้านใส่ (Dynamic Activities like Q9) -->
-    <div v-if="currentStep === 4" class="survey-step">
+      <div class="navigation-buttons">
+        <b-button variant="primary" size="lg" @click="prevStep">
+          ย้อนกลับ
+        </b-button>
+        <b-button variant="info" size="lg" @click="nextStep">
+          ถัดไป
+        </b-button>
+      </div>
+    </div>
+    <!-- Step 5: ใช้ผู้เยี่ยมบ้านใส่ (Dynamic Activities like Q9) -->
+    <div v-if="currentStep === 5 && shouldShowStep5" class="survey-step">
       <div v-if="activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
         ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time_visit }}
@@ -114,7 +179,7 @@
         <!-- Show current activity question for Q5 -->
         <div v-if="currentQ5Index < activities.length">
           <h4 class="question-title">
-            5 : ใช้ผู้เยี่ยมบ้านใส่ลงบันทุกทองแบบทดสองการเยี่ยมบ้านครั้งนี้ที่ผ่านมา
+            5 : ให้ผู้เยี่ยมบ้านสังเกตหรือทบทวนกิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก
           </h4>
           <p class="question-subtitle">
             กิจกรรมที่ {{ currentQ5Index + 1 }} / {{ activities.length }}
@@ -174,9 +239,9 @@
       </div>
     </div>
 
-    <!-- Step 5: ใครเป็นคนทำกิจกรรมกับเด็ก -->
-    <div v-if="currentStep === 5" class="survey-step">
-      <h4 class="question-title">6 : ใครเป็นคนทำกิจกรรมกับเด็ก(การเยี่ยมบ้านครั้งนี้กับเด็ก)</h4>
+    <!-- Step 6: ใครเป็นคนทำกิจกรรมกับเด็ก -->
+    <div v-if="currentStep === 6" class="survey-step">
+      <h4 class="question-title">6 : ใครเป็นคนทำกิจกรรมการเยี่ยมบ้านร่วมกับเด็ก(การเยี่ยมบ้านครั้งนี้)</h4>
       
       <div class="options-container multi-select">
         <button
@@ -196,7 +261,7 @@
           <b-form-input
             id="q6-other-input"
             v-model="answers.q6_other"
-            placeholder="กรอกคำอธิบาย..."
+            placeholder="โปรดระบุ..."
           ></b-form-input>
         </b-form-group>
       </div>
@@ -211,10 +276,9 @@
       </div>
     </div>
 
-    <!-- Step 6: มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ -->
-    <div v-if="currentStep === 6" class="survey-step">
-      <h4 class="question-title">การเยี่ยมบ้านครั้งนี้</h4>
-      <p class="question-subtitle">7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
+    <!-- Step 7: มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ -->
+    <div v-if="currentStep === 7" class="survey-step">
+      <h4 class="question-title">7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</h4>
       
       <div class="options-container">
         <button
@@ -225,6 +289,30 @@
           มี (1)
         </button>
         
+      <!-- Show multi-select when "มี" is selected -->
+      <div v-if="answers.q7 === 1" class="options-container multi-select" style="margin-top: 2rem;margin-bottom: 0;">
+        <button
+          v-for="option in q7Options"
+          :key="option.value"
+          class="option-btn"
+          :class="{ 'selected': answers.q71 && answers.q71.includes(option.value) }"
+          @click="toggleQ71Answer(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
+      <!-- Show input when "อื่นๆ (13)" is selected -->
+      <div v-if="answers.q7 === 1 && answers.q71 && answers.q71.includes(13)" class="form-container" style="margin-bottom: 0;">
+        <b-form-group label="อื่นๆ ระบุ:" label-for="q71-other-input">
+          <b-form-input
+            id="q71-other-input"
+            v-model="answers.q71_des"
+            placeholder="โปรดระบุ..."
+          ></b-form-input>
+        </b-form-group>
+      </div>
+
         <button
           class="option-btn"
           :class="{ 'selected': answers.q7 === 3 }"
@@ -244,8 +332,8 @@
       </div>
     </div>
 
-    <!-- Step 7: มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็ก -->
-    <div v-if="currentStep === 7" class="survey-step">
+    <!-- Step 8: มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็ก -->
+    <div v-if="currentStep === 8" class="survey-step">
       <h4 class="question-title">8 : มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ) (การเยี่ยมบ้านครั้งนี้)</h4>
       
       <div class="options-container">
@@ -276,8 +364,8 @@
       </div>
     </div>
 
-    <!-- Step 8: Dynamic Activities Questions -->
-    <div v-if="currentStep === 8" class="survey-step">
+    <!-- Step 9: Dynamic Activities Questions -->
+    <div v-if="currentStep === 9" class="survey-step">
       <div v-if="activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
         ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time_visit }}
@@ -348,7 +436,7 @@
     </div>
 
     <!-- Special Step 1: บันทึกผู้เยี่ยมบ้าน -->
-    <div v-if="currentStep === 9" class="survey-step">
+    <div v-if="currentStep === 10" class="survey-step">
       <h4 class="question-title">บันทึกผู้เยี่ยมบ้าน</h4>
       
       <div class="form-container">
@@ -388,39 +476,77 @@
     </div>
 
     <!-- Special Step 2: รูปผู้เยี่ยมบ้าน -->
-    <div v-if="currentStep === 10" class="survey-step">
+    <div v-if="currentStep === 11" class="survey-step">
       <h4 class="question-title">อัพโหลดรูปถ่ายกิจกรรมกับผู้ปกครองและเด็ก</h4>
       
-      <div class="upload-container">
-        <div v-if="!surveyImage" class="upload-placeholder">
-          <i class="fas fa-image"></i>
-          <p>ยังไม่มีรูปภาพ</p>
-        </div>
-        <div v-else class="image-preview">
-          <img :src="surveyImage" alt="Uploaded image" />
-          <button class="remove-image-btn" @click="removeImage">
-            <i class="fas fa-times"></i>
-          </button>
+      <div class="upload-container-dual">
+        <!-- Image 1 -->
+        <div class="upload-section">
+          <h6 class="upload-section-title">รูปภาพที่ 1 <span class="required-badge">*</span></h6>
+          <div v-if="!surveyImages[0]" class="upload-placeholder">
+            <i class="fas fa-image"></i>
+            <p>ยังไม่มีรูปภาพ</p>
+          </div>
+          <div v-else class="image-preview">
+            <img :src="surveyImages[0]" alt="Image 1" />
+            <button class="remove-image-btn" @click="removeImage(0)">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <input
+            ref="fileInput1"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style="display: none"
+            @change="handleFileSelect($event, 0)"
+          />
+
+          <b-button
+            variant="warning"
+            size="lg"
+            class="upload-btn"
+            @click="$refs.fileInput1.click()"
+          >
+            <i class="fas fa-camera"></i>
+            {{ surveyImages[0] ? 'เลือกรูปใหม่' : 'อัพโหลดรูปที่ 1' }}
+          </b-button>
         </div>
 
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style="display: none"
-          @change="handleFileSelect"
-        />
+        <!-- Image 2 -->
+        <div class="upload-section">
+          <h6 class="upload-section-title">รูปภาพที่ 2 <span class="required-badge">*</span></h6>
+          <div v-if="!surveyImages[1]" class="upload-placeholder">
+            <i class="fas fa-image"></i>
+            <p>ยังไม่มีรูปภาพ</p>
+          </div>
+          <div v-else class="image-preview">
+            <img :src="surveyImages[1]" alt="Image 2" />
+            <button class="remove-image-btn" @click="removeImage(1)">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
 
-        <b-button
-          variant="warning"
-          size="lg"
-          class="upload-btn"
-          @click="$refs.fileInput.click()"
-        >
-          <i class="fas fa-camera"></i>
-          {{ surveyImage ? 'เลือกรูปใหม่' : 'กดเพื่ออัพโหลดไฟล์ใหม่' }}
-        </b-button>
+          <input
+            ref="fileInput2"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style="display: none"
+            @change="handleFileSelect($event, 1)"
+          />
+
+          <b-button
+            variant="warning"
+            size="lg"
+            class="upload-btn"
+            @click="$refs.fileInput2.click()"
+          >
+            <i class="fas fa-camera"></i>
+            {{ surveyImages[1] ? 'เลือกรูปใหม่' : 'อัพโหลดรูปที่ 2' }}
+          </b-button>
+        </div>
       </div>
 
       <div class="navigation-buttons">
@@ -433,8 +559,8 @@
       </div>
     </div>
 
-    <!-- Step 11: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
-    <div v-if="currentStep === 11" class="survey-step">
+    <!-- Step 12: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
+    <div v-if="currentStep === 12" class="survey-step">
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
       
       <div class="appointment-form-wrapper">
@@ -558,8 +684,8 @@ export default {
       activities: [],
       
       // Image upload
-      surveyImage: null,
-      surveyImageKey: null,
+      surveyImages: [],
+      surveyImageKeys: [],
       
       // Activity detail modal
       activityDetailModalVisible: false,
@@ -568,13 +694,18 @@ export default {
       // Answers object
       answers: {
         q1: null,
+        q1_des: '',
         q2: null,
+        q2_des: '',
         q3: [],
-        q4: '',
+        q3_des: '',
+        q4: null,
         q5: {}, // Changed to object like q9
         q6: [],
         q6_other: '',
         q7: null,
+        q71: [],
+        q71_des: '',
         q8: null,
         q9: {}, // { activityId: answer }
         notes: '',
@@ -594,6 +725,16 @@ export default {
       ],
       
       q6Options: [
+        { value: 1, label: 'แม่ (1)' },
+        { value: 3, label: 'พ่อ (3)' },
+        { value: 5, label: 'ย่า/ยาย (5)' },
+        { value: 7, label: 'ปู่/ตา (7)' },
+        { value: 9, label: 'พี่/น้อง (9)' },
+        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
+        { value: 13, label: 'อื่นๆ (13)' }
+      ],
+      
+      q7Options: [
         { value: 1, label: 'แม่ (1)' },
         { value: 3, label: 'พ่อ (3)' },
         { value: 5, label: 'ย่า/ยาย (5)' },
@@ -656,6 +797,21 @@ export default {
       
       const daysInMonth = this.getDaysInMonth(month, year)
       return this.generateDayOptions(daysInMonth)
+    },
+    
+    // ตรวจสอบว่าควรแสดง step 5 หรือไม่ (ไม่แสดงถ้า time_visit = 1)
+    shouldShowStep5() {
+      return this.visitorData && Number(this.visitorData.time_visit) !== 1
+    },
+    
+    // ตรวจสอบว่า skip จาก Q1 หรือไม่
+    skippedFromQ1() {
+      return this.answers.q1 === 3
+    },
+    
+    // ตรวจสอบว่า skip จาก Q2 หรือไม่
+    skippedFromQ2() {
+      return this.answers.q2 === 3
     }
   },
   async mounted() {
@@ -818,14 +974,38 @@ export default {
       this.timeStart = survey.timeStart
       this.timeEnd = survey.timeEnd || null
       this.currentStep = survey.currentStep || 1
-      this.answers = survey.answers || this.answers
+      // Merge answers with defaults to ensure new fields exist
+      this.answers = {
+        ...this.answers,
+        ...survey.answers,
+        q71: survey.answers?.q71 || [],
+        q71_des: survey.answers?.q71_des || '',
+        q1_des: survey.answers?.q1_des || '',
+        q2_des: survey.answers?.q2_des || '',
+        q3_des: survey.answers?.q3_des || ''
+      }
       this.currentActivityIndex = survey.currentActivityIndex || 0
       this.currentQ5Index = survey.currentQ5Index || 0
-      this.surveyImage = survey.surveyImage || null
-      this.surveyImageKey = survey.surveyImageKey || null
+      // Handle both old single image and new array format
+      if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
+        this.surveyImages = survey.surveyImages
+      } else if (survey.surveyImage) {
+        // Backward compatibility: convert old single image to array
+        this.surveyImages = [survey.surveyImage]
+      } else {
+        this.surveyImages = []
+      }
+      if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys)) {
+        this.surveyImageKeys = survey.surveyImageKeys
+      } else if (survey.surveyImageKey) {
+        // Backward compatibility
+        this.surveyImageKeys = [survey.surveyImageKey]
+      } else {
+        this.surveyImageKeys = []
+      }
       
-      // ถ้าอยู่ขั้นตอนที่ 11 โหลดข้อมูลนัดหมาย
-      if (this.currentStep === 11 && survey.newAppointment) {
+      // ถ้าอยู่ขั้นตอนที่ 12 โหลดข้อมูลนัดหมาย
+      if (this.currentStep === 12 && survey.newAppointment) {
         this.newAppointment = survey.newAppointment
       }
       
@@ -904,8 +1084,8 @@ export default {
           currentQ5Index: this.currentQ5Index,
           answers: this.answers,
           newAppointment: this.newAppointment,
-          surveyImage: this.surveyImage,
-          surveyImageKey: this.surveyImageKey,
+          surveyImages: this.surveyImages,
+          surveyImageKeys: this.surveyImageKeys,
           completed: isCompleted, // เก็บสถานะเดิม
           synced: existingSurvey?.synced || false, // เก็บสถานะซิงค์
           approve_status: existingSurvey?.approve_status || 0 // เก็บสถานะการอนุมัติ
@@ -936,6 +1116,19 @@ export default {
       }
     },
     
+    toggleQ71Answer(value) {
+      // Ensure q71 is initialized as array
+      if (!this.answers.q71) {
+        this.$set(this.answers, 'q71', [])
+      }
+      const index = this.answers.q71.indexOf(value)
+      if (index > -1) {
+        this.answers.q71.splice(index, 1)
+      } else {
+        this.answers.q71.push(value)
+      }
+    },
+    
     // จัดการคำตอบกิจกรรมคำถามที่ 5
     setQ5Answer(activityId, answer) {
       this.$set(this.answers.q5, activityId, answer)
@@ -962,7 +1155,7 @@ export default {
         this.currentQ5Index--
         await this.saveProgress()
       } else {
-        // กลับไปขั้นตอนก่อนหน้า
+        // กลับไปขั้นตอนก่อนหน้า (ถ้า step 5 ไม่แสดง จะไม่เข้าฟังก์ชันนี้)
         await this.prevStep()
       }
     },
@@ -999,7 +1192,7 @@ export default {
     },
     
     // จัดการอัพโหลดรูปภาพ
-    async handleFileSelect(event) {
+    async handleFileSelect(event, index) {
       const file = event.target.files[0]
       if (!file) return
       
@@ -1020,12 +1213,12 @@ export default {
       try {
         // แปลงเป็น WebP และปรับขนาด
         const webpBase64 = await this.convertToWebP(file)
-        this.surveyImage = webpBase64
+        this.$set(this.surveyImages, index, webpBase64)
         
         // บันทึกลง IndexedDB
-        await this.saveImageToIndexedDB(webpBase64)
+        await this.saveImageToIndexedDB(webpBase64, index)
         
-        this.$toast.success('อัพโหลดรูปภาพสำเร็จ')
+        this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
       } catch (error) {
         this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
       } finally {
@@ -1080,36 +1273,37 @@ export default {
       })
     },
     
-    async saveImageToIndexedDB(base64Image) {
+    async saveImageToIndexedDB(base64Image, index) {
       if (!this.$indexedDB) {
         return
       }
       
       try {
-        const key = `survey_image_${Date.now()}`
+        const key = `survey_image_${index}_${Date.now()}`
         await this.$indexedDB.saveImage(key, base64Image)
         
-        this.surveyImageKey = key
+        this.$set(this.surveyImageKeys, index, key)
       } catch (error) {
         // จัดการข้อผิดพลาด
       }
     },
     
-    async removeImage() {
-      if (this.surveyImageKey && this.$indexedDB) {
+    async removeImage(index) {
+      if (this.surveyImageKeys[index] && this.$indexedDB) {
         try {
-          await this.$indexedDB.deleteImage(this.surveyImageKey)
+          await this.$indexedDB.deleteImage(this.surveyImageKeys[index])
         } catch (error) {
           // จัดการข้อผิดพลาด
         }
       }
       
-      this.surveyImage = null
-      this.surveyImageKey = null
+      this.$set(this.surveyImages, index, null)
+      this.$set(this.surveyImageKeys, index, null)
       
       // รีเซ็ตช่องเลือกไฟล์
-      if (this.$refs.fileInput) {
-        this.$refs.fileInput.value = ''
+      const refName = `fileInput${index + 1}`
+      if (this.$refs[refName]) {
+        this.$refs[refName].value = ''
       }
     },
     
@@ -1120,8 +1314,14 @@ export default {
         return
       }
       
-      // จัดการพิเศษสำหรับขั้นตอนที่ 4 กิจกรรมคำถามที่ 5
-      if (this.currentStep === 4) {
+      // Skip logic: จาก step 1 ถ้า q1 === 3 ไปที่ step 10
+      if (this.currentStep === 1 && this.skippedFromQ1) {
+        this.currentStep = 10
+        await this.saveProgress()
+        return
+      }
+
+      if (this.currentStep === 4 && this.shouldShowStep5) {
         // ตรวจสอบว่าตอบครบทุกกิจกรรมแล้ว
         const allAnswered = this.activities.every(activity => 
           this.answers.q5[activity.no] !== undefined && this.answers.q5[activity.no] !== null
@@ -1133,8 +1333,8 @@ export default {
         }
       }
       
-      // จัดการพิเศษสำหรับขั้นตอนที่ 8 กิจกรรมคำถามที่ 9
-      if (this.currentStep === 8) {
+      // จัดการพิเศษสำหรับขั้นตอนที่ 9 กิจกรรมคำถามที่ 9
+      if (this.currentStep === 9) {
         // ตรวจสอบว่าตอบครบทุกกิจกรรมแล้ว
         const allAnswered = this.activities.every(activity => 
           this.answers.q9[activity.no] !== undefined && this.answers.q9[activity.no] !== null
@@ -1147,6 +1347,17 @@ export default {
       }
       
       this.currentStep++
+      
+      // ข้าม step 5 ถ้า time_visit = 1 หรือ q2 === 3
+      if (this.currentStep === 5 && (!this.shouldShowStep5 || this.skippedFromQ2)) {
+        this.currentStep++
+      }
+      
+      // ข้าม step 9 ถ้า q2 === 3
+      if (this.currentStep === 9 && this.skippedFromQ2) {
+        this.currentStep++
+      }
+      
       this.currentActivityIndex = 0
       this.currentQ5Index = 0
       await this.saveProgress()
@@ -1154,17 +1365,35 @@ export default {
     
     async prevStep() {
       if (this.currentStep > 1) {
+        // Skip logic: ถ้าอยู่ที่ step 10 และ skip จาก Q1 ให้กลับไป step 1
+        if (this.currentStep === 10 && this.skippedFromQ1) {
+          this.currentStep = 1
+          await this.saveProgress()
+          return
+        }
+        
         // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 5 ไป 4
         if (this.currentStep === 5 && this.activities.length > 0) {
           this.currentQ5Index = this.activities.length - 1
         }
         
-        // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 9 ไป 8
-        if (this.currentStep === 9 && this.activities.length > 0) {
+        // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 10 ไป 9
+        if (this.currentStep === 10 && this.activities.length > 0) {
           this.currentActivityIndex = this.activities.length - 1
         }
         
         this.currentStep--
+        
+        // ข้าม step 9 ถ้า q2 === 3 (เมื่อย้อนกลับจาก step 10)
+        if (this.currentStep === 9 && this.skippedFromQ2) {
+          this.currentStep--
+        }
+        
+        // ข้าม step 5 ถ้า time_visit = 1 หรือ q2 === 3 (เมื่อย้อนกลับจาก step 6)
+        if (this.currentStep === 5 && (!this.shouldShowStep5 || this.skippedFromQ2)) {
+          this.currentStep--
+        }
+        
         await this.saveProgress()
       }
     },
@@ -1176,10 +1405,18 @@ export default {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
+          if (this.answers.q1 === 3 && !this.answers.q1_des.trim()) {
+            this.$toast.warning('กรุณากรอกเหตุผล')
+            return false
+          }
           break
         case 2:
           if (this.answers.q2 === null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
+            return false
+          }
+          if (this.answers.q2 === 3 && !this.answers.q2_des.trim()) {
+            this.$toast.warning('กรุณากรอกเหตุผล')
             return false
           }
           break
@@ -1188,32 +1425,58 @@ export default {
             this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
             return false
           }
-          break
-        case 5:
-          if (this.answers.q6.length === 0) {
-            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
+          if (this.answers.q3.includes(13) && !this.answers.q3_des.trim()) {
+            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ ระบุ"')
             return false
           }
           break
-        case 6:
-          if (this.answers.q7 === null) {
+        case 4:
+          if (this.answers.q4 === null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
           break
+        case 6:
+          if (this.answers.q6.length === 0) {
+            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
+            return false
+          }
+          if (this.answers.q6.includes(13) && !this.answers.q6_other.trim()) {
+            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ ระบุ"')
+            return false
+          }
+          break
         case 7:
+          if (this.answers.q7 === null) {
+            this.$toast.warning('กรุณาเลือกคำตอบ')
+            return false
+          }
+          if (this.answers.q7 === 1 && this.answers.q71 && this.answers.q71.includes(13) && !this.answers.q71_des.trim()) {
+            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ ระบุ"')
+            return false
+          }
+          break
+        case 8:
           if (this.answers.q8 === null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
           break
-        case 9:
+        case 10:
           if (!this.answers.endHour || !this.answers.endMinute) {
             this.$toast.warning('กรุณาเลือกเวลาสิ้นสุดการเยี่ยม')
             return false
           }
           break
         case 11:
+          if (!this.skippedFromQ1 && !this.skippedFromQ2) {
+            if (!this.surveyImages[0] || !this.surveyImages[1]) {
+              this.$toast.warning('กรุณาอัพโหลดรูปภาพทั้ง 2 รูป')
+              return false
+            }
+          }
+          break
+        case 12:
           if (!this.newAppointment.day || !this.newAppointment.month || !this.newAppointment.year || !this.newAppointment.time) {
             this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
             return false
@@ -1388,9 +1651,10 @@ export default {
         this.yearOptions.push({ value: i, text: i.toString() })
       }
       
-      // ตั้งค่าวันที่เริ่มต้นเป็นวันนี้บวก 1 เดือน
+      // ตั้งค่าวันที่เริ่มต้นเป็นวันนี้บวก 1 เดือน 7 วัน
       const nextMonth = new Date(now)
       nextMonth.setMonth(nextMonth.getMonth() + 1)
+      nextMonth.setDate(nextMonth.getDate() + 7)
       
       this.newAppointment.day = nextMonth.getDate()
       this.newAppointment.month = nextMonth.getMonth() + 1
@@ -1702,10 +1966,39 @@ export default {
   margin-bottom: 2.5rem;
 }
 
+/* Dual Upload Container for 2 Images */
+.upload-container-dual {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+}
+
+.upload-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.upload-section-title {
+  font-size: 1.44rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.required-badge {
+  color: #dc3545;
+  font-weight: bold;
+  margin-left: 0.25rem;
+}
+
 .upload-placeholder {
   width: 100%;
   max-width: 600px;
-  height: 350px;
+  height: 300px;
   background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
   border-radius: 1rem;
   display: flex;
@@ -1716,14 +2009,19 @@ export default {
   border: 3px dashed rgba(255, 255, 255, 0.3);
 }
 
+.upload-section .upload-placeholder {
+  max-width: 100%;
+  height: 250px;
+}
+
 .upload-placeholder i {
-  font-size: 6rem;
+  font-size: 5rem;
   margin-bottom: 1.5rem;
   color: rgba(255, 255, 255, 0.5);
 }
 
 .upload-placeholder p {
-  font-size: 1.44rem;
+  font-size: 1.32rem;
   margin: 0;
   color: rgba(255, 255, 255, 0.8);
   font-weight: 500;
@@ -1733,11 +2031,16 @@ export default {
   position: relative;
   width: 100%;
   max-width: 600px;
-  height: 350px;
+  height: 300px;
   background: #000;
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.upload-section .image-preview {
+  max-width: 100%;
+  height: 250px;
 }
 
 .image-preview img {
@@ -1967,45 +2270,12 @@ export default {
   font-size: 1.32rem;
 }
 
-/* Responsive */
+
+/* Ensure proper scrolling on small screens */
 @media (max-width: 768px) {
-  .survey-step {
-    padding: 1.75rem;
-    margin: 1rem;
-  }
-  
-  .question-title {
-    font-size: 1.38rem;
-  }
-  
-  .question-subtitle {
-    font-size: 1.14rem;
-  }
-  
-  .options-container.multi-select {
-    grid-template-columns: 1fr;
-  }
-  
-  .option-btn {
-    padding: 1rem 1.25rem;
-  }
-  
-  .appointment-form-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .appointment-preview {
-    font-size: 1.14rem;
-    padding: 1.25rem 1.5rem;
-  }
-  
-  .navigation-buttons {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .navigation-buttons .btn {
-    width: 100%;
+  body {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 </style>

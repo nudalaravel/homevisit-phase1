@@ -15,6 +15,7 @@
     "generate:cache": "ENABLE_CACHE=true nuxt generate"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.1.0",
     "@nuxtjs/auth": "^4.9.1",
     "@nuxtjs/axios": "^5.13.6",
     "@nuxtjs/bootstrap-vue": "^2.0.0",

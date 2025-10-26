@@ -4,8 +4,8 @@ export default {
 
   // Server configuration
   server: {
-    port: process.env.PORT || 3300,
-    host: process.env.HOST || "0.0.0.0",
+    port: 3300,
+    host: "0.0.0.0",
   },
 
   head: {
@@ -29,16 +29,15 @@ export default {
         rel: "stylesheet",
         href: "/fonts/kanit.css",
       },
-      {
-        rel: "stylesheet",
-        href: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css",
-      },
       { rel: "apple-touch-icon", href: "/logo.png" },
       { rel: "manifest", href: "/manifest.json" },
     ],
   },
   loading: { color: "#3551a4" },
-  css: ["~/assets/css/main.css"],
+  css: [
+    "~/assets/css/main.css",
+    "@fortawesome/fontawesome-free/css/all.min.css",
+  ],
   plugins: [
     "~/plugins/bootstrap-vue",
     "~/plugins/axios",
@@ -62,33 +61,26 @@ export default {
     "@nuxtjs/bootstrap-vue",
     "@nuxtjs/pwa",
   ],
-  // Public runtime config
-  publicRuntimeConfig: {
-    axios: {
-      browserBaseURL:
-        process.env.BROWSER_BASE_URL || "https://ripedresearch.org",
-    },
-  },
-
   axios: {
-    // Development: ใช้ proxy ผ่าน dev server
-    // Production: ใช้ browserBaseURL จาก publicRuntimeConfig
-    baseURL:
-      process.env.NODE_ENV === "production"
-        ? "https://ripedresearch.org"
-        : "http://localhost:3300",
-    browserBaseURL: process.env.BROWSER_BASE_URL || "https://ripedresearch.org",
-    proxy: process.env.NODE_ENV !== "production",
+    baseURL: "/api",
+    browserBaseURL: "/api",
+    proxy: true,
+    credentials: true,
   },
 
-  // Proxy config (ทำงานเฉพาะใน development เท่านั้น)
+  // Proxy config - bypass CORS ทุกครั้ง
   proxy: {
-    "/api/": {
+    "/api": {
       target: "https://ripedresearch.org",
       pathRewrite: {
-        "^/api/": "/api/",
+        "^/api": "",
       },
       changeOrigin: true,
+      secure: false,
+      cookieDomainRewrite: "localhost",
+      headers: {
+        Connection: "keep-alive",
+      },
     },
   },
   auth: {
@@ -122,6 +114,7 @@ export default {
     },
   },
   router: {
+    // base: "/folder-deploy/",
     middleware: [],
   },
   // serverMiddleware: ["~/api"], // Disabled - API runs separately
@@ -168,21 +161,8 @@ export default {
       ],
     },
     workbox: {
-      enabled:
-        process.env.NODE_ENV === "production" &&
-        process.env.ENABLE_CACHE === "true",
+      enabled: false, // ปิด cache ไว้ก่อน เพื่อการ development
       runtimeCaching: [
-        {
-          urlPattern: "^https://cdnjs.cloudflare.com/.*",
-          handler: "cacheFirst",
-          method: "GET",
-          strategyOptions: {
-            cacheName: "cdn-cache",
-            cacheableResponse: {
-              statuses: [0, 200],
-            },
-          },
-        },
         {
           urlPattern: "^http://localhost:3001/.*",
           handler: "networkFirst",
@@ -196,8 +176,5 @@ export default {
         },
       ],
     },
-  },
-  env: {
-    ENABLE_CACHE: process.env.ENABLE_CACHE || "false",
   },
 };

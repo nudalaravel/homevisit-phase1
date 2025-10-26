@@ -135,52 +135,6 @@
             @blur="validateEditAddress"
           ></b-form-textarea>
         </b-form-group>
-<!-- 
-        <b-form-group label="จังหวัด" label-for="edit-province">
-          <b-form-select
-            id="edit-province"
-            v-model="editForm.prov_code"
-            :options="provinces"
-            value-field="prov_code"
-            text-field="prov_name"
-            @change="onProvinceChange"
-          >
-            <template #first>
-              <b-form-select-option :value="null">-- เลือกจังหวัด --</b-form-select-option>
-            </template>
-          </b-form-select>
-        </b-form-group>
-
-        <b-form-group label="อำเภอ" label-for="edit-amphoe">
-          <b-form-select
-            id="edit-amphoe"
-            v-model="editForm.amp_code"
-            :options="filteredAmphoes"
-            value-field="amp_code"
-            text-field="amp_name"
-            :disabled="!editForm.prov_code"
-            @change="onAmphoeChange"
-          >
-            <template #first>
-              <b-form-select-option :value="null">-- เลือกอำเภอ --</b-form-select-option>
-            </template>
-          </b-form-select>
-        </b-form-group>
-
-        <b-form-group label="ตำบล" label-for="edit-tambon">
-          <b-form-select
-            id="edit-tambon"
-            v-model="editForm.tam_code"
-            :options="filteredTambons"
-            value-field="tam_code"
-            text-field="tam_name"
-            :disabled="!editForm.amp_code"
-          >
-            <template #first>
-              <b-form-select-option :value="null">-- เลือกตำบล --</b-form-select-option>
-            </template>
-          </b-form-select>
-        </b-form-group> -->
       </b-form>
       <template #modal-footer="{ ok, cancel }">
         <b-button variant="secondary" @click="cancel()">
@@ -442,7 +396,7 @@
       id="editPhotoModal"
       v-model="showEditPhotoModal"
       title="แก้ไขรูปภาพกิจกรรม"
-      size="lg"
+      size="xl"
       no-close-on-backdrop
       @hidden="resetEditPhotoForm"
       header-class="modal-header-visit"
@@ -454,45 +408,66 @@
           <span class="badge badge-info">ครั้งที่ {{ editPhotoForm.visitNumber }}</span>
         </div>
 
-        <!-- Current Image -->
-        <div v-if="editPhotoForm.currentImage" class="current-image-section">
-          <h6>รูปภาพปัจจุบัน</h6>
-          <div class="image-preview-large">
-            <img :src="editPhotoForm.currentImage" alt="Current photo">
-            <button class="btn-remove-current" @click="removeCurrentImage">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-        </div>
-
-        <div v-else class="no-image-section">
-          <i class="fas fa-image"></i>
-          <p>ยังไม่มีรูปภาพ</p>
-        </div>
-
-        <!-- Upload New Image -->
-        <div class="upload-new-section">
-          <h6>อัพโหลดรูปภาพใหม่</h6>
-          <div class="upload-area" @click="$refs.photoInput.click()">
-            <div v-if="!editPhotoForm.newImage" class="upload-placeholder-small">
-              <i class="fas fa-cloud-upload-alt"></i>
-              <p>คลิกเพื่อเลือกรูปภาพ</p>
-              <small>รองรับ JPG, PNG, WEBP (สูงสุด 5MB)</small>
+        <div class="dual-image-container">
+          <!-- Image 1 -->
+          <div class="image-section">
+            <h6>รูปภาพที่ 1</h6>
+            <div v-if="editPhotoForm.currentImages[0]" class="current-image-section">
+              <div class="image-preview-large">
+                <img :src="editPhotoForm.currentImages[0]" alt="Current photo 1">
+                <button class="btn-remove-current" @click="removeCurrentImage(0)">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
             </div>
-            <div v-else class="new-image-preview">
-              <img :src="editPhotoForm.newImagePreview" alt="New photo">
-              <button class="btn-remove-new" @click.stop="removeNewImage">
-                <i class="fas fa-times"></i>
-              </button>
+            <div v-else class="no-image-section">
+              <i class="fas fa-image"></i>
+              <p>ยังไม่มีรูปภาพ</p>
+            </div>
+            <div class="upload-new-section">
+              <b-button variant="warning" @click="$refs.photoInput1.click()">
+                <i class="fas fa-upload"></i>
+                อัพโหลดรูปที่ 1
+              </b-button>
+              <input
+                ref="photoInput1"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="handlePhotoSelect($event, 0)"
+              >
             </div>
           </div>
-          <input
-            ref="photoInput"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="handlePhotoSelect"
-          >
+
+          <!-- Image 2 -->
+          <div class="image-section">
+            <h6>รูปภาพที่ 2</h6>
+            <div v-if="editPhotoForm.currentImages[1]" class="current-image-section">
+              <div class="image-preview-large">
+                <img :src="editPhotoForm.currentImages[1]" alt="Current photo 2">
+                <button class="btn-remove-current" @click="removeCurrentImage(1)">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div v-else class="no-image-section">
+              <i class="fas fa-image"></i>
+              <p>ยังไม่มีรูปภาพ</p>
+            </div>
+            <div class="upload-new-section">
+              <b-button variant="warning" @click="$refs.photoInput2.click()">
+                <i class="fas fa-upload"></i>
+                อัพโหลดรูปที่ 2
+              </b-button>
+              <input
+                ref="photoInput2"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="handlePhotoSelect($event, 1)"
+              >
+            </div>
+          </div>
         </div>
       </div>
 
@@ -533,16 +508,10 @@ export default {
         stid: null,
         name: '',
         nickname: '',
-        tel: '', // ชื่อฟิลด์ตรงกับฐานข้อมูล
+        tel: '',
         address: ''
       },
       editFormErrors: {},
-      // ข้อมูลที่อยู่ - ปิดการใช้งานเนื่องจาก API ไม่รองรับ
-      // provinces: [],
-      // amphoes: [],
-      // tambons: [],
-      // filteredAmphoes: [],
-      // filteredTambons: [],
       appointmentForm: {
         id: null,
         name: '',
@@ -574,11 +543,11 @@ export default {
         surveyId: null,
         patientName: '',
         visitNumber: null,
-        currentImage: null,
-        currentImageKey: null,
-        newImage: null,
-        newImagePreview: null,
-        removeCurrentPhoto: false
+        currentImages: [],
+        currentImageKeys: [],
+        newImages: [],
+        newImagePreviews: [],
+        removeCurrentPhotos: []
       },
       addForm: {
         name: '',
@@ -685,7 +654,7 @@ export default {
       try {
         await this.$indexedDB.addToSyncQueue(item)
       } catch (error) {
-        // จัดการข้อผิดพลาดเงียบๆ
+        // จัดการข้อผิดพลาด
       }
     },
     async processSyncQueue() {
@@ -767,8 +736,8 @@ export default {
           // ซิงค์ข้อมูลผู้รับบริการจากคิว
           await this.processSyncQueue()
           
-          // TODO: ซิงค์การนัดหมายที่แก้ไขออฟไลน์ ปิดไว้ชั่วคราว
-          /*
+          // TODO: ซิงค์การนัดหมายที่แก้ไขออฟไลน์
+          
           const username = this.$offlineAuth?.getUser?.()?.username
           if (this.$systemInit && username) {
             try {
@@ -784,7 +753,6 @@ export default {
               // จัดการข้อผิดพลาดการซิงค์นัดหมาย
             }
           }
-          */
         }, 2000)
       }
     },
@@ -803,14 +771,14 @@ export default {
           await this.$systemInit.syncVisitors(username)
           
           // TODO: ปิดการซิงค์การนัดหมายไว้ชั่วคราว
-          /*
+          
           this.loadingMessage = 'กำลังซิงค์ข้อมูลการนัดหมาย...'
           await this.$systemInit.syncBookings(username)
           
           // ส่งการนัดหมายที่ยังไม่ซิงค์
           this.loadingMessage = 'กำลังส่งข้อมูลการนัดหมาย...'
           await this.$systemInit.pushBookingsToAPI()
-          */
+          
         }
         
         // โหลดข้อมูลผู้รับบริการจาก IndexedDB
@@ -893,64 +861,7 @@ export default {
         this.$toast.error('ไม่สามารถโหลดข้อมูลผู้รับบริการได้')
       }
     },
-    /* ฟังก์ชันจัดการข้อมูลที่อยู่ - ปิดใช้งานเนื่องจาก API ไม่รองรับ
-    async loadLocationData() {
-      try {
-        // โหลดข้อมูลจังหวัดและแปลงรหัสเป็นข้อความ
-        const provincesData = await this.$indexedDB.getProvinces()
-        this.provinces = provincesData.map(p => ({
-          ...p,
-          prov_code: String(p.prov_code)
-        }))
-        
-        // โหลดข้อมูลอำเภอและแปลงรหัสเป็นข้อความ
-        const amphoesData = await this.$indexedDB.getAmphoes()
-        this.amphoes = amphoesData.map(a => ({
-          ...a,
-          amp_code: String(a.amp_code),
-          prov_code: String(a.prov_code)
-        }))
-        
-        // โหลดข้อมูลตำบลและแปลงรหัสเป็นข้อความ
-        const tambonsData = await this.$indexedDB.getTambons()
-        this.tambons = tambonsData.map(t => ({
-          ...t,
-          tam_code: String(t.tam_code),
-          amp_code: String(t.amp_code)
-        }))
-      } catch (error) {
-        // จัดการข้อผิดพลาด
-      }
-    },
-    onProvinceChange() {
-      // กรองอำเภอตามจังหวัดที่เลือก
-      if (this.editForm.prov_code) {
-        this.filteredAmphoes = this.amphoes.filter(
-          a => String(a.prov_code) === String(this.editForm.prov_code)
-        )
-      } else {
-        this.filteredAmphoes = []
-      }
-      
-      // รีเซ็ตการเลือกอำเภอและตำบล
-      this.editForm.amp_code = null
-      this.editForm.tam_code = null
-      this.filteredTambons = []
-    },
-    onAmphoeChange() {
-      // กรองตำบลตามอำเภอที่เลือก
-      if (this.editForm.amp_code) {
-        this.filteredTambons = this.tambons.filter(
-          t => String(t.amp_code) === String(this.editForm.amp_code)
-        )
-      } else {
-        this.filteredTambons = []
-      }
-      
-      // รีเซ็ตการเลือกตำบล
-      this.editForm.tam_code = null
-    },
-    */
+   
     initDateOptions() {
       // สร้างตัวเลือกปี ปีปัจจุบัน -2 ถึง +2
       const currentYear = new Date().getFullYear() + 543 // ปีพุทธศักราช
@@ -1320,16 +1231,9 @@ export default {
           const daysSinceLastVisit = Math.floor((today - lastVisitDate) / (1000 * 60 * 60 * 24))
           
           if (daysSinceLastVisit > 21) {
-            // เกิน 21 วัน คำนวณอายุเดือนใหม่และเพิ่มครั้งที่เยี่ยม
+            // เกิน 21 วัน คำนวณอายุเดือนใหม่และรีเซ็ตครั้งที่เยี่ยม
             monthAge = calculatedMonthAge
-            timeVisit = (existingBooking.time_visit || 0) + 1
-            
-            // กรณีพิเศษ ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้รีเซ็ตเป็น 1
-            if (existingBooking.time_visit === 4) {
-              timeVisit = 1
-            } else if (timeVisit > 4) {
-              timeVisit = 4
-            }
+            timeVisit = 1
             
             // จำกัดอายุเดือนไว้ที่ 48
             if (monthAge > 48) {
@@ -1416,7 +1320,7 @@ export default {
           })
           
           // TODO: ถ้าออนไลน์ ให้ซิงค์กับ API ตรวจสอบก่อนบันทึก ปิดไว้ชั่วคราว
-          /*
+      
           if (navigator.onLine) {
             try {
               const username = this.$offlineAuth?.getUser?.()?.username
@@ -1463,7 +1367,6 @@ export default {
               // ไม่แสดงข้อผิดพลาดเพราะข้อมูลบันทึกในเครื่องแล้ว
             }
           }
-          */
           
           this.$toast.success('บันทึกนัดหมายสำเร็จ')
           
@@ -1667,26 +1570,48 @@ export default {
           return
         }
         
-        // โหลดรูปภาพปัจจุบันถ้ามี
-        let currentImageData = null
-        if (survey.surveyImageKey) {
-          const imageObject = await this.$indexedDB.getImage(survey.surveyImageKey)
-          // รองรับทั้งรูปแบบเก่าและใหม่
-          currentImageData = imageObject?.data || imageObject?.image || null
-        } else if (survey.surveyImage) {
-          // ใช้ surveyImage หากไม่มี key
-          currentImageData = survey.surveyImage
+        let currentImages = []
+        let currentImageKeys = []
+        
+        // Handle both old single image and new array format
+        if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
+          // New format: array of images
+          for (let i = 0; i < survey.surveyImages.length; i++) {
+            if (survey.surveyImageKeys && survey.surveyImageKeys[i]) {
+              const imageObject = await this.$indexedDB.getImage(survey.surveyImageKeys[i])
+              const imageData = imageObject?.data || imageObject?.image || survey.surveyImages[i] || null
+              currentImages.push(imageData)
+              currentImageKeys.push(survey.surveyImageKeys[i])
+            } else if (survey.surveyImages[i]) {
+              currentImages.push(survey.surveyImages[i])
+              currentImageKeys.push(null)
+            }
+          }
+        } else {
+          // Old format: single image - convert to array
+          let currentImageData = null
+          if (survey.surveyImageKey) {
+            const imageObject = await this.$indexedDB.getImage(survey.surveyImageKey)
+            currentImageData = imageObject?.data || imageObject?.image || null
+          } else if (survey.surveyImage) {
+            currentImageData = survey.surveyImage
+          }
+          
+          if (currentImageData) {
+            currentImages = [currentImageData]
+            currentImageKeys = [survey.surveyImageKey || null]
+          }
         }
         
         this.editPhotoForm = {
           surveyId: visit.surveyId,
           patientName: this.visitHistoryForm.patientName,
           visitNumber: visit.visitNumber,
-          currentImage: currentImageData || null,
-          currentImageKey: survey.surveyImageKey || null,
-          newImage: null,
-          newImagePreview: null,
-          removeCurrentPhoto: false
+          currentImages: currentImages,
+          currentImageKeys: currentImageKeys,
+          newImages: [],
+          newImagePreviews: [],
+          removeCurrentPhotos: []
         }
         
         this.showVisitHistoryModal = false
@@ -1696,7 +1621,7 @@ export default {
       }
     },
     
-    async handlePhotoSelect(event) {
+    async handlePhotoSelect(event, index) {
       const file = event.target.files[0]
       if (!file) return
       
@@ -1716,11 +1641,16 @@ export default {
         // แปลงเป็น WebP
         const webpImage = await this.convertToWebP(file)
         
-        this.editPhotoForm.newImage = webpImage
-        this.editPhotoForm.newImagePreview = webpImage
+        this.$set(this.editPhotoForm.newImages, index, webpImage)
+        this.$set(this.editPhotoForm.newImagePreviews, index, webpImage)
+        
+        // Update current image preview immediately
+        this.$set(this.editPhotoForm.currentImages, index, webpImage)
         
         // รีเซ็ตช่องเลือกไฟล์เพื่อให้เลือกไฟล์เดิมได้อีก
         event.target.value = ''
+        
+        this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
       } catch (error) {
         this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
       }
@@ -1775,14 +1705,14 @@ export default {
       })
     },
     
-    removeCurrentImage() {
-      this.editPhotoForm.removeCurrentPhoto = true
-      this.editPhotoForm.currentImage = null
+    removeCurrentImage(index) {
+      this.$set(this.editPhotoForm.removeCurrentPhotos, index, true)
+      this.$set(this.editPhotoForm.currentImages, index, null)
     },
     
-    removeNewImage() {
-      this.editPhotoForm.newImage = null
-      this.editPhotoForm.newImagePreview = null
+    removeNewImage(index) {
+      this.$set(this.editPhotoForm.newImages, index, null)
+      this.$set(this.editPhotoForm.newImagePreviews, index, null)
     },
     
     async savePhotoEdit() {
@@ -1797,32 +1727,43 @@ export default {
           return
         }
         
-        let newImageKey = survey.surveyImageKey
+        let newImageKeys = survey.surveyImageKeys || []
+        let newImages = survey.surveyImages || []
         
-        // จัดการการเปลี่ยนรูปภาพ
-        if (this.editPhotoForm.removeCurrentPhoto && this.editPhotoForm.currentImageKey) {
-          // ลบรูปภาพเก่า
-          await this.$indexedDB.deleteImage(this.editPhotoForm.currentImageKey)
-          newImageKey = null
-        }
-        
-        if (this.editPhotoForm.newImage) {
-          // ลบรูปภาพเก่าถ้ามี
-          if (newImageKey) {
-            await this.$indexedDB.deleteImage(newImageKey)
+        // Process each image (support up to 2 images)
+        for (let i = 0; i < 2; i++) {
+          // จัดการการลบรูปภาพเก่า
+          if (this.editPhotoForm.removeCurrentPhotos[i] && this.editPhotoForm.currentImageKeys[i]) {
+            await this.$indexedDB.deleteImage(this.editPhotoForm.currentImageKeys[i])
+            newImageKeys[i] = null
+            newImages[i] = null
           }
           
-          // บันทึกรูปภาพใหม่
-          const timestamp = Date.now()
-          newImageKey = `survey_${this.editPhotoForm.surveyId}_${timestamp}`
-          await this.$indexedDB.saveImage(newImageKey, this.editPhotoForm.newImage)
+          // จัดการการอัพโหลดรูปภาพใหม่
+          if (this.editPhotoForm.newImages[i]) {
+            // ลบรูปภาพเก่าถ้ามี
+            if (newImageKeys[i]) {
+              await this.$indexedDB.deleteImage(newImageKeys[i])
+            }
+            
+            // บันทึกรูปภาพใหม่
+            const timestamp = Date.now()
+            const newKey = `survey_${this.editPhotoForm.surveyId}_${i}_${timestamp}`
+            await this.$indexedDB.saveImage(newKey, this.editPhotoForm.newImages[i])
+            newImageKeys[i] = newKey
+            newImages[i] = this.editPhotoForm.newImages[i]
+          } else if (!this.editPhotoForm.removeCurrentPhotos[i]) {
+            // Keep existing image if not removed and no new image
+            newImageKeys[i] = this.editPhotoForm.currentImageKeys[i] || newImageKeys[i]
+            newImages[i] = this.editPhotoForm.currentImages[i] || newImages[i]
+          }
         }
         
         // อัพเดทแบบสอบถามด้วยรหัสรูปภาพใหม่
         await this.$indexedDB.update('survey_progress', {
           ...survey,
-          surveyImage: this.editPhotoForm.newImage || (this.editPhotoForm.removeCurrentPhoto ? null : survey.surveyImage),
-          surveyImageKey: newImageKey,
+          surveyImages: newImages.filter(img => img !== null && img !== undefined),
+          surveyImageKeys: newImageKeys.filter((key, idx) => newImages[idx] !== null && newImages[idx] !== undefined),
           lastUpdated: new Date().toISOString()
         })
         
@@ -1847,11 +1788,11 @@ export default {
         surveyId: null,
         patientName: '',
         visitNumber: null,
-        currentImage: null,
-        currentImageKey: null,
-        newImage: null,
-        newImagePreview: null,
-        removeCurrentPhoto: false
+        currentImages: [],
+        currentImageKeys: [],
+        newImages: [],
+        newImagePreviews: [],
+        removeCurrentPhotos: []
       }
     },
     // ตรวจสอบความถูกต้องของฟอร์มเพิ่มผู้รับบริการ
@@ -1962,7 +1903,7 @@ export default {
       this.addFormErrors = {}
     },
     formatAppointmentDate(dateStr, timeStr) {
-      if (!dateStr) return 'ยังไม่ได้นัดหมาย'
+      if (!dateStr) return 'ยังไม่ได้กำหนดวันนัดหมาย'
       
       const date = new Date(dateStr)
       const day = date.getDate()
@@ -3094,6 +3035,29 @@ export default {
   padding: 0.4rem 0.75rem;
 }
 
+.dual-image-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.image-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.image-section h6 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #2c3e50;
+  text-align: center;
+  padding: 0.5rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 0.5rem;
+}
+
 .current-image-section h6,
 .upload-new-section h6 {
   font-size: 1.2rem;
@@ -3219,5 +3183,16 @@ export default {
   display: block;
 }
 
+/* Responsive styles for photo modal */
+@media (max-width: 768px) {
+  .dual-image-container {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+  
+  .image-section .image-preview-large {
+    height: 250px;
+  }
+}
 
 </style>

@@ -1,7 +1,7 @@
-export const Loading = () => import('../../components/Loading.vue' /* webpackChunkName: "components/loading" */).then(c => wrapFunctional(c.default || c))
-export const OnlineStatus = () => import('../../components/OnlineStatus.vue' /* webpackChunkName: "components/online-status" */).then(c => wrapFunctional(c.default || c))
-export const StorageStatus = () => import('../../components/StorageStatus.vue' /* webpackChunkName: "components/storage-status" */).then(c => wrapFunctional(c.default || c))
-export const Toast = () => import('../../components/Toast.vue' /* webpackChunkName: "components/toast" */).then(c => wrapFunctional(c.default || c))
+export { default as Loading } from '../../components/Loading.vue'
+export { default as OnlineStatus } from '../../components/OnlineStatus.vue'
+export { default as StorageStatus } from '../../components/StorageStatus.vue'
+export { default as Toast } from '../../components/Toast.vue'
 
 // nuxt/nuxt.js#8607
 function wrapFunctional(options) {

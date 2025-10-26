@@ -2,8 +2,18 @@ export default function ({ $axios, redirect, app, store }) {
   // Flag เพื่อป้องกันการ logout ซ้ำหลายครั้งพร้อมกัน
   let isHandlingTokenExpired = false;
 
+  // ตั้งค่า axios เพื่อ bypass CORS
+  $axios.defaults.withCredentials = true;
+  $axios.defaults.headers.common["Accept"] = "application/json";
+  $axios.defaults.headers.common["Content-Type"] = "application/json";
+
   $axios.onRequest((config) => {
     console.log("Making request to " + config.url);
+
+    // เพิ่ม headers สำหรับ bypass CORS
+    config.withCredentials = true;
+
+    return config;
   });
 
   $axios.onResponse((response) => {
