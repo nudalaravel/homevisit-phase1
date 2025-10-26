@@ -57,7 +57,7 @@
                 'visit-ready': visitor.appointmentDate && canRecordVisit(visitor),
                 'visit-disabled': !visitor.appointmentDate || !canRecordVisit(visitor),
                 'visit-completed': visitor.currentSurveyCompleted && visitor.currentSurveySynced,
-                'visit-warning': visitor.currentSurveyNote && !visitor.currentSurveyApproved,
+                // 'visit-warning': visitor.currentSurveyNote && !visitor.currentSurveyApproved,
                 'visit-pending-upload': visitor.currentSurveyCompleted && !visitor.currentSurveySynced
               }"
               @click="visitor.appointmentDate && canRecordVisit(visitor) ? recordVisit(visitor) : null"
@@ -68,17 +68,17 @@
                 รอการอัพโหลด<br>ขึ้นระบบ
               </div>
               <!-- กรณีมี note จาก API และยังไม่อนุมัติ -->
-              <div v-else-if="visitor.currentSurveyCompleted && visitor.currentSurveySynced && !visitor.currentSurveyApproved && visitor.currentSurveyNote" class="visit-text-warning">
+              <!-- <div v-else-if="visitor.currentSurveyCompleted && visitor.currentSurveySynced && !visitor.currentSurveyApproved && visitor.currentSurveyNote" class="visit-text-warning">
                 {{ visitor.currentSurveyNote }}
-              </div>
+              </div> -->
               <!-- กรณีบันทึกเรียบร้อยแล้วแต่ยังไม่อนุมัติ และไม่มี note -->
               <div v-else-if="visitor.currentSurveyCompleted && visitor.currentSurveySynced && !visitor.currentSurveyApproved && !visitor.currentSurveyNote" class="visit-text-disabled">
                 บันทึกเรียบร้อย
               </div>
               <!-- กรณีรอการอนุมัติ (ครั้งที่แล้วยังไม่อนุมัติ) - เช็คเฉพาะ time >= 2 -->
-              <div v-else-if="!canRecordVisit(visitor) && visitor.appointmentDate && visitor.time >= 2" class="visit-text-disabled">
+              <!-- <div v-else-if="!canRecordVisit(visitor) && visitor.appointmentDate && visitor.time >= 2" class="visit-text-disabled">
                 รอการอนุมัติ<br>จากระบบ
-              </div>
+              </div> -->
               <!-- กรณีพร้อมบันทึก -->
               <div v-else-if="visitor.appointmentDate && canRecordVisit(visitor)" class="visit-text">
                 บันทึกเยี่ยมบ้าน
@@ -906,16 +906,7 @@ export default {
           // ตรวจสอบว่ามี survey_progress ของครั้งนี้หรือไม่ (ไม่ว่า completed จะเป็นอะไร)
           const currentVisitSurvey = allSurveys.find(s => String(s.time) === String(timeVisit))
           
-          // Debug log เพื่อตรวจสอบสถานะ
-          if (currentVisitSurvey) {
-            console.log(`📊 Survey status for ${visitor.stid} (time: ${timeVisit}):`, {
-              completed: currentVisitSurvey.completed,
-              synced: currentVisitSurvey.synced,
-              approve_status: currentVisitSurvey.approve_status,
-              hasAnswers: !!currentVisitSurvey.answers,
-              q1: currentVisitSurvey.answers?.q1
-            })
-          }
+     
           
           if (currentVisitSurvey) {
             // ถ้ามี survey_progress ของครั้งนี้แล้ว
@@ -1077,12 +1068,6 @@ export default {
         timeVisit
       )
       this.appointmentForm.activities = activities || []
-      
-      console.log('🔄 Recalculated:', {
-        monthAge: calculatedMonthAge,
-        timeVisit: timeVisit,
-        activities: activities?.length || 0
-      })
     },
     // จัดการเมื่อเปลี่ยนเดือน
     async onMonthChange() {
@@ -1455,8 +1440,6 @@ export default {
         
         // ดึงข้อมูลกิจกรรมทั้งหมดจาก IndexedDB
         const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeVisit)
-        console.log('📋 Activities loaded:', activities)
-        console.log('📊 Activities count:', activities?.length || 0)
         
         // ตั้งค่าฟอร์มนัดหมายพร้อมข้อมูลทั้งหมด
         this.appointmentForm = {
@@ -1542,15 +1525,15 @@ export default {
                 params: {
                   homevisitor: username,
                   stid: visitor.stid,
-                  time: this.appointmentForm.timeVisit
+                  time_visit: this.appointmentForm.timeVisit
                 }
               }
             )
             
-            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time และ month_age หรือไม่
+            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time_visit และ month_age หรือไม่
             const existingRecord = checkResponse?.results?.find(record => 
               record.stid === visitor.stid && 
-              String(record.time) === String(this.appointmentForm.timeVisit) && 
+              String(record.time_visit) === String(this.appointmentForm.timeVisit) && 
               String(record.month_age) === String(this.appointmentForm.monthAge)
             )
             
@@ -1567,7 +1550,7 @@ export default {
                     'date_app_curr',
                     'cnt_app',
                     'month_age',
-                    'time',
+                    'time_visit',
                     'q1_name',
                     'q2_name',
                     'q3_name',
@@ -1586,7 +1569,7 @@ export default {
                     activityIds[3],
                     activityIds[4]
                   ],
-                  pk: ['stid', 'time'],
+                  pk: ['stid', 'time_visit'],
                   pkval: [visitor.stid, this.appointmentForm.timeVisit],
                   tb: 'homevisitor_app'
                 }
@@ -1601,11 +1584,10 @@ export default {
                     'stid',
                     'project',
                     'recStart',
-                    'time',
+                    'time_visit',
                     'fname_ch',
                     'lname_ch',
                     'month_age',
-                    'time',
                     'time_app_first',
                     'date_app_first',
                     'time_app_curr',
@@ -1626,7 +1608,6 @@ export default {
                     visitorData?.fname || '',
                     visitorData?.lname || '',
                     this.appointmentForm.monthAge,
-                    appointmentTime,
                     appointmentTime,  // time_app_first
                     appointmentDate,  // date_app_first
                     appointmentTime,  // time_app_curr
@@ -1681,10 +1662,22 @@ export default {
       this.appointmentFormErrors = {}
     },
     recordVisit(patient) {
-      const now = new Date()
-      const day = now.getDate()
-      const month = this.getThaiMonth(now.getMonth())
-      const thaiYear = now.getFullYear() + 543
+      // ใช้วันที่นัดหมายแทนวันที่ปัจจุบัน
+      let day, month, thaiYear
+      
+      if (patient.appointmentDate) {
+        // มีวันนัดหมาย ใช้วันที่นัดหมาย
+        const appointmentDate = new Date(patient.appointmentDate)
+        day = appointmentDate.getDate()
+        month = this.getThaiMonth(appointmentDate.getMonth())
+        thaiYear = appointmentDate.getFullYear() + 543
+      } else {
+        // ไม่มีวันนัดหมาย ใช้วันที่ปัจจุบัน
+        const now = new Date()
+        day = now.getDate()
+        month = this.getThaiMonth(now.getMonth())
+        thaiYear = now.getFullYear() + 543
+      }
       
       this.visitForm = {
         id: patient.id,
@@ -1693,6 +1686,7 @@ export default {
         visitDate: `${day} ${month} ${thaiYear}`,
         startTime: patient.appointmentTime || '16:00 น.'
       }
+      
       this.showVisitModal = true
     },
     saveVisitRecord() {
@@ -1756,18 +1750,14 @@ export default {
       }
       
       // ครั้งที่ 2+ ต้องซิงค์และอนุมัติแล้วเท่านั้น
-      return visitor.latestSurveySynced === true && visitor.latestSurveyApproved === true
+      return visitor.latestSurveySynced === true || visitor.latestSurveyApproved === true
     },
     
     // แสดงประวัติการเยี่ยมบ้าน
     async showVisitHistory(patient) {
       try {
-        console.log(`📋 Loading visit history for stid: ${patient.stid}`)
-        
         // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
-        
-        console.log(`📋 Found ${surveys.length} completed surveys for ${patient.name} (${patient.stid})`)
         
         // แปลงข้อมูลแบบสอบถามเป็นประวัติการเยี่ยม
         const visits = surveys.map((survey, index) => {
@@ -1790,8 +1780,6 @@ export default {
             surveyImageKey: survey.surveyImageKey
           }
         })
-        
-        console.log(`📋 Prepared ${visits.length} visit records`)
         
         this.visitHistoryForm = {
           id: patient.id,

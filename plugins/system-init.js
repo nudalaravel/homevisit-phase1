@@ -17,12 +17,9 @@ export default function ({ app, store, $axios }, inject) {
       if (this.isInitialized) return true;
 
       try {
-        console.log("🚀 Starting system initialization...");
-
         // 1. ตรวจสอบ IndexedDB
         const dbStatus = await this.validateIndexedDB();
         if (!dbStatus) {
-          console.error("❌ IndexedDB validation failed");
           return false;
         }
 
@@ -36,11 +33,9 @@ export default function ({ app, store, $axios }, inject) {
         this.setupActivitiesAutoUpdate();
 
         this.isInitialized = true;
-        console.log("✅ System initialization completed");
 
         return true;
       } catch (error) {
-        console.error("❌ System initialization failed:", error);
         return false;
       }
     }
@@ -51,7 +46,6 @@ export default function ({ app, store, $axios }, inject) {
     async validateIndexedDB() {
       try {
         if (!app.$indexedDB) {
-          console.error("IndexedDB plugin not found");
           return false;
         }
 
@@ -63,14 +57,11 @@ export default function ({ app, store, $axios }, inject) {
         const readValue = await app.$indexedDB.getSetting(testKey);
 
         if (!readValue || readValue.test !== true) {
-          console.error("IndexedDB read/write test failed");
           return false;
         }
 
-        console.log("✅ IndexedDB is working properly");
         return true;
       } catch (error) {
-        console.error("IndexedDB validation error:", error);
         return false;
       }
     }
@@ -80,21 +71,15 @@ export default function ({ app, store, $axios }, inject) {
      */
     async initializeLocationData() {
       try {
-        console.log("📍 Initializing location data...");
-
         // ตรวจสอบว่ามีข้อมูลแล้วหรือไม่
         const provinces = await app.$indexedDB.getProvinces();
 
         if (provinces && provinces.length > 0) {
-          console.log("✅ Location data already exists");
           return;
         }
 
         // ถ้าไม่มีข้อมูล หรือข้อมูลเสีย ให้ลบและดึงใหม่
-        console.log("🔄 Clearing old location data...");
         await app.$indexedDB.clearAllLocationData();
-
-        console.log("🔄 Fetching location data from API...");
 
         // ดึงข้อมูลจังหวัด
         const provincesData = await this.fetchLocationData(
@@ -107,7 +92,6 @@ export default function ({ app, store, $axios }, inject) {
             prov_name: p.province || p.prov_nameT || p.prov_name, // API may use province, prov_nameT, or prov_name
           }));
           await app.$indexedDB.addProvinces(mappedProvinces);
-          console.log(`✅ Saved ${mappedProvinces.length} provinces`);
         }
 
         // ดึงข้อมูลอำเภอ
@@ -122,7 +106,6 @@ export default function ({ app, store, $axios }, inject) {
             prov_code: a.prov_code,
           }));
           await app.$indexedDB.addAmphoes(mappedAmphoes);
-          console.log(`✅ Saved ${mappedAmphoes.length} amphoes`);
         }
 
         // ดึงข้อมูลตำบล
@@ -137,12 +120,8 @@ export default function ({ app, store, $axios }, inject) {
             amp_code: t.amp_code,
           }));
           await app.$indexedDB.addTambons(mappedTambons);
-          console.log(`✅ Saved ${mappedTambons.length} tambons`);
         }
-
-        console.log("✅ Location data initialization completed");
       } catch (error) {
-        console.error("❌ Location data initialization failed:", error);
         throw error;
       }
     }
@@ -154,15 +133,10 @@ export default function ({ app, store, $axios }, inject) {
       try {
         const response = await $axios.$get(url);
         if (response && response.results) {
-          // Log sample data to help debug field names
-          if (response.results.length > 0) {
-            console.log(`📋 Sample data from ${url}:`, response.results[0]);
-          }
           return response.results;
         }
         return [];
       } catch (error) {
-        console.error(`Failed to fetch location data from ${url}:`, error);
         return [];
       }
     }
@@ -172,8 +146,6 @@ export default function ({ app, store, $axios }, inject) {
      */
     async initializeActivities() {
       try {
-        console.log("📋 Initializing activities data...");
-
         // ตรวจสอบว่าข้อมูลล่าสุดอายุเกิน 1 ชั่วโมงหรือไม่
         const lastUpdate = await app.$indexedDB.getSetting(
           "activities_last_update"
@@ -181,25 +153,20 @@ export default function ({ app, store, $axios }, inject) {
         const now = Date.now();
 
         if (lastUpdate && now - lastUpdate < this.ACTIVITIES_UPDATE_INTERVAL) {
-          const activities = await app.$indexedDB.getActivities();
-          console.log(
-            `✅ Activities data is up to date (${activities.length} items)`
-          );
           return;
         }
 
         // ดึงข้อมูลใหม่จาก API
         await this.updateActivitiesFromAPI();
       } catch (error) {
-        console.error("❌ Activities initialization failed:", error);
+        // Handle error silently
       }
     }
 
     /**
-     * บังคับอัพเดทข้อมูลกิจกรรม (ใช้สำหรับ debug)
+     * บังคับอัพเดทข้อมูลกิจกรรม
      */
     async forceUpdateActivities() {
-      console.log("🔄 Force updating activities...");
       await app.$indexedDB.setSetting("activities_last_update", 0);
       await this.updateActivitiesFromAPI();
     }
@@ -209,53 +176,22 @@ export default function ({ app, store, $axios }, inject) {
      */
     async updateActivitiesFromAPI() {
       try {
-        console.log("🔄 Fetching activities from API...");
-
         const response = await $axios.$get(
           "/api/parenting2025_census/get/homevisit/getobjective.php"
         );
 
         if (response && response.results && response.results.length > 0) {
-          console.log(
-            `📥 Received ${response.results.length} activities from API`
-          );
-
-          // ตรวจสอบ sample data
-          if (response.results.length > 0) {
-            console.log("Sample activity:", response.results[0]);
-          }
-
           // ล้างข้อมูลเก่า
           await app.$indexedDB.clearActivities();
-          console.log("🗑️ Cleared old activities");
 
           // เพิ่มข้อมูลใหม่
-          const result = await app.$indexedDB.addActivities(response.results);
-          console.log(
-            `💾 Inserted activities - Success: ${result.successCount}, Errors: ${result.errorCount}`
-          );
-
-          if (result.errorCount > 0) {
-            console.warn(`⚠️ ${result.errorCount} activities failed to insert`);
-          }
+          await app.$indexedDB.addActivities(response.results);
 
           // บันทึกเวลาที่อัพเดท
           await app.$indexedDB.setSetting("activities_last_update", Date.now());
-
-          // ตรวจสอบจำนวนที่บันทึกจริง
-          const savedActivities = await app.$indexedDB.getActivities();
-          console.log(`✅ Total activities in DB: ${savedActivities.length}`);
-
-          if (savedActivities.length !== response.results.length) {
-            console.warn(
-              `⚠️ Mismatch: API sent ${response.results.length}, but DB has ${savedActivities.length}`
-            );
-          }
-        } else {
-          console.warn("⚠️ No activities data received from API");
         }
       } catch (error) {
-        console.error("❌ Failed to update activities:", error);
+        // Handle error silently
       }
     }
 
@@ -270,11 +206,8 @@ export default function ({ app, store, $axios }, inject) {
 
       // ตั้ง interval ใหม่
       this.activitiesUpdateInterval = setInterval(() => {
-        console.log("⏰ Auto-updating activities...");
         this.updateActivitiesFromAPI();
       }, this.ACTIVITIES_UPDATE_INTERVAL);
-
-      console.log("✅ Activities auto-update enabled (1 hour interval)");
     }
 
     /**
@@ -283,23 +216,18 @@ export default function ({ app, store, $axios }, inject) {
     async syncVisitors(username) {
       try {
         if (!navigator.onLine) {
-          console.log("⚠️ Offline - skipping visitors sync");
           return false;
         }
-
-        console.log(`🔄 Syncing visitors for ${username}...`);
 
         const response = await $axios.$get(
           `/api/parenting2025_census/get/homevisit/getchildsample.php?homevisitor=${username}`
         );
 
         if (!response || !response.results) {
-          console.log("⚠️ No visitors data received");
           return false;
         }
 
         const apiVisitors = response.results;
-        console.log(`📥 Received ${apiVisitors.length} visitors from API`);
 
         // ดึงข้อมูลผู้รับบริการที่มีในเครื่อง
         const localVisitors = await app.$indexedDB.getVisitors();
@@ -366,14 +294,10 @@ export default function ({ app, store, $axios }, inject) {
           if (!apiStidSet.has(localVisitor.stid)) {
             if (localVisitor.dataSource === "local") {
               // ข้อมูลที่แก้ไขออฟไลน์ - ไม่ลบ เก็บไว้ sync ก่อน
-              console.log(
-                `⚠️ Keeping local changes for deleted visitor: ${localVisitor.stid}`
-              );
             } else {
               // ข้อมูลจาก API ที่ถูกลบแล้ว - ลบออกจาก IndexedDB
               await app.$indexedDB.deleteVisitor(localVisitor.stid);
               deletedCount++;
-              console.log(`🗑️ Deleted visitor: ${localVisitor.stid}`);
             }
           }
         }
@@ -384,13 +308,8 @@ export default function ({ app, store, $axios }, inject) {
           new Date().toISOString()
         );
 
-        console.log(
-          `✅ Visitors sync completed: ${newCount} new, ${updatedCount} updated, ${deletedCount} deleted`
-        );
-
         return true;
       } catch (error) {
-        console.error("❌ Visitors sync failed:", error);
         return false;
       }
     }
@@ -403,48 +322,28 @@ export default function ({ app, store, $axios }, inject) {
     async syncBookings(username) {
       try {
         if (!navigator.onLine) {
-          console.log("⚠️ Offline - skipping bookings sync");
           return false;
         }
-
-        console.log(`🔄 Syncing bookings for ${username}...`);
 
         const response = await $axios.$get(
           `/api/parenting2025_census/get/homevisit/getchildsample_app.php?homevisitor=${username}`
         );
 
         if (!response || !response.results) {
-          console.log("⚠️ No bookings data received from API");
           return false;
         }
 
         const apiBookings = response.results;
-        console.log(
-          `📥 Received ${apiBookings.length} booking records from API`
-        );
-
-        // Log sample data เพื่อ debug (เฉพาะ record แรก)
-        if (apiBookings.length > 0) {
-          console.log("📋 Sample booking data:", {
-            stid: apiBookings[0].stid,
-            appointmentDate: apiBookings[0].date_app_curr,
-            appointmentTime: apiBookings[0].time_app_curr,
-            month_age: apiBookings[0].month_age,
-            time: apiBookings[0].time,
-            approve_status: apiBookings[0].approve_status,
-            approve_date: apiBookings[0].approve_date,
-          });
-        }
 
         // อัพเดท approve_status จาก API getchildsample_app.php ไปยัง survey_progress
         for (const booking of apiBookings) {
-          if (booking.stid && booking.time) {
+          if (booking.stid && booking.time_visit) {
             // ค้นหา survey_progress ด้วย stid และ time
             const allSurveys = await app.$indexedDB.getAllSurveysByStid(
               booking.stid
             );
             const existingSurvey = allSurveys.find(
-              (s) => String(s.time) === String(booking.time)
+              (s) => String(s.time) === String(booking.time_visit)
             );
 
             if (
@@ -461,9 +360,6 @@ export default function ({ app, store, $axios }, inject) {
                   approve_status: parsedApproveStatus,
                   lastUpdated: new Date().toISOString(),
                 });
-                console.log(
-                  `✅ Updated approve_status from bookings API for ${booking.stid} (time: ${booking.time}) → ${parsedApproveStatus}`
-                );
               }
             }
           }
@@ -502,7 +398,7 @@ export default function ({ app, store, $axios }, inject) {
               appointmentDate: apiBooking.date_app_curr || null,
               appointmentTime: apiBooking.time_app_curr || null,
               month_age: apiBooking.month_age || null,
-              time: apiBooking.time || null,
+              time: apiBooking.time_visit || null,
               cnt_app: apiBooking.cnt_app || 1,
               dataSource: "api",
               lastSyncedAt: new Date().toISOString(),
@@ -522,7 +418,7 @@ export default function ({ app, store, $axios }, inject) {
               appointmentDate: apiBooking.date_app_curr || null,
               appointmentTime: apiBooking.time_app_curr || null,
               month_age: apiBooking.month_age || null,
-              time: apiBooking.time || null,
+              time: apiBooking.time_visit || null,
               cnt_app: apiBooking.cnt_app || 1,
               dataSource: "api",
               lastSyncedAt: new Date().toISOString(),
@@ -535,10 +431,6 @@ export default function ({ app, store, $axios }, inject) {
         await app.$indexedDB.setSetting(
           "bookings_last_sync",
           new Date().toISOString()
-        );
-
-        console.log(
-          `✅ Bookings sync completed: ${newCount} new, ${updatedCount} updated, ${skippedCount} skipped`
         );
 
         return true;
@@ -566,8 +458,6 @@ export default function ({ app, store, $axios }, inject) {
           return false;
         }
 
-        console.log(`🔄 Syncing survey results for ${username}...`);
-
         const response = await $axios.$get(
           `/api/parenting2025_census/get/homevisit/getchildsample_result.php?homevisitor=${username}`
         );
@@ -578,21 +468,6 @@ export default function ({ app, store, $axios }, inject) {
         }
 
         const apiResults = response.results;
-        console.log(
-          `📥 Received ${apiResults.length} survey result records from API`
-        );
-
-        // Log sample data
-        if (apiResults.length > 0) {
-          console.log("📋 Sample survey result data:", {
-            stid: apiResults[0].stid,
-            time: apiResults[0].time_visit,
-            date_visit: apiResults[0].date_visit,
-            timeupload: apiResults[0].timeupload,
-            has_pic1: !!apiResults[0].pic1,
-            has_pic2: !!apiResults[0].pic2,
-          });
-        }
 
         let newCount = 0;
         let updatedCount = 0;
@@ -655,9 +530,6 @@ export default function ({ app, store, $axios }, inject) {
                 for (const dupSurvey of duplicateSurveys) {
                   try {
                     await app.$indexedDB.deleteSurveyProgress(dupSurvey.id);
-                    console.log(
-                      `🗑️ Removed duplicate survey with ID: ${dupSurvey.id}`
-                    );
                   } catch (error) {
                     console.error(
                       `❌ Failed to remove duplicate ${dupSurvey.id}:`,
@@ -682,67 +554,33 @@ export default function ({ app, store, $axios }, inject) {
                 .filter((v) => v !== "");
             };
 
-            // Log sample data conversion
-            if (result.q3 || result.q6 || result.q7) {
-              console.log(
-                `📥 Converting arrays for ${result.stid} (time: ${timeValue}):`,
-                {
-                  q3_raw: result.q3,
-                  q3_parsed: parseArrayFromString(result.q3),
-                  q6_raw: result.q6,
-                  q6_parsed: parseArrayFromString(result.q6),
-                  q7_raw: result.q7,
-                  q7_parsed: parseArrayFromString(result.q7),
-                }
-              );
-            }
-
             // Map q5 และ q9 โดยใช้ activity ID เป็น key
             const q5Answers = {};
             const q9Answers = {};
 
-            // Map q5: q51_name เป็น key, q51 เป็น value
+            // Map q5: q51_name เป็น key, q51 เป็น value (convert to number)
             if (result.q51_name && result.q51)
-              q5Answers[result.q51_name] = result.q51;
+              q5Answers[result.q51_name] = Number(result.q51);
             if (result.q52_name && result.q52)
-              q5Answers[result.q52_name] = result.q52;
+              q5Answers[result.q52_name] = Number(result.q52);
             if (result.q53_name && result.q53)
-              q5Answers[result.q53_name] = result.q53;
+              q5Answers[result.q53_name] = Number(result.q53);
             if (result.q54_name && result.q54)
-              q5Answers[result.q54_name] = result.q54;
+              q5Answers[result.q54_name] = Number(result.q54);
             if (result.q55_name && result.q55)
-              q5Answers[result.q55_name] = result.q55;
+              q5Answers[result.q55_name] = Number(result.q55);
 
-            // Map q9: q91_name เป็น key, q91 เป็น value
+            // Map q9: q91_name เป็น key, q91 เป็น value (convert to number)
             if (result.q91_name && result.q91)
-              q9Answers[result.q91_name] = result.q91;
+              q9Answers[result.q91_name] = Number(result.q91);
             if (result.q92_name && result.q92)
-              q9Answers[result.q92_name] = result.q92;
+              q9Answers[result.q92_name] = Number(result.q92);
             if (result.q93_name && result.q93)
-              q9Answers[result.q93_name] = result.q93;
+              q9Answers[result.q93_name] = Number(result.q93);
             if (result.q94_name && result.q94)
-              q9Answers[result.q94_name] = result.q94;
+              q9Answers[result.q94_name] = Number(result.q94);
             if (result.q95_name && result.q95)
-              q9Answers[result.q95_name] = result.q95;
-
-            console.log(`🔄 Mapped q5 and q9 for ${result.stid}:`, {
-              q5_names: [
-                result.q51_name,
-                result.q52_name,
-                result.q53_name,
-                result.q54_name,
-                result.q55_name,
-              ].filter(Boolean),
-              q5_answers: q5Answers,
-              q9_names: [
-                result.q91_name,
-                result.q92_name,
-                result.q93_name,
-                result.q94_name,
-                result.q95_name,
-              ].filter(Boolean),
-              q9_answers: q9Answers,
-            });
+              q9Answers[result.q95_name] = Number(result.q95);
 
             // Map API data to survey_progress structure
             // ⚠️ หมายเหตุ: API getchildsample_result.php ไม่มี approve_status
@@ -757,29 +595,30 @@ export default function ({ app, store, $axios }, inject) {
               appointmentDate: result.date_visit,
               fullname_visit: result.fullname_visit,
               answers: {
-                q1: result.q1,
-                q1_des: result.q1_des,
-                q2: result.q2,
-                q2_des: result.q2_des,
-                // q3 จาก API เป็น string ต้อง convert เป็น array
+                // ⚠️ Convert to number for consistent type (API returns string)
+                q1: result.q1 != null ? Number(result.q1) : null,
+                q1_des: result.q1_des || "",
+                q2: result.q2 != null ? Number(result.q2) : null,
+                q2_des: result.q2_des || "",
+                // q3 จาก API เป็น string ต้อง convert เป็น array of numbers
                 q3: parseArrayFromString(result.q3),
-                q3_des: result.q3_des,
-                q4: result.q4,
+                q3_des: result.q3_des || "",
+                q4: result.q4 != null ? Number(result.q4) : null,
                 // q5 ใช้ activity ID เป็น key (จาก q51_name, q52_name, ...)
                 q5: q5Answers,
-                // q6 จาก API เป็น string ต้อง convert เป็น array
+                // q6 จาก API เป็น string ต้อง convert เป็น array of numbers
                 q6: parseArrayFromString(result.q6),
-                q6_des: result.q6_des, // เก็บทั้งสอง q6_des และ q6_other
-                q6_other: result.q6_des, // ใน IndexedDB ใช้ q6_other
-                // q7 จาก API เป็น string ต้อง convert เป็น array
+                q6_des: result.q6_des || "", // เก็บทั้งสอง q6_des และ q6_other
+                q6_other: result.q6_des || "", // ใน IndexedDB ใช้ q6_other
+                // q7 จาก API เป็น string ต้อง convert เป็น array of numbers
                 q7: parseArrayFromString(result.q7),
-                q71: result.q71,
-                q71_des: result.q71_des,
-                q8: result.q8,
+                q71: result.q71 || "",
+                q71_des: result.q71_des || "",
+                q8: result.q8 != null ? Number(result.q8) : null,
                 // q9 ใช้ activity ID เป็น key (จาก q91_name, q92_name, ...)
                 q9: q9Answers,
-                q10_appDate: result.q10_appDate,
-                q10_appTime: result.q10_appTime,
+                q10_appDate: result.q10_appDate || "",
+                q10_appTime: result.q10_appTime || "",
                 notes: result.note || "", // เพิ่ม notes ด้วยเพื่อให้ตรงกับ IndexedDB structure
               },
               surveyImages: [
@@ -838,33 +677,22 @@ export default function ({ app, store, $axios }, inject) {
                   return apiImg;
                 }
               );
-              console.log(
-                `🔄 Merged base64 data from local for survey ${surveyId}`
-              );
             }
 
             if (!localSurvey) {
               // ไม่มีข้อมูล local - สร้างใหม่จาก API
               await app.$indexedDB.saveSurveyProgress(apiSurveyData);
               newCount++;
-              console.log(
-                `✅ Created new survey result for stid: ${result.stid}, time: ${timeValue}`
-              );
             } else if (localSurvey.synced === false) {
               // มีข้อมูล local ที่ยัง sync ไม่สำเร็จ - เก็บข้อมูล local ไว้ทั้งหมด
               // approve_status จะถูกอัพเดทจาก syncBookings() แทน
-              console.log(
-                `⚠️ Keeping all local data for stid: ${result.stid}, time: ${timeValue} (not synced yet)`
-              );
+
               skippedCount++;
             } else {
               // มีข้อมูล local ที่ sync แล้ว - อัพเดททั้งหมดจาก API
               // (ยกเว้น approve_status ที่จะมาจาก syncBookings)
               await app.$indexedDB.saveSurveyProgress(apiSurveyData);
               updatedCount++;
-              console.log(
-                `✅ Updated survey result from API for stid: ${result.stid}, time: ${timeValue}`
-              );
             }
           } catch (error) {
             console.error(
@@ -881,16 +709,8 @@ export default function ({ app, store, $axios }, inject) {
           new Date().toISOString()
         );
 
-        console.log(
-          `✅ Survey results sync completed: ${newCount} new, ${updatedCount} updated, ${skippedCount} skipped`
-        );
-
         // ทำความสะอาดข้อมูลซ้ำหลัง sync
-        console.log("🧹 Cleaning up duplicate surveys...");
         const cleanupResult = await app.$indexedDB.cleanupDuplicateSurveys();
-        console.log(
-          `✅ Cleanup result: ${cleanupResult.merged} merged, ${cleanupResult.removed} removed`
-        );
 
         return true;
       } catch (error) {
@@ -912,7 +732,6 @@ export default function ({ app, store, $axios }, inject) {
     async pushBookingsToAPI() {
       try {
         if (!navigator.onLine) {
-          console.log("⚠️ Offline - skipping bookings push");
           return false;
         }
 
@@ -920,11 +739,8 @@ export default function ({ app, store, $axios }, inject) {
         const unsyncedBookings = await app.$indexedDB.getUnsyncedBookings();
 
         if (unsyncedBookings.length === 0) {
-          console.log("✅ No unsynced bookings to push");
           return true;
         }
-
-        console.log(`🔄 Pushing ${unsyncedBookings.length} bookings to API...`);
 
         let successCount = 0;
         let errorCount = 0;
@@ -973,16 +789,16 @@ export default function ({ app, store, $axios }, inject) {
                 params: {
                   homevisitor: username,
                   stid: booking.stid,
-                  time: booking.time,
+                  time_visit: booking.time,
                 },
               }
             );
 
-            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time และ month_age หรือไม่
+            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time_visit และ month_age หรือไม่
             const existingRecord = checkResponse?.results?.find(
               (record) =>
                 record.stid === booking.stid &&
-                String(record.time) === String(booking.time) &&
+                String(record.time_visit) === String(booking.time) &&
                 String(record.month_age) === String(booking.month_age)
             );
 
@@ -1002,7 +818,7 @@ export default function ({ app, store, $axios }, inject) {
                     "date_app_curr",
                     "cnt_app",
                     "month_age",
-                    "time",
+                    "time_visit",
                     "q1_name",
                     "q2_name",
                     "q3_name",
@@ -1021,7 +837,7 @@ export default function ({ app, store, $axios }, inject) {
                     activityIds[3],
                     activityIds[4],
                   ],
-                  pk: ["stid", "time"],
+                  pk: ["stid", "time_visit"],
                   pkval: [booking.stid, booking.time],
                   tb: "homevisitor_app",
                 }
@@ -1038,11 +854,10 @@ export default function ({ app, store, $axios }, inject) {
                     "stid",
                     "project",
                     "recStart",
-                    "time",
+                    "time_visit",
                     "fname_ch",
                     "lname_ch",
                     "month_age",
-                    "time",
                     "time_app_first",
                     "date_app_first",
                     "time_app_curr",
@@ -1063,7 +878,6 @@ export default function ({ app, store, $axios }, inject) {
                     visitor?.fname || "",
                     visitor?.lname || "",
                     booking.month_age,
-                    booking.appointmentTime,
                     booking.appointmentTime,
                     booking.appointmentDate,
                     booking.appointmentTime,
@@ -1116,19 +930,17 @@ export default function ({ app, store, $axios }, inject) {
      * @returns {Promise<string|null>} URL ของรูปภาพบน S3 หรือ null ถ้าล้มเหลว
      */
     async uploadImageToS3(base64Image) {
+      return "test.jpg";
       try {
         if (!base64Image || !base64Image.startsWith("data:image")) {
           return null;
         }
-
-        console.log("📤 Uploading image to S3...");
 
         const response = await $axios.$post("/api/spa/s3upload.php", {
           image: base64Image,
         });
 
         if (response && response.url) {
-          console.log(`✅ Image uploaded to S3: ${response.url}`);
           return response.url;
         }
 
@@ -1145,7 +957,6 @@ export default function ({ app, store, $axios }, inject) {
     async pushSurveyResultsToAPI() {
       try {
         if (!navigator.onLine) {
-          console.log("⚠️ Offline - skipping survey results push");
           return false;
         }
 
@@ -1153,13 +964,8 @@ export default function ({ app, store, $axios }, inject) {
         const unsyncedSurveys = await app.$indexedDB.getUnsyncedSurveys();
 
         if (unsyncedSurveys.length === 0) {
-          console.log("✅ No unsynced survey results to push");
           return true;
         }
-
-        console.log(
-          `🔄 Pushing ${unsyncedSurveys.length} survey results to API...`
-        );
 
         let successCount = 0;
         let errorCount = 0;
@@ -1206,7 +1012,6 @@ export default function ({ app, store, $axios }, inject) {
                 if (typeof img1 === "object" && img1.url) {
                   // Already has URL, use it
                   pic1 = img1.url;
-                  console.log(`✅ Using existing URL for pic1: ${pic1}`);
                 } else if (
                   (typeof img1 === "object" && img1.base64) ||
                   typeof img1 === "string"
@@ -1214,7 +1019,6 @@ export default function ({ app, store, $axios }, inject) {
                   // Upload base64 to S3
                   const base64Data =
                     typeof img1 === "object" ? img1.base64 : img1;
-                  console.log(`🔄 Uploading pic1 to S3...`);
                   const uploadedUrl = await this.uploadImageToS3(base64Data);
                   if (uploadedUrl) {
                     pic1 = uploadedUrl;
@@ -1236,7 +1040,6 @@ export default function ({ app, store, $axios }, inject) {
                 if (typeof img2 === "object" && img2.url) {
                   // Already has URL, use it
                   pic2 = img2.url;
-                  console.log(`✅ Using existing URL for pic2: ${pic2}`);
                 } else if (
                   (typeof img2 === "object" && img2.base64) ||
                   typeof img2 === "string"
@@ -1244,7 +1047,6 @@ export default function ({ app, store, $axios }, inject) {
                   // Upload base64 to S3
                   const base64Data =
                     typeof img2 === "object" ? img2.base64 : img2;
-                  console.log(`🔄 Uploading pic2 to S3...`);
                   const uploadedUrl = await this.uploadImageToS3(base64Data);
                   if (uploadedUrl) {
                     pic2 = uploadedUrl;
@@ -1262,216 +1064,314 @@ export default function ({ app, store, $axios }, inject) {
 
               // Update survey in IndexedDB with URLs
               await app.$indexedDB.saveSurveyProgress(survey);
-              console.log(`✅ Updated survey ${survey.id} with S3 URLs`);
             } catch (error) {
               console.error(
-                `❌ Failed to upload images for ${survey.stid}:`,
+                `❌ Failed to upload images for survey ${survey.id}:`,
                 error
               );
               errorCount++;
-
-              // Show specific error to user via toast
-              if (error.message && error.message.includes("อัพโหลดรูปภาพ")) {
-                console.error(`🚨 Image upload error: ${error.message}`);
-              }
-
-              // Skip this survey and continue to next
-              console.log(
-                `⏭️ Skipping survey ${survey.stid} due to image upload failure`
-              );
               continue;
             }
 
-            // Log q5 และ q9 mapping
-            console.log(`📤 Preparing q5 and q9 for API (${survey.stid}):`, {
-              q5_activity_ids: q5ActivityNames,
-              q5_values: q5ActivityNames.map((id) => survey.answers?.q5?.[id]),
-              q5_object: survey.answers?.q5,
-              q9_activity_ids: q9ActivityNames,
-              q9_values: q9ActivityNames.map((id) => survey.answers?.q9?.[id]),
-              q9_object: survey.answers?.q9,
-            });
+            // เช็คว่ามีข้อมูลใน API แล้วหรือยัง
+            let existingRecord = null;
+            try {
+              const checkResponse = await $axios.$get(
+                "/api/parenting2025_census/get/homevisit/getchildsample_result.php",
+                {
+                  params: {
+                    homevisitor: username,
+                    stid: survey.stid,
+                    time_visit: survey.time,
+                  },
+                }
+              );
 
-            // สร้าง payload
-            const payload = {
-              variable: [
-                "recby",
-                "stid",
-                "project",
-                "time",
-                "recStart",
-                "recEnd",
-                "recStatus",
-                "fname_ch",
-                "lname_ch",
-                "fullname_visit",
-                "date_visit",
-                "timeStart",
-                "q1",
-                "q1_des",
-                "q2",
-                "q2_des",
-                "q3",
-                "q3_des",
-                "q4",
-                "q51_name",
-                "q52_name",
-                "q53_name",
-                "q54_name",
-                "q55_name",
-                "q51",
-                "q52",
-                "q53",
-                "q54",
-                "q55",
-                "q6",
-                "q6_des",
-                "q7",
-                "q71",
-                "q71_des",
-                "q8",
-                "q91_name",
-                "q92_name",
-                "q93_name",
-                "q94_name",
-                "q95_name",
-                "q91",
-                "q92",
-                "q93",
-                "q94",
-                "q95",
-                "q10_appDate",
-                "q10_appTime",
-                "timeEnd",
-                "note",
-                "pic1",
-                "pic2",
-                "pic3",
-              ],
-              value: [
-                username || "",
-                survey.stid,
-                "15",
-                String(survey.time),
-                survey.timeStart || "",
-                survey.timeEnd || "",
-                "1",
-                visitor?.fname || "",
-                visitor?.lname || "",
-                survey.fullname_visit || "",
-                survey.appointmentDate || "",
-                survey.appointmentTime || "",
-                String(survey.answers?.q1 || ""),
-                survey.answers?.q1_des || "",
-                String(survey.answers?.q2 || ""),
-                survey.answers?.q2_des || "",
-                // q3 เป็น array ต้อง convert เป็น string
-                Array.isArray(survey.answers?.q3)
-                  ? survey.answers.q3.join(",")
-                  : String(survey.answers?.q3 || ""),
-                survey.answers?.q3_des || "",
-                String(survey.answers?.q4 || ""),
-                q5ActivityNames[0],
-                q5ActivityNames[1],
-                q5ActivityNames[2],
-                q5ActivityNames[3],
-                q5ActivityNames[4],
-                // q5 ใช้ activity ID เป็น key: survey.answers.q5[activityId]
-                String(survey.answers?.q5?.[q5ActivityNames[0]] || ""),
-                String(survey.answers?.q5?.[q5ActivityNames[1]] || ""),
-                String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
-                String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
-                String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
-                // q6 เป็น array ต้อง convert เป็น string
-                Array.isArray(survey.answers?.q6)
-                  ? survey.answers.q6.join(",")
-                  : String(survey.answers?.q6 || ""),
-                // q6_des ใน IndexedDB เป็น q6_other
-                survey.answers?.q6_other || survey.answers?.q6_des || "",
-                // q7 เป็น array ต้อง convert เป็น string
-                Array.isArray(survey.answers?.q7)
-                  ? survey.answers.q7.join(",")
-                  : String(survey.answers?.q7 || ""),
-                // q71 ไม่มี _des
-                String(survey.answers?.q71 || ""),
-                // q71_des ถ้ามี (จาก sync API กลับมา)
-                survey.answers?.q71_des || "",
-                String(survey.answers?.q8 || ""),
-                q9ActivityNames[0],
-                q9ActivityNames[1],
-                q9ActivityNames[2],
-                q9ActivityNames[3],
-                q9ActivityNames[4],
-                // q9 ใช้ activity ID เป็น key: survey.answers.q9[activityId]
-                String(survey.answers?.q9?.[q9ActivityNames[0]] || ""),
-                String(survey.answers?.q9?.[q9ActivityNames[1]] || ""),
-                String(survey.answers?.q9?.[q9ActivityNames[2]] || ""),
-                String(survey.answers?.q9?.[q9ActivityNames[3]] || ""),
-                String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
-                survey.answers?.q10_appDate || "",
-                survey.answers?.q10_appTime || "",
-                survey.timeEnd || "",
-                // note ใน IndexedDB เป็น answers.notes หรือ survey.note
-                survey.note || survey.answers?.notes || "",
-                pic1,
-                pic2,
-                pic3,
-              ],
-              tb: "homevisitor_result",
-            };
+              // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time_visit หรือไม่
+              if (checkResponse?.results && checkResponse.results.length > 0) {
+                existingRecord = checkResponse.results.find(
+                  (record) =>
+                    record.stid === survey.stid &&
+                    String(record.time_visit) === String(survey.time)
+                );
+              }
+            } catch (error) {
+              console.error(
+                `❌ Failed to check existing record for ${survey.stid}, time ${survey.time}:`,
+                error
+              );
+              // ถ้าเช็คไม่ได้ ให้ลองสร้างใหม่แทน
+              existingRecord = null;
+            }
 
-            // Log payload สำหรับ debug
-            console.log(
-              `📤 Sending survey result for ${survey.stid} (time: ${survey.time})`
-            );
-            console.log("📋 Payload sample:", {
-              q3: payload.value[16], // q3
-              q51_name: payload.value[19], // q51_name
-              q52_name: payload.value[20], // q52_name
-              q51: payload.value[24], // q51
-              q52: payload.value[25], // q52
-              q6: payload.value[29], // q6
-              q6_des: payload.value[30], // q6_des
-              q7: payload.value[31], // q7
-              q71: payload.value[32], // q71
-              q91_name: payload.value[35], // q91_name
-              q92_name: payload.value[36], // q92_name
-              q91: payload.value[40], // q91
-              q92: payload.value[41], // q92
-              note: payload.value[47], // note
-            });
+            if (existingRecord) {
+              // มีข้อมูลแล้ว - ใช้ PUT
+              const putPayload = {
+                variable: [
+                  "timeStart",
+                  "q1",
+                  "q1_des",
+                  "q2",
+                  "q2_des",
+                  "q3",
+                  "q3_des",
+                  "q4",
+                  "q51_name",
+                  "q52_name",
+                  "q53_name",
+                  "q54_name",
+                  "q55_name",
+                  "q51",
+                  "q52",
+                  "q53",
+                  "q54",
+                  "q55",
+                  "q6",
+                  "q6_des",
+                  "q7",
+                  "q71",
+                  "q71_des",
+                  "q8",
+                  "q91_name",
+                  "q92_name",
+                  "q93_name",
+                  "q94_name",
+                  "q95_name",
+                  "q91",
+                  "q92",
+                  "q93",
+                  "q94",
+                  "q95",
+                  "q10_appDate",
+                  "q10_appTime",
+                  "timeEnd",
+                  "note",
+                  "pic1",
+                  "pic2",
+                  "pic3",
+                ],
+                value: [
+                  survey.appointmentTime || "",
+                  String(survey.answers?.q1 || ""),
+                  survey.answers?.q1_des || "",
+                  String(survey.answers?.q2 || ""),
+                  survey.answers?.q2_des || "",
+                  // q3 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q3)
+                    ? survey.answers.q3.join(",")
+                    : String(survey.answers?.q3 || ""),
+                  survey.answers?.q3_des || "",
+                  String(survey.answers?.q4 || ""),
+                  q5ActivityNames[0],
+                  q5ActivityNames[1],
+                  q5ActivityNames[2],
+                  q5ActivityNames[3],
+                  q5ActivityNames[4],
+                  // q5 ใช้ activity ID เป็น key
+                  String(survey.answers?.q5?.[q5ActivityNames[0]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[1]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
+                  // q6 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q6)
+                    ? survey.answers.q6.join(",")
+                    : String(survey.answers?.q6 || ""),
+                  survey.answers?.q6_other || survey.answers?.q6_des || "",
+                  // q7 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q7)
+                    ? survey.answers.q7.join(",")
+                    : String(survey.answers?.q7 || ""),
+                  String(survey.answers?.q71 || ""),
+                  survey.answers?.q71_des || "",
+                  String(survey.answers?.q8 || ""),
+                  q9ActivityNames[0],
+                  q9ActivityNames[1],
+                  q9ActivityNames[2],
+                  q9ActivityNames[3],
+                  q9ActivityNames[4],
+                  // q9 ใช้ activity ID เป็น key
+                  String(survey.answers?.q9?.[q9ActivityNames[0]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[1]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[2]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[3]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
+                  survey.answers?.q10_appDate || "",
+                  survey.answers?.q10_appTime || "",
+                  survey.timeEnd || "",
+                  survey.note || survey.answers?.notes || "",
+                  pic1,
+                  pic2,
+                  pic3,
+                ],
+                pk: ["stid", "time_visit"],
+                pkval: [survey.stid, String(survey.time)],
+                tb: "homevisitor_result",
+              };
 
-            // ส่งไป API
-            await $axios.$post(
-              "/api/parenting2025_census/post/homevisit/datarecord1row.php",
-              payload
-            );
+              await $axios.$put(
+                "/api/parenting2025_census/put/homevisit/putdata.php",
+                putPayload
+              );
+
+              console.log(
+                `✅ Updated existing survey result for stid: ${survey.stid}, time: ${survey.time}`
+              );
+            } else {
+              // ยังไม่มีข้อมูล - ใช้ POST
+              const postPayload = {
+                variable: [
+                  "recby",
+                  "stid",
+                  "project",
+                  "time_visit",
+                  "recStart",
+                  "recEnd",
+                  "recStatus",
+                  "fname_ch",
+                  "lname_ch",
+                  "fullname_visit",
+                  "date_visit",
+                  "timeStart",
+                  "q1",
+                  "q1_des",
+                  "q2",
+                  "q2_des",
+                  "q3",
+                  "q3_des",
+                  "q4",
+                  "q51_name",
+                  "q52_name",
+                  "q53_name",
+                  "q54_name",
+                  "q55_name",
+                  "q51",
+                  "q52",
+                  "q53",
+                  "q54",
+                  "q55",
+                  "q6",
+                  "q6_des",
+                  "q7",
+                  "q71",
+                  "q71_des",
+                  "q8",
+                  "q91_name",
+                  "q92_name",
+                  "q93_name",
+                  "q94_name",
+                  "q95_name",
+                  "q91",
+                  "q92",
+                  "q93",
+                  "q94",
+                  "q95",
+                  "q10_appDate",
+                  "q10_appTime",
+                  "timeEnd",
+                  "note",
+                  "pic1",
+                  "pic2",
+                  "pic3",
+                ],
+                value: [
+                  username || "",
+                  survey.stid,
+                  "15",
+                  String(survey.time),
+                  survey.timeStart || "",
+                  survey.timeEnd || "",
+                  "1",
+                  visitor?.fname || "",
+                  visitor?.lname || "",
+                  survey.fullname_visit || "",
+                  survey.appointmentDate || "",
+                  survey.appointmentTime || "",
+                  String(survey.answers?.q1 || ""),
+                  survey.answers?.q1_des || "",
+                  String(survey.answers?.q2 || ""),
+                  survey.answers?.q2_des || "",
+                  // q3 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q3)
+                    ? survey.answers.q3.join(",")
+                    : String(survey.answers?.q3 || ""),
+                  survey.answers?.q3_des || "",
+                  String(survey.answers?.q4 || ""),
+                  q5ActivityNames[0],
+                  q5ActivityNames[1],
+                  q5ActivityNames[2],
+                  q5ActivityNames[3],
+                  q5ActivityNames[4],
+                  // q5 ใช้ activity ID เป็น key
+                  String(survey.answers?.q5?.[q5ActivityNames[0]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[1]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
+                  String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
+                  // q6 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q6)
+                    ? survey.answers.q6.join(",")
+                    : String(survey.answers?.q6 || ""),
+                  survey.answers?.q6_other || survey.answers?.q6_des || "",
+                  // q7 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q7)
+                    ? survey.answers.q7.join(",")
+                    : String(survey.answers?.q7 || ""),
+                  String(survey.answers?.q71 || ""),
+                  survey.answers?.q71_des || "",
+                  String(survey.answers?.q8 || ""),
+                  q9ActivityNames[0],
+                  q9ActivityNames[1],
+                  q9ActivityNames[2],
+                  q9ActivityNames[3],
+                  q9ActivityNames[4],
+                  // q9 ใช้ activity ID เป็น key
+                  String(survey.answers?.q9?.[q9ActivityNames[0]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[1]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[2]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[3]] || ""),
+                  String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
+                  survey.answers?.q10_appDate || "",
+                  survey.answers?.q10_appTime || "",
+                  survey.timeEnd || "",
+                  survey.note || survey.answers?.notes || "",
+                  pic1,
+                  pic2,
+                  pic3,
+                ],
+                tb: "homevisitor_result",
+              };
+
+              await $axios.$post(
+                "/api/parenting2025_census/post/homevisit/datarecord1row.php",
+                postPayload
+              );
+
+              console.log(
+                `✅ Created new survey result for stid: ${survey.stid}, time: ${survey.time}`
+              );
+            }
 
             // อัพเดทสถานะเป็น synced
             await app.$indexedDB.updateSurveySyncStatus(survey.id, true, 0);
 
             successCount++;
-            console.log(
-              `✅ Synced survey result for stid: ${survey.stid}, time: ${survey.time}`
-            );
           } catch (error) {
-            errorCount++;
             console.error(
-              `❌ Failed to sync survey result for stid: ${survey.stid}`,
+              `❌ Failed to sync survey for stid: ${survey.stid}, time: ${survey.time}`,
               error
             );
+            errorCount++;
           }
         }
 
-        if (successCount > 0) {
-          console.log(
-            `✅ Survey results push completed: ${successCount} succeeded, ${errorCount} failed`
-          );
-        }
+        console.log(
+          `✅ Survey results sync completed: ${successCount} success, ${errorCount} errors`
+        );
 
         return successCount > 0;
       } catch (error) {
-        console.error("❌ Survey results push failed:", error);
+        console.error("❌ Survey results sync failed:", error);
         return false;
       }
     }

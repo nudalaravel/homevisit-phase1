@@ -44,7 +44,6 @@ export default function ({ app }, inject) {
         request.onsuccess = () => {
           this.db = request.result;
           this.isInitialized = true;
-          console.log("IndexedDB initialized successfully");
           resolve(this.db);
         };
 
@@ -57,7 +56,6 @@ export default function ({ app }, inject) {
           storesToDelete.forEach((storeName) => {
             if (db.objectStoreNames.contains(storeName)) {
               db.deleteObjectStore(storeName);
-              console.log(`Deleted unused store: ${storeName}`);
             }
           });
 
@@ -182,8 +180,6 @@ export default function ({ app }, inject) {
               unique: false,
             });
           }
-
-          console.log("IndexedDB object stores created/updated");
         };
       });
     }
@@ -860,7 +856,6 @@ export default function ({ app }, inject) {
       await this.clearProvinces();
       await this.clearAmphoes();
       await this.clearTambons();
-      console.log("✅ Cleared all location data");
     }
 
     // ========================================
@@ -920,9 +915,6 @@ export default function ({ app }, inject) {
         });
 
         transaction.oncomplete = () => {
-          console.log(
-            `✅ Activities batch insert: ${successCount} success, ${errorCount} errors`
-          );
           if (errors.length > 0) {
             console.warn("Activities insert errors:", errors);
           }
@@ -993,17 +985,6 @@ export default function ({ app }, inject) {
             const activity = cursor.value;
             totalScanned++;
 
-            // Debug first few records to see data structure
-            if (totalScanned <= 3) {
-              console.log(`📋 Sample activity #${totalScanned}:`, {
-                month_age: activity.month_age,
-                month_age_type: typeof activity.month_age,
-                time: activity.time,
-                time_type: typeof activity.time,
-                title: activity.title,
-              });
-            }
-
             // Convert both to numbers for comparison since API returns strings
             if (
               Number(activity.month_age) === Number(monthAge) &&
@@ -1013,10 +994,6 @@ export default function ({ app }, inject) {
             }
             cursor.continue();
           } else {
-            console.log(
-              `📊 Scanned ${totalScanned} activities, found ${matchingActivities.length} matches`
-            );
-
             // Return array of all matching activities
             // Format each activity to ensure consistent structure
             const formattedActivities = matchingActivities.map((activity) => ({
@@ -1283,7 +1260,6 @@ export default function ({ app }, inject) {
 
         request.onsuccess = () => {
           const surveys = request.result;
-          console.log(`📋 All surveys count: ${surveys.length}`);
 
           // Filter เฉพาะ surveys ของ stid นี้ที่เสร็จแล้ว
           const completedSurveys = surveys.filter((s) => {
@@ -1291,10 +1267,6 @@ export default function ({ app }, inject) {
             const isCompleted = s.completed === true;
             return isMatchingStid && isCompleted;
           });
-
-          console.log(
-            `📋 Filtered surveys for stid ${stid}: ${completedSurveys.length}`
-          );
 
           // ตรวจสอบว่ามี surveys ซ้ำหรือไม่
           const uniqueKeys = new Set();
@@ -1373,11 +1345,8 @@ export default function ({ app }, inject) {
       }
 
       try {
-        console.log("🧹 Starting survey cleanup...");
-
         // ดึง surveys ทั้งหมด
         const allSurveys = await this.getAll("survey_progress");
-        console.log(`📋 Found ${allSurveys.length} total surveys`);
 
         // จัดกลุ่มตาม stid + time
         const groupedSurveys = new Map();
@@ -1470,18 +1439,6 @@ export default function ({ app }, inject) {
 
             // บันทึก bestSurvey
             await this.saveSurveyProgress(bestSurvey);
-            console.log(`✅ Merged survey for ${key}:`, {
-              synced: bestSurvey.synced,
-              completed: bestSurvey.completed,
-              answersCount: Object.keys(bestSurvey.answers || {}).length,
-              answersSample: {
-                q3: bestSurvey.answers?.q3,
-                q6: bestSurvey.answers?.q6,
-                q7: bestSurvey.answers?.q7,
-                q6_other: bestSurvey.answers?.q6_other,
-                notes: bestSurvey.answers?.notes,
-              },
-            });
 
             // ลบ surveys อื่นๆ ที่ซ้ำ
             for (const survey of surveys) {
@@ -1489,7 +1446,6 @@ export default function ({ app }, inject) {
                 try {
                   await this.deleteSurveyProgress(survey.id);
                   removedCount++;
-                  console.log(`🗑️ Removed duplicate survey: ${survey.id}`);
                 } catch (error) {
                   console.error(
                     `❌ Failed to remove duplicate ${survey.id}:`,
@@ -1503,9 +1459,6 @@ export default function ({ app }, inject) {
           }
         }
 
-        console.log(
-          `✅ Cleanup completed: ${mergedCount} merged, ${removedCount} removed`
-        );
         return { merged: mergedCount, removed: removedCount };
       } catch (error) {
         console.error("❌ Survey cleanup failed:", error);

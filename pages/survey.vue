@@ -556,6 +556,7 @@
               v-model="newAppointment.day"
             :options="currentDayOptions"
               class="appointment-select"
+              @change="onDayChange"
           ></b-form-select>
           </div>
 
@@ -665,6 +666,9 @@ export default {
       // Activities from database
       activities: [],
       
+      // Flag to indicate if this is a synced survey (use existing activity IDs)
+      isSyncedSurvey: false,
+      
       // Image upload
       surveyImages: [],
       surveyImageKeys: [],
@@ -734,7 +738,10 @@ export default {
         day: null,
         month: null,
         year: null,
-        time: '09:00 น.'
+        time: '09:00 น.',
+        monthAge: null,
+        timeVisit: 1,
+        activities: []
       },
       
       monthOptions: [
@@ -798,25 +805,33 @@ export default {
     // แสดงรูปภาพที่ 1 (URL ก่อน, fallback เป็น base64)
     displayImage1() {
       const img = this.surveyImages[0]
-      if (!img) return null
+      if (!img) {
+        return null
+      }
       
       // Support both new format (object) and old format (string)
       if (typeof img === 'object') {
-        return img.url || img.base64 || null
+        // Prioritize URL over base64, and normalize URL
+        const rawUrl = img.url || img.base64 || null
+        return this.normalizeImageUrl(rawUrl)
       }
-      return img  // Legacy: string base64
+      return this.normalizeImageUrl(img)  // Legacy: string base64 or URL
     },
     
     // แสดงรูปภาพที่ 2 (URL ก่อน, fallback เป็น base64)
     displayImage2() {
       const img = this.surveyImages[1]
-      if (!img) return null
+      if (!img) {
+        return null
+      }
       
       // Support both new format (object) and old format (string)
       if (typeof img === 'object') {
-        return img.url || img.base64 || null
+        // Prioritize URL over base64, and normalize URL
+        const rawUrl = img.url || img.base64 || null
+        return this.normalizeImageUrl(rawUrl)
       }
-      return img  // Legacy: string base64
+      return this.normalizeImageUrl(img)  // Legacy: string base64 or URL
     }
   },
   async mounted() {
@@ -848,6 +863,31 @@ export default {
     showActivityDetailModal(activity) {
       this.selectedActivity = activity
       this.activityDetailModalVisible = true
+    },
+    
+    convertActivityAnswersToNumber(activityAnswers) {
+      // แปลง object ของคำตอบกิจกรรม (q5, q9) จาก string เป็น number
+      const converted = {}
+      for (const [key, value] of Object.entries(activityAnswers)) {
+        converted[key] = value != null ? Number(value) : null
+      }
+      return converted
+    },
+    
+    normalizeImageUrl(url) {
+      // แปลง URL ให้เป็น full URL ถ้าจำเป็น
+      if (!url) return null
+      
+      // ถ้าเป็น base64 data URL ให้ return ทันที
+      if (url.startsWith('data:')) return url
+      
+      // ถ้าเป็น full URL แล้ว (http:// หรือ https://) ให้ return ทันที
+      if (url.startsWith('http://') || url.startsWith('https://')) return url
+      
+      // ถ้าเป็น relative path ให้เพิ่ม base URL
+      // สมมติว่า API อยู่ที่ domain เดียวกันกับ frontend
+      const baseUrl = window.location.origin
+      return url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`
     },
     
     async loadPatientsCount() {
@@ -889,13 +929,13 @@ export default {
         }
         
         // ดึงข้อมูลจาก API
-        await this.fetchSurveyData()
+        // await this.fetchSurveyData()
         
         // โหลดกิจกรรมสำหรับคำถาม
         await this.loadActivities()
         
         // เตรียมตัวเลือกวันที่สำหรับนัดหมาย
-        this.initDateOptions()
+        await this.initDateOptions()
         
         this.loading = false
       } catch (error) {
@@ -912,12 +952,25 @@ export default {
         this.$router.push('/')
         return
       }
-      
+      console.log(survey)
       // ตรวจสอบว่าอนุมัติแล้วหรือไม่ (approve_status == 1)
       if (survey.approve_status === 1) {
         this.$toast.error('ไม่สามารถแก้ไขได้ เนื่องจากได้รับการอนุมัติแล้ว')
         this.$router.push('/')
         return
+      }
+      
+      // ถ้า survey ไม่มี month_age ให้ดึงจาก booking
+      let monthAge = survey.month_age || editData.month_age
+      if (!monthAge) {
+        try {
+          const booking = await this.$indexedDB.getBooking(editData.stid)
+          if (booking && booking.month_age) {
+            monthAge = booking.month_age
+          }
+        } catch (error) {
+          console.warn('Failed to get month_age from booking:', error)
+        }
       }
       
       // ตั้งค่าข้อมูลผู้รับบริการ
@@ -926,13 +979,13 @@ export default {
         name: editData.name,
         nickname: editData.nickname,
         time: editData.time,
-        month_age: survey.month_age,
+        month_age: monthAge,
         appointmentDate: survey.appointmentDate,
         appointmentTime: survey.appointmentTime
       }
       
       // โหลดข้อมูลแบบสอบถามเดิม
-      this.loadExistingSurvey(survey)
+      await this.loadExistingSurvey(survey)
       this.$toast.info('กำลังแก้ไขบันทึกการเยี่ยมบ้าน')
     },
     
@@ -955,7 +1008,7 @@ export default {
       
       if (existingSurvey) {
         // โหลดแบบสอบถามที่ค้างไว้
-        this.loadExistingSurvey(existingSurvey)
+        await this.loadExistingSurvey(existingSurvey)
         this.$toast.info('พบแบบสอบถามที่ยังไม่เสร็จสิ้น กำลังโหลดความคืบหน้า...')
       } else {
         // สร้างแบบสอบถามใหม่
@@ -981,32 +1034,39 @@ export default {
       await this.saveProgress()
     },
     
-    loadExistingSurvey(survey) {
+    async loadExistingSurvey(survey) {
       this.surveyId = survey.id
       this.timeStart = survey.timeStart
       this.timeEnd = survey.timeEnd || null
-      this.currentStep = survey.currentStep || 1
       
-      // Log raw survey data for debugging
-      console.log(`📖 Loading existing survey ${survey.id}:`, {
-        q3_raw: survey.answers?.q3,
-        q6_raw: survey.answers?.q6,
-        q7_raw: survey.answers?.q7,
-        q6_other: survey.answers?.q6_other,
-        q6_des: survey.answers?.q6_des,
-        notes: survey.answers?.notes,
-        note: survey.note,
-      });
+      // ตรวจสอบว่า survey นี้ sync แล้วหรือยัง
+      this.isSyncedSurvey = survey.synced === true
+      
+      // ⚠️ ถ้าแบบทดสอบ complete แล้ว ให้เริ่มต้นที่ข้อ 1 เสมอ
+      // ถ้ายังไม่ complete ให้ดูว่าทำค้างไว้ที่ไหน
+      if (survey.completed) {
+        this.currentStep = 1
+      } else {
+        this.currentStep = survey.currentStep || 1
+      }
       
       // Merge answers with defaults to ensure new fields exist
       // Handle backward compatibility for old field names
+      // ⚠️ Convert string to number for q1, q2, q4, q8 (from API)
       this.answers = {
         ...this.answers,
         ...survey.answers,
-        // Ensure q3, q6, q7 are arrays
-        q3: Array.isArray(survey.answers?.q3) ? survey.answers.q3 : [],
-        q6: Array.isArray(survey.answers?.q6) ? survey.answers.q6 : [],
-        q7: Array.isArray(survey.answers?.q7) ? survey.answers.q7 : (survey.answers?.q71 || []),
+        // Convert to number (handle both string and number from API/IndexedDB)
+        q1: survey.answers?.q1 != null ? Number(survey.answers.q1) : null,
+        q2: survey.answers?.q2 != null ? Number(survey.answers.q2) : null,
+        q4: survey.answers?.q4 != null ? Number(survey.answers.q4) : null,
+        q8: survey.answers?.q8 != null ? Number(survey.answers.q8) : null,
+        // Ensure q3, q6, q7 are arrays with numbers
+        q3: Array.isArray(survey.answers?.q3) ? survey.answers.q3.map(v => Number(v)) : [],
+        q6: Array.isArray(survey.answers?.q6) ? survey.answers.q6.map(v => Number(v)) : [],
+        q7: Array.isArray(survey.answers?.q7) 
+          ? survey.answers.q7.map(v => Number(v)) 
+          : (Array.isArray(survey.answers?.q71) ? survey.answers.q71.map(v => Number(v)) : []),
         q71: survey.answers?.q71 || survey.answers?.q71_des || survey.answers?.q71_other || '',
         // Map q6_des to q6_other (IndexedDB structure)
         q6_other: survey.answers?.q6_other || survey.answers?.q6_des || '',
@@ -1014,43 +1074,116 @@ export default {
         notes: survey.answers?.notes || survey.note || '',
         q1_des: survey.answers?.q1_des || '',
         q2_des: survey.answers?.q2_des || '',
-        q3_des: survey.answers?.q3_des || ''
+        q3_des: survey.answers?.q3_des || '',
+        // Convert q5 and q9 activity answers to numbers
+        q5: survey.answers?.q5 ? this.convertActivityAnswersToNumber(survey.answers.q5) : {},
+        q9: survey.answers?.q9 ? this.convertActivityAnswersToNumber(survey.answers.q9) : {}
       }
       
-      // Log converted answers
-      console.log(`✅ Converted answers:`, {
-        q3: this.answers.q3,
-        q6: this.answers.q6,
-        q7: this.answers.q7,
-        q6_other: this.answers.q6_other,
-        notes: this.answers.notes,
-      });
-      this.currentActivityIndex = survey.currentActivityIndex || 0
-      this.currentQ5Index = survey.currentQ5Index || 0
+      // ⚠️ ถ้าเป็น synced survey ให้บันทึก values เดิมไว้
+      if (this.isSyncedSurvey) {
+        console.log('📌 Synced Survey - รักษา Activity IDs และ Values เดิม:', {
+          q5_keys: Object.keys(this.answers.q5),
+          q5_values: this.answers.q5,
+          q9_keys: Object.keys(this.answers.q9),
+          q9_values: this.answers.q9
+        })
+      }
+      
+      // ⚠️ ถ้าแบบทดสอบ complete แล้ว ให้ reset activity index ด้วย
+      if (survey.completed) {
+        this.currentActivityIndex = 0
+        this.currentQ5Index = 0
+      } else {
+        this.currentActivityIndex = survey.currentActivityIndex || 0
+        this.currentQ5Index = survey.currentQ5Index || 0
+      }
       
       // Handle image formats: new (object with base64/url), old (string), or legacy (single image)
+      // ⚠️ ใช้วิธีเดียวกับ index.vue ในการโหลดรูปภาพ
       if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
-        this.surveyImages = survey.surveyImages.map((img, idx) => {
-          if (typeof img === 'string') {
-            // Legacy format: convert string to new object format
-            return {
-              base64: img,
-              url: null,
-              key: `pic${idx + 1}`
+        // สร้าง array สำหรับรูปภาพที่โหลดมา
+        const loadedImages = []
+        
+        for (let i = 0; i < survey.surveyImages.length; i++) {
+          const img = survey.surveyImages[i]
+          
+          if (typeof img === 'object' && img !== null) {
+            // New format: object with { base64, url, key }
+            // ใช้ url ก่อน fallback เป็น base64
+            const imageData = img.url || img.base64
+            if (imageData) {
+              loadedImages.push({
+                base64: img.base64 || null,
+                url: img.url || null,
+                key: img.key || `pic${i + 1}`
+              })
+            } else {
+              loadedImages.push(null) // placeholder
             }
-          } else if (typeof img === 'object') {
-            // New format: already has base64 and url
-            return img
+          } else if (typeof img === 'string') {
+            // Old format: string (base64 or url)
+            loadedImages.push({
+              base64: img.startsWith('data:') ? img : null,
+              url: img.startsWith('http') ? img : img.startsWith('/') ? img : null,
+              key: `pic${i + 1}`
+            })
+          } else {
+            loadedImages.push(null) // placeholder
           }
-          return null
-        }).filter(Boolean)
+        }
+        
+        // ⚠️ ถ้ารูปใดไม่มีข้อมูล ให้ลองโหลดจาก images store (เหมือน index.vue)
+        if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys)) {
+          for (let i = 0; i < survey.surveyImageKeys.length; i++) {
+            if ((!loadedImages[i] || (!loadedImages[i].url && !loadedImages[i].base64)) && survey.surveyImageKeys[i]) {
+              try {
+                const imageObject = await this.$indexedDB.getImage(survey.surveyImageKeys[i])
+                const imageData = imageObject?.data || imageObject?.image || null
+                if (imageData) {
+                  loadedImages[i] = {
+                    base64: imageData.startsWith('data:') ? imageData : null,
+                    url: imageData.startsWith('http') || imageData.startsWith('/') ? imageData : null,
+                    key: `pic${i + 1}`
+                  }
+                }
+              } catch (error) {
+                // Silently handle error
+              }
+            }
+          }
+        }
+        
+        this.surveyImages = loadedImages.filter(Boolean)
+        
       } else if (survey.surveyImage) {
         // Very old format: single image string
         this.surveyImages = [{
-          base64: survey.surveyImage,
-          url: null,
+          base64: survey.surveyImage.startsWith('data:') ? survey.surveyImage : null,
+          url: survey.surveyImage.startsWith('http') || survey.surveyImage.startsWith('/') ? survey.surveyImage : null,
           key: 'pic1'
         }]
+      } else if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys) && survey.surveyImageKeys.length > 0) {
+        // ⚠️ ไม่มี surveyImages เลย แต่มี imageKeys ให้ลองโหลดจาก images store
+        const loadedImages = []
+        for (let i = 0; i < survey.surveyImageKeys.length; i++) {
+          if (survey.surveyImageKeys[i]) {
+            try {
+              const imageObject = await this.$indexedDB.getImage(survey.surveyImageKeys[i])
+              const imageData = imageObject?.data || imageObject?.image || null
+              if (imageData) {
+                loadedImages.push({
+                  base64: imageData.startsWith('data:') ? imageData : null,
+                  url: imageData.startsWith('http') || imageData.startsWith('/') ? imageData : null,
+                  key: `pic${i + 1}`
+                })
+              }
+            } catch (error) {
+              // Silently handle error
+            }
+          }
+        }
+        this.surveyImages = loadedImages
       } else {
         this.surveyImages = []
       }
@@ -1093,7 +1226,7 @@ export default {
             params: {
               homevisitor: username,
               stid: this.visitorData.stid,
-              time: this.visitorData.time
+              time_visit: this.visitorData.time
             }
           }
         )
@@ -1113,7 +1246,42 @@ export default {
         // ดึงกิจกรรมทั้งหมดจาก IndexedDB
         const allActivities = await this.$indexedDB.getActivities()
         
-        // กรองกิจกรรมที่ตรงกับอายุและครั้งที่เยี่ยม
+        // ถ้าเป็น survey ที่ sync แล้ว ให้ใช้ activity IDs จากข้อมูลเดิม
+        if (this.isSyncedSurvey && (this.answers.q5 || this.answers.q9)) {
+          // ดึง activity IDs จาก q5 หรือ q9 (ใช้ q9 ก่อนเพราะมีข้อมูลครบกว่า)
+          const activityIds = Object.keys(this.answers.q9 || this.answers.q5 || {})
+          
+          if (activityIds.length > 0) {
+            // บันทึก values เดิมไว้ก่อนโหลด activities
+            const savedQ5Values = { ...this.answers.q5 }
+            const savedQ9Values = { ...this.answers.q9 }
+            
+            // กรองกิจกรรมที่ตรงกับ activity IDs ที่บันทึกไว้
+            const matchingActivities = allActivities.filter(activity => {
+              return activityIds.includes(String(activity.no))
+            })
+            
+            // เรียงลำดับตาม activity IDs ที่บันทึกไว้
+            matchingActivities.sort((a, b) => {
+              return activityIds.indexOf(String(a.no)) - activityIds.indexOf(String(b.no))
+            })
+            
+            this.activities = matchingActivities
+            
+            // รักษา values เดิมไว้หลังจากโหลด activities
+            this.$set(this.answers, 'q5', savedQ5Values)
+            this.$set(this.answers, 'q9', savedQ9Values)
+            
+            console.log('📌 โหลดกิจกรรมจาก Activity IDs ที่บันทึกไว้:', {
+              activityIds,
+              q5_values: savedQ5Values,
+              q9_values: savedQ9Values
+            })
+            return
+          }
+        }
+        
+        // กรณีปกติ: กรองกิจกรรมที่ตรงกับอายุและครั้งที่เยี่ยม
         const matchingActivities = allActivities.filter(activity => {
           return Number(activity.month_age) === Number(this.visitorData.month_age) &&
                  Number(activity.time) === Number(this.visitorData.time)
@@ -1131,6 +1299,18 @@ export default {
         const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
         const isCompleted = existingSurvey?.completed || false
         
+        // ⚠️ ถ้าเป็น synced survey ให้รักษา activity IDs และ values เดิมไว้
+        let answersToSave = { ...this.answers }
+        if (this.isSyncedSurvey && existingSurvey?.answers) {
+          // รักษา q5 และ q9 เดิมไว้ ไม่ให้เปลี่ยนแปลง activity IDs
+          if (existingSurvey.answers.q5 && Object.keys(existingSurvey.answers.q5).length > 0) {
+            answersToSave.q5 = { ...existingSurvey.answers.q5, ...this.answers.q5 }
+          }
+          if (existingSurvey.answers.q9 && Object.keys(existingSurvey.answers.q9).length > 0) {
+            answersToSave.q9 = { ...existingSurvey.answers.q9, ...this.answers.q9 }
+          }
+        }
+        
         const progressData = {
           id: this.surveyId,
           stid: this.visitorData.stid,
@@ -1142,8 +1322,8 @@ export default {
           currentStep: this.currentStep,
           currentActivityIndex: this.currentActivityIndex,
           currentQ5Index: this.currentQ5Index,
-          answers: this.answers,
-          note: this.answers.notes || '', // เก็บ note ที่ top level เพื่อ sync ได้ตรง
+          answers: answersToSave,
+          note: answersToSave.notes || '', // เก็บ note ที่ top level เพื่อ sync ได้ตรง
           newAppointment: this.newAppointment,
           surveyImages: this.surveyImages,
           surveyImageKeys: this.surveyImageKeys,
@@ -1387,31 +1567,6 @@ export default {
         await this.saveProgress()
         return
       }
-
-      if (this.currentStep === 4 && this.shouldShowStep5) {
-        // ตรวจสอบว่าตอบครบทุกกิจกรรมแล้ว
-        const allAnswered = this.activities.every(activity => 
-          this.answers.q5[activity.no] !== undefined && this.answers.q5[activity.no] !== null
-        )
-        
-        if (!allAnswered) {
-          this.$toast.warning('กรุณาตอบคำถามกิจกรรมทั้งหมด')
-        return
-        }
-      }
-      
-      // จัดการพิเศษสำหรับขั้นตอนที่ 9 กิจกรรมคำถามที่ 9
-      if (this.currentStep === 9) {
-        // ตรวจสอบว่าตอบครบทุกกิจกรรมแล้ว
-        const allAnswered = this.activities.every(activity => 
-          this.answers.q9[activity.no] !== undefined && this.answers.q9[activity.no] !== null
-        )
-        
-        if (!allAnswered) {
-          this.$toast.warning('กรุณาตอบคำถามกิจกรรมทั้งหมด')
-        return
-        }
-      }
       
       this.currentStep++
       
@@ -1478,7 +1633,7 @@ export default {
     validateCurrentStep() {
       switch(this.currentStep) {
         case 1:
-          if (this.answers.q1 === null) {
+          if (this.answers.q1 == null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
@@ -1488,7 +1643,7 @@ export default {
           }
           break
         case 2:
-          if (this.answers.q2 === null) {
+          if (this.answers.q2 == null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
@@ -1508,7 +1663,7 @@ export default {
           }
           break
         case 4:
-          if (this.answers.q4 === null) {
+          if (this.answers.q4 == null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
@@ -1534,7 +1689,7 @@ export default {
           }
           break
         case 8:
-          if (this.answers.q8 === null) {
+          if (this.answers.q8 == null) {
             this.$toast.warning('กรุณาเลือกคำตอบ')
             return false
           }
@@ -1657,60 +1812,11 @@ export default {
         const appointmentDate = `${christianYear}-${String(this.newAppointment.month).padStart(2, '0')}-${String(this.newAppointment.day).padStart(2, '0')}`
         const appointmentTime = this.newAppointment.time
         
-        // คำนวณอายุเดือนและครั้งที่เยี่ยมใหม่
-        const visitor = await this.$indexedDB.getVisitor(this.visitorData.stid)
-        const existingBooking = await this.$indexedDB.getBooking(this.visitorData.stid)
+        // ใช้อายุเดือนและครั้งที่เยี่ยมที่คำนวณไว้แล้วจาก recalculateMonthAgeAndActivities()
+        const newMonthAge = this.newAppointment.monthAge
+        const newTimeVisit = this.newAppointment.timeVisit
         
-        // คำนวณอายุเดือนจากวันเกิดถึงวันปัจจุบัน
-        const today = new Date()
-        const birthYear = parseInt(visitor.year_birth) - 543
-        const birthMonth = parseInt(visitor.month_birth)
-        let calculatedMonthAge = (today.getFullYear() - birthYear) * 12 + (today.getMonth() + 1 - birthMonth)
-        
-        // จำกัดไว้ที่ 48 เดือน
-        if (calculatedMonthAge > 48) calculatedMonthAge = 48
-        if (calculatedMonthAge < 0) calculatedMonthAge = 0
-        
-        // คำนวณครั้งที่เยี่ยมตาม logic เดียวกับ index.vue
-        let newMonthAge = calculatedMonthAge
-        let newTimeVisit = 1
-        
-        if (existingBooking && existingBooking.last_visit_date) {
-          // ใช้วันที่ที่เลือกในการคำนวณ daysSinceLastVisit
-          const selectedDate = new Date(christianYear, this.newAppointment.month - 1, this.newAppointment.day)
-          const lastVisitDate = new Date(existingBooking.last_visit_date)
-          const daysSinceLastVisit = Math.floor((selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24))
-          
-          if (daysSinceLastVisit > 21) {
-            // เกิน 21 วัน: ใช้อายุเดือนใหม่และรีเซ็ตครั้งที่เยี่ยม
-            newMonthAge = calculatedMonthAge
-            newTimeVisit = 1
-          } else {
-            // 21 วันหรือน้อยกว่า: ใช้อายุเดือนเดิมและเพิ่มครั้งที่เยี่ยม
-            newMonthAge = existingBooking.month_age || calculatedMonthAge
-            newTimeVisit = (existingBooking.time || 0) + 1
-            
-            // กรณีพิเศษ: ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยม
-            if (existingBooking.time === 4) {
-              newMonthAge = (existingBooking.month_age || 0) + 1
-              newTimeVisit = 1
-              
-              // จำกัดอายุเดือนไว้ที่ 48
-              if (newMonthAge > 48) {
-                newMonthAge = 48
-              }
-            } else if (newTimeVisit > 4) {
-              // จำกัดครั้งที่เยี่ยมไว้ที่ 4
-              newTimeVisit = 4
-            }
-          }
-          
-          // จำกัดอายุเดือนไว้ที่ 48
-          if (newMonthAge > 48) newMonthAge = 48
-        }
-        
-        // บันทึกนัดหมายใหม่
-        await this.$indexedDB.addBooking({
+        const bookingData = {
           stid: this.visitorData.stid,
           appointmentDate: appointmentDate,
           appointmentTime: appointmentTime,
@@ -1719,14 +1825,17 @@ export default {
           last_visit_date: new Date().toISOString(),
           dataSource: 'local',
           lastSyncedAt: new Date().toISOString()
-        })
+        }
+        
+        // บันทึกนัดหมายใหม่
+        await this.$indexedDB.addBooking(bookingData)
       } catch (error) {
         throw error
       }
     },
     
     // ฟังก์ชันช่วยเหลือด้านวันที่
-    initDateOptions() {
+    async initDateOptions() {
       const now = new Date()
       const currentYear = now.getFullYear() + 543
       
@@ -1743,6 +1852,9 @@ export default {
       this.newAppointment.day = nextMonth.getDate()
       this.newAppointment.month = nextMonth.getMonth() + 1
       this.newAppointment.year = nextMonth.getFullYear() + 543
+      
+      // คำนวณอายุเดือนและกิจกรรมสำหรับวันที่เริ่มต้น
+      await this.recalculateMonthAgeAndActivities()
     },
     
     isLeapYear(year) {
@@ -1768,7 +1880,7 @@ export default {
       return options
     },
     
-    onMonthChange() {
+    async onMonthChange() {
       if (this.newAppointment.day && this.newAppointment.year) {
         const daysInMonth = this.getDaysInMonth(this.newAppointment.month, this.newAppointment.year)
         
@@ -1776,15 +1888,111 @@ export default {
           this.newAppointment.day = daysInMonth
         }
       }
+      
+      // คำนวณอายุเดือนและกิจกรรมใหม่
+      await this.recalculateMonthAgeAndActivities()
     },
     
-    onYearChange() {
+    async onYearChange() {
       if (this.newAppointment.day && this.newAppointment.month === 2) {
         const daysInMonth = this.getDaysInMonth(2, this.newAppointment.year)
         
         if (this.newAppointment.day > daysInMonth) {
           this.newAppointment.day = daysInMonth
         }
+      }
+      
+      // คำนวณอายุเดือนและกิจกรรมใหม่
+      await this.recalculateMonthAgeAndActivities()
+    },
+    
+    async onDayChange() {
+      // คำนวณอายุเดือนและกิจกรรมใหม่
+      await this.recalculateMonthAgeAndActivities()
+    },
+    
+    async recalculateMonthAgeAndActivities() {
+      if (!this.visitorData || !this.newAppointment.month || !this.newAppointment.year || !this.newAppointment.day) {
+        return
+      }
+      
+      try {
+        // ดึงข้อมูล visitor เพื่อหาวันเกิด
+        const visitor = await this.$indexedDB.getVisitor(this.visitorData.stid)
+        
+        if (!visitor || !visitor.month_birth || !visitor.year_birth) {
+          return
+        }
+        
+        // คำนวณอายุเดือนจากวันเกิดถึงวันที่เลือก
+        const selectedYear = this.newAppointment.year - 543 // แปลงเป็นคริสต์ศักราช
+        const selectedMonth = this.newAppointment.month
+        const selectedDay = this.newAppointment.day
+        
+        const birthYear = parseInt(visitor.year_birth) - 543
+        const birthMonth = parseInt(visitor.month_birth)
+        
+        let calculatedMonthAge = (selectedYear - birthYear) * 12 + (selectedMonth - birthMonth)
+        
+        // จำกัดอายุเดือนไว้ที่ 48
+        if (calculatedMonthAge > 48) {
+          calculatedMonthAge = 48
+        }
+        
+        // อายุเดือนต้องไม่น้อยกว่า 0
+        if (calculatedMonthAge < 0) {
+          calculatedMonthAge = 0
+        }
+        
+        
+        // คำนวณครั้งที่เยี่ยม
+        // ใช้ครั้งปัจจุบันที่เพิ่งทำในแบบทดสอบนี้ แล้ว +1 สำหรับนัดหมายครั้งถัดไป
+        const currentVisitTime = parseInt(this.visitorData.time) // ครั้งปัจจุบันที่เพิ่งทำ
+        let timeVisit = currentVisitTime + 1 // ครั้งถัดไปที่จะนัดหมาย
+        
+        const existingBooking = await this.$indexedDB.getBooking(this.visitorData.stid)
+        
+        // ตรวจสอบเงื่อนไขการรีเซ็ตตามระยะเวลา
+        if (existingBooking && existingBooking.last_visit_date) {
+          const selectedDate = new Date(selectedYear, selectedMonth - 1, selectedDay)
+          const lastVisitDate = new Date(existingBooking.last_visit_date)
+          const daysSinceLastVisit = Math.floor((selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24))
+          
+          if (daysSinceLastVisit > 21) {
+            // เกิน 21 วัน รีเซ็ตครั้งที่เยี่ยม
+            calculatedMonthAge = (selectedYear - birthYear) * 12 + (selectedMonth - birthMonth)
+            if (calculatedMonthAge > 48) calculatedMonthAge = 48
+            if (calculatedMonthAge < 0) calculatedMonthAge = 0
+            timeVisit = 1
+          }
+        }
+        
+        // ตรวจสอบกรณีครั้งปัจจุบันเป็นครั้งที่ 4
+        if (currentVisitTime === 4) {
+          // ถ้าครั้งปัจจุบันเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยม
+          calculatedMonthAge = (this.visitorData.month_age || 0) + 1
+          timeVisit = 1
+          
+          if (calculatedMonthAge > 48) {
+            calculatedMonthAge = 48
+          }
+        } else if (timeVisit > 4) {
+          // จำกัดครั้งที่เยี่ยมไว้ที่ 4
+          timeVisit = 4
+        }
+        
+        // อัพเดทอายุเดือนและครั้งที่เยี่ยม
+        this.newAppointment.monthAge = calculatedMonthAge
+        this.newAppointment.timeVisit = timeVisit
+        
+        // ดึงกิจกรรมใหม่
+        const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(
+          calculatedMonthAge,
+          timeVisit
+        )
+        this.newAppointment.activities = activities || []
+      } catch (error) {
+        // Handle error silently
       }
     },
     
@@ -2187,7 +2395,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .appointment-field {
@@ -2269,6 +2477,137 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Calculated Info Cards */
+.calculated-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  animation: slideIn 0.3s ease;
+}
+
+.info-card {
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border: 2px solid #3551a4;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-shadow: 0 4px 12px rgba(53, 81, 164, 0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(53, 81, 164, 0.25);
+}
+
+.info-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #3551a4, #2c4088);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info-icon i {
+  color: white;
+  font-size: 1.8rem;
+}
+
+.info-content {
+  flex: 1;
+}
+
+.info-label {
+  font-size: 1.2rem;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+  font-weight: 400;
+}
+
+.info-value {
+  font-size: 1.56rem;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+/* Activities Section */
+.activities-section {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border: 2px solid #dee2e6;
+  border-radius: 0.75rem;
+  padding: 1.75rem;
+  margin-bottom: 2rem;
+  animation: slideIn 0.3s ease;
+}
+
+.activities-title {
+  font-size: 1.44rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.activities-title i {
+  color: #3551a4;
+  font-size: 1.56rem;
+}
+
+.activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.activity-item {
+  background: white;
+  border: 2px solid #dee2e6;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
+}
+
+.activity-item:hover {
+  border-color: #3551a4;
+  box-shadow: 0 2px 8px rgba(53, 81, 164, 0.1);
+  transform: translateX(5px);
+}
+
+.activity-number {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #17a2b8, #138496);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.activity-name {
+  font-size: 1.26rem;
+  color: #2c3e50;
+  font-weight: 400;
+  flex: 1;
+  line-height: 1.5;
 }
 
 /* Navigation Buttons */
