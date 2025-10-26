@@ -3,28 +3,24 @@
     "name": "login",
     "path": "/login",
     "component": "/Users/exd/Documents/works/riped-v2/pages/login.vue",
-    "chunkName": "pages/login",
-    "_name": "_681781da"
+    "chunkName": "pages/login"
   },
   {
     "name": "offline",
     "path": "/offline",
     "component": "/Users/exd/Documents/works/riped-v2/pages/offline.vue",
-    "chunkName": "pages/offline",
-    "_name": "_2143bdd8"
+    "chunkName": "pages/offline"
   },
   {
     "name": "survey",
     "path": "/survey",
     "component": "/Users/exd/Documents/works/riped-v2/pages/survey.vue",
-    "chunkName": "pages/survey",
-    "_name": "_4510288e"
+    "chunkName": "pages/survey"
   },
   {
     "name": "index",
     "path": "/",
     "component": "/Users/exd/Documents/works/riped-v2/pages/index.vue",
-    "chunkName": "pages/index",
-    "_name": "_c320427a"
+    "chunkName": "pages/index"
   }
 ]

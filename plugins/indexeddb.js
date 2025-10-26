@@ -172,7 +172,7 @@ export default function ({ app }, inject) {
               }
             );
             surveyProgressStore.createIndex("stid", "stid", { unique: false });
-            surveyProgressStore.createIndex("time_visit", "time_visit", {
+            surveyProgressStore.createIndex("time", "time", {
               unique: false,
             });
             surveyProgressStore.createIndex("completed", "completed", {
@@ -1198,7 +1198,7 @@ export default function ({ app }, inject) {
     }
 
     /** ดึงความคืบหน้าแบบสอบถามที่ยังไม่สำเร็จ */
-    async getSurveyProgress(stid, time_visit) {
+    async getSurveyProgress(stid, time) {
       const initialized = await this.ensureInitialized();
       if (!initialized || !this.db) {
         console.warn("IndexedDB is not available, operation skipped");
@@ -1215,10 +1215,9 @@ export default function ({ app }, inject) {
 
         request.onsuccess = () => {
           const surveys = request.result;
-          // Find incomplete survey with matching stid and time_visit
+          // Find incomplete survey with matching stid and time
           const incompleteSurvey = surveys.find(
-            (s) =>
-              s.stid === stid && s.time_visit === time_visit && !s.completed
+            (s) => s.stid === stid && s.time === time && !s.completed
           );
           resolve(incompleteSurvey || null);
         };
@@ -1284,13 +1283,48 @@ export default function ({ app }, inject) {
 
         request.onsuccess = () => {
           const surveys = request.result;
-          const completedSurveys = surveys.filter(
-            (s) => s.stid === stid && s.completed
+          console.log(`📋 All surveys count: ${surveys.length}`);
+
+          // Filter เฉพาะ surveys ของ stid นี้ที่เสร็จแล้ว
+          const completedSurveys = surveys.filter((s) => {
+            const isMatchingStid = String(s.stid) === String(stid);
+            const isCompleted = s.completed === true;
+            return isMatchingStid && isCompleted;
+          });
+
+          console.log(
+            `📋 Filtered surveys for stid ${stid}: ${completedSurveys.length}`
           );
-          // Sort by timeStart descending (newest first)
-          completedSurveys.sort(
-            (a, b) => new Date(b.timeStart) - new Date(a.timeStart)
-          );
+
+          // ตรวจสอบว่ามี surveys ซ้ำหรือไม่
+          const uniqueKeys = new Set();
+          const duplicates = [];
+
+          completedSurveys.forEach((s) => {
+            const key = `${s.stid}_${s.time}`;
+            if (uniqueKeys.has(key)) {
+              duplicates.push(key);
+            } else {
+              uniqueKeys.add(key);
+            }
+          });
+
+          if (duplicates.length > 0) {
+            console.warn(
+              `⚠️ Found ${duplicates.length} duplicate survey keys. This should not happen after cleanup.`
+            );
+            console.warn(
+              `Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`
+            );
+          }
+
+          // Sort by time ascending (เรียงตามครั้งที่เยี่ยม)
+          completedSurveys.sort((a, b) => {
+            const timeA = parseInt(a.time) || 0;
+            const timeB = parseInt(b.time) || 0;
+            return timeA - timeB;
+          });
+
           resolve(completedSurveys);
         };
         request.onerror = () => reject(request.error);
@@ -1326,7 +1360,190 @@ export default function ({ app }, inject) {
       });
     }
 
+    /**
+     * ทำความสะอาดข้อมูล survey ที่ซ้ำกัน
+     * รวม surveys ที่มี stid และ time เหมือนกัน
+     * เลือกเก็บข้อมูลที่สมบูรณ์ที่สุด (synced หรือ updated ล่าสุด)
+     */
+    async cleanupDuplicateSurveys() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, cleanup skipped");
+        return { removed: 0, merged: 0 };
+      }
+
+      try {
+        console.log("🧹 Starting survey cleanup...");
+
+        // ดึง surveys ทั้งหมด
+        const allSurveys = await this.getAll("survey_progress");
+        console.log(`📋 Found ${allSurveys.length} total surveys`);
+
+        // จัดกลุ่มตาม stid + time
+        const groupedSurveys = new Map();
+        allSurveys.forEach((survey) => {
+          const key = `${survey.stid}_${survey.time}`;
+          if (!groupedSurveys.has(key)) {
+            groupedSurveys.set(key, []);
+          }
+          groupedSurveys.get(key).push(survey);
+        });
+
+        let removedCount = 0;
+        let mergedCount = 0;
+
+        // ตรวจสอบแต่ละกลุ่ม
+        for (const [key, surveys] of groupedSurveys) {
+          if (surveys.length > 1) {
+            console.warn(`⚠️ Found ${surveys.length} duplicates for ${key}`);
+
+            // เลือก survey ที่ดีที่สุด
+            let bestSurvey = surveys[0];
+
+            for (let i = 1; i < surveys.length; i++) {
+              const current = surveys[i];
+
+              // เกณฑ์การเลือก (ตามลำดับความสำคัญ):
+              // 1. เลือกอันที่ synced = true มาก่อน
+              // 2. ถ้า synced เท่ากัน เลือกอันที่ completed = true
+              // 3. ถ้า completed เท่ากัน เลือกอันที่มี answers มากกว่า
+              // 4. เลือกอันที่ lastUpdated ใหม่กว่า
+
+              const shouldReplace =
+                (!bestSurvey.synced && current.synced) || // current synced แล้ว แต่ best ยัง
+                (bestSurvey.synced === current.synced &&
+                  !bestSurvey.completed &&
+                  current.completed) || // completed มากกว่า
+                (bestSurvey.synced === current.synced &&
+                  bestSurvey.completed === current.completed &&
+                  Object.keys(current.answers || {}).length >
+                    Object.keys(bestSurvey.answers || {}).length) || // answers มากกว่า
+                (bestSurvey.synced === current.synced &&
+                  bestSurvey.completed === current.completed &&
+                  Object.keys(current.answers || {}).length ===
+                    Object.keys(bestSurvey.answers || {}).length &&
+                  new Date(current.lastUpdated || 0) >
+                    new Date(bestSurvey.lastUpdated || 0)); // updated ใหม่กว่า
+
+              if (shouldReplace) {
+                // Merge ข้อมูลที่ดีจาก bestSurvey เข้ากับ current
+                const mergedSurvey = {
+                  ...current, // เอา current เป็นฐาน
+                  // รวมข้อมูลจาก bestSurvey ที่อาจจะสมบูรณ์กว่า
+                  answers: {
+                    ...(bestSurvey.answers || {}),
+                    ...(current.answers || {}),
+                  },
+                  surveyImages: [
+                    ...(bestSurvey.surveyImages || []),
+                    ...(current.surveyImages || []),
+                  ].filter(
+                    (img, index, self) =>
+                      index === self.findIndex((i) => i.key === img.key) // unique by key
+                  ),
+                  surveyImageKeys: Array.from(
+                    new Set([
+                      ...(bestSurvey.surveyImageKeys || []),
+                      ...(current.surveyImageKeys || []),
+                    ])
+                  ),
+                  note: current.note || bestSurvey.note, // เอาที่มีค่า
+                };
+
+                bestSurvey = mergedSurvey;
+              } else if (!current.synced && bestSurvey.synced) {
+                // ถ้า bestSurvey synced แล้ว แต่ current ยังไม่ synced
+                // ให้รวม answers จาก current ที่อาจมีข้อมูล offline ใหม่
+                bestSurvey = {
+                  ...bestSurvey,
+                  answers: {
+                    ...(bestSurvey.answers || {}),
+                    ...(current.answers || {}), // รวม answers ใหม่จาก offline
+                  },
+                };
+              }
+            }
+
+            // ใช้ id มาตรฐาน
+            bestSurvey.id = key;
+            bestSurvey.lastUpdated = new Date().toISOString();
+
+            // บันทึก bestSurvey
+            await this.saveSurveyProgress(bestSurvey);
+            console.log(`✅ Merged survey for ${key}:`, {
+              synced: bestSurvey.synced,
+              completed: bestSurvey.completed,
+              answersCount: Object.keys(bestSurvey.answers || {}).length,
+              answersSample: {
+                q3: bestSurvey.answers?.q3,
+                q6: bestSurvey.answers?.q6,
+                q7: bestSurvey.answers?.q7,
+                q6_other: bestSurvey.answers?.q6_other,
+                notes: bestSurvey.answers?.notes,
+              },
+            });
+
+            // ลบ surveys อื่นๆ ที่ซ้ำ
+            for (const survey of surveys) {
+              if (survey.id !== key) {
+                try {
+                  await this.deleteSurveyProgress(survey.id);
+                  removedCount++;
+                  console.log(`🗑️ Removed duplicate survey: ${survey.id}`);
+                } catch (error) {
+                  console.error(
+                    `❌ Failed to remove duplicate ${survey.id}:`,
+                    error
+                  );
+                }
+              }
+            }
+
+            mergedCount++;
+          }
+        }
+
+        console.log(
+          `✅ Cleanup completed: ${mergedCount} merged, ${removedCount} removed`
+        );
+        return { merged: mergedCount, removed: removedCount };
+      } catch (error) {
+        console.error("❌ Survey cleanup failed:", error);
+        return { merged: 0, removed: 0 };
+      }
+    }
+
     /** ดึงแบบสอบถามที่เสร็จสิ้นทั้งหมด */
+    async getUnsyncedSurveys() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return [];
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(
+          ["survey_progress"],
+          "readonly"
+        );
+        const store = transaction.objectStore("survey_progress");
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          // กรองเฉพาะแบบสอบถามที่เสร็จแล้วแต่ยังไม่ sync
+          const unsyncedSurveys = request.result.filter(
+            (survey) => survey.completed === true && survey.synced === false
+          );
+          resolve(unsyncedSurveys);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to get unsynced surveys:", request.error);
+          reject(request.error);
+        };
+      });
+    }
+
     async getCompletedSurveys() {
       const initialized = await this.ensureInitialized();
       if (!initialized || !this.db) {

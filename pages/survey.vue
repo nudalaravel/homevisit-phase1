@@ -172,7 +172,7 @@
     <div v-if="currentStep === 5 && shouldShowStep5" class="survey-step">
       <div v-if="activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time_visit }}
+        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time }}
       </div>
 
       <div v-else>
@@ -280,46 +280,28 @@
     <div v-if="currentStep === 7" class="survey-step">
       <h4 class="question-title">7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</h4>
       
-      <div class="options-container">
-        <button
-          class="option-btn"
-          :class="{ 'selected': answers.q7 === 1 }"
-          @click="answers.q7 = 1"
-        >
-          มี (1)
-        </button>
-        
-      <!-- Show multi-select when "มี" is selected -->
-      <div v-if="answers.q7 === 1" class="options-container multi-select" style="margin-top: 2rem;margin-bottom: 0;">
+      <!-- Multi-select options -->
+      <div class="options-container multi-select">
         <button
           v-for="option in q7Options"
           :key="option.value"
           class="option-btn"
-          :class="{ 'selected': answers.q71 && answers.q71.includes(option.value) }"
-          @click="toggleQ71Answer(option.value)"
+          :class="{ 'selected': answers.q7 && answers.q7.includes(option.value) }"
+          @click="toggleQ7Answer(option.value)"
         >
           {{ option.label }}
         </button>
       </div>
 
       <!-- Show input when "อื่นๆ (13)" is selected -->
-      <div v-if="answers.q7 === 1 && answers.q71 && answers.q71.includes(13)" class="form-container" style="margin-bottom: 0;">
-        <b-form-group label="อื่นๆ ระบุ:" label-for="q71-other-input">
+      <div v-if="answers.q7 && answers.q7.includes(13)" class="form-container" style="margin-top: 2rem;">
+        <b-form-group label="อื่นๆ โปรดระบุ:" label-for="q71-input">
           <b-form-input
-            id="q71-other-input"
-            v-model="answers.q71_des"
+            id="q71-input"
+            v-model="answers.q71"
             placeholder="โปรดระบุ..."
           ></b-form-input>
         </b-form-group>
-      </div>
-
-        <button
-          class="option-btn"
-          :class="{ 'selected': answers.q7 === 3 }"
-          @click="answers.q7 = 3"
-        >
-          ไม่มี (3)
-        </button>
       </div>
 
       <div class="navigation-buttons">
@@ -368,7 +350,7 @@
     <div v-if="currentStep === 9" class="survey-step">
       <div v-if="activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time_visit }}
+        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time }}
       </div>
 
       <div v-else>
@@ -483,12 +465,12 @@
         <!-- Image 1 -->
         <div class="upload-section">
           <h6 class="upload-section-title">รูปภาพที่ 1 <span class="required-badge">*</span></h6>
-          <div v-if="!surveyImages[0]" class="upload-placeholder">
+          <div v-if="!displayImage1" class="upload-placeholder">
             <i class="fas fa-image"></i>
             <p>ยังไม่มีรูปภาพ</p>
           </div>
           <div v-else class="image-preview">
-            <img :src="surveyImages[0]" alt="Image 1" />
+            <img :src="displayImage1" alt="Image 1" />
             <button class="remove-image-btn" @click="removeImage(0)">
               <i class="fas fa-times"></i>
             </button>
@@ -510,19 +492,19 @@
             @click="$refs.fileInput1.click()"
           >
             <i class="fas fa-camera"></i>
-            {{ surveyImages[0] ? 'เลือกรูปใหม่' : 'อัพโหลดรูปที่ 1' }}
+            {{ displayImage1 ? 'เลือกรูปใหม่' : 'อัพโหลดรูปที่ 1' }}
           </b-button>
         </div>
 
         <!-- Image 2 -->
         <div class="upload-section">
           <h6 class="upload-section-title">รูปภาพที่ 2 <span class="required-badge">*</span></h6>
-          <div v-if="!surveyImages[1]" class="upload-placeholder">
+          <div v-if="!displayImage2" class="upload-placeholder">
             <i class="fas fa-image"></i>
             <p>ยังไม่มีรูปภาพ</p>
           </div>
           <div v-else class="image-preview">
-            <img :src="surveyImages[1]" alt="Image 2" />
+            <img :src="displayImage2" alt="Image 2" />
             <button class="remove-image-btn" @click="removeImage(1)">
               <i class="fas fa-times"></i>
             </button>
@@ -544,7 +526,7 @@
             @click="$refs.fileInput2.click()"
           >
             <i class="fas fa-camera"></i>
-            {{ surveyImages[1] ? 'เลือกรูปใหม่' : 'อัพโหลดรูปที่ 2' }}
+            {{ displayImage2 ? 'เลือกรูปใหม่' : 'อัพโหลดรูปที่ 2' }}
           </b-button>
         </div>
       </div>
@@ -703,9 +685,8 @@ export default {
         q5: {}, // Changed to object like q9
         q6: [],
         q6_other: '',
-        q7: null,
-        q71: [],
-        q71_des: '',
+        q7: [], // Multi-select array (renamed from q71)
+        q71: '', // Text input for "อื่นๆ" (renamed from q71_des)
         q8: null,
         q9: {}, // { activityId: answer }
         notes: '',
@@ -799,9 +780,9 @@ export default {
       return this.generateDayOptions(daysInMonth)
     },
     
-    // ตรวจสอบว่าควรแสดง step 5 หรือไม่ (ไม่แสดงถ้า time_visit = 1)
+    // ตรวจสอบว่าควรแสดง step 5 หรือไม่ (ไม่แสดงถ้า time = 1)
     shouldShowStep5() {
-      return this.visitorData && Number(this.visitorData.time_visit) !== 1
+      return this.visitorData && Number(this.visitorData.time) !== 1
     },
     
     // ตรวจสอบว่า skip จาก Q1 หรือไม่
@@ -812,6 +793,30 @@ export default {
     // ตรวจสอบว่า skip จาก Q2 หรือไม่
     skippedFromQ2() {
       return this.answers.q2 === 3
+    },
+    
+    // แสดงรูปภาพที่ 1 (URL ก่อน, fallback เป็น base64)
+    displayImage1() {
+      const img = this.surveyImages[0]
+      if (!img) return null
+      
+      // Support both new format (object) and old format (string)
+      if (typeof img === 'object') {
+        return img.url || img.base64 || null
+      }
+      return img  // Legacy: string base64
+    },
+    
+    // แสดงรูปภาพที่ 2 (URL ก่อน, fallback เป็น base64)
+    displayImage2() {
+      const img = this.surveyImages[1]
+      if (!img) return null
+      
+      // Support both new format (object) and old format (string)
+      if (typeof img === 'object') {
+        return img.url || img.base64 || null
+      }
+      return img  // Legacy: string base64
     }
   },
   async mounted() {
@@ -908,12 +913,19 @@ export default {
         return
       }
       
+      // ตรวจสอบว่าอนุมัติแล้วหรือไม่ (approve_status == 1)
+      if (survey.approve_status === 1) {
+        this.$toast.error('ไม่สามารถแก้ไขได้ เนื่องจากได้รับการอนุมัติแล้ว')
+        this.$router.push('/')
+        return
+      }
+      
       // ตั้งค่าข้อมูลผู้รับบริการ
       this.visitorData = {
         stid: editData.stid,
         name: editData.name,
         nickname: editData.nickname,
-        time_visit: editData.time_visit,
+        time: editData.time,
         month_age: survey.month_age,
         appointmentDate: survey.appointmentDate,
         appointmentTime: survey.appointmentTime
@@ -938,7 +950,7 @@ export default {
       // ตรวจสอบแบบสอบถามที่ยังไม่เสร็จ
       const existingSurvey = await this.$indexedDB.getSurveyProgress(
         this.visitorData.stid,
-        this.visitorData.time_visit
+        this.visitorData.time
       )
       
       if (existingSurvey) {
@@ -952,8 +964,8 @@ export default {
     },
     
     async createNewSurvey() {
-      // สร้างรหัสแบบสอบถาม
-      this.surveyId = `survey_${this.visitorData.stid}_${this.visitorData.time_visit}_${Date.now()}`
+      // สร้างรหัสแบบสอบถาม (ใช้ format มาตรฐาน stid_time เพื่อป้องกันข้อมูลซ้ำ)
+      this.surveyId = `${this.visitorData.stid}_${this.visitorData.time}`
       
       // ตั้งค่าเวลาเริ่มต้นจากวันที่นัดหมาย
       if (this.visitorData.appointmentDate && this.visitorData.appointmentTime) {
@@ -974,27 +986,75 @@ export default {
       this.timeStart = survey.timeStart
       this.timeEnd = survey.timeEnd || null
       this.currentStep = survey.currentStep || 1
+      
+      // Log raw survey data for debugging
+      console.log(`📖 Loading existing survey ${survey.id}:`, {
+        q3_raw: survey.answers?.q3,
+        q6_raw: survey.answers?.q6,
+        q7_raw: survey.answers?.q7,
+        q6_other: survey.answers?.q6_other,
+        q6_des: survey.answers?.q6_des,
+        notes: survey.answers?.notes,
+        note: survey.note,
+      });
+      
       // Merge answers with defaults to ensure new fields exist
+      // Handle backward compatibility for old field names
       this.answers = {
         ...this.answers,
         ...survey.answers,
-        q71: survey.answers?.q71 || [],
-        q71_des: survey.answers?.q71_des || '',
+        // Ensure q3, q6, q7 are arrays
+        q3: Array.isArray(survey.answers?.q3) ? survey.answers.q3 : [],
+        q6: Array.isArray(survey.answers?.q6) ? survey.answers.q6 : [],
+        q7: Array.isArray(survey.answers?.q7) ? survey.answers.q7 : (survey.answers?.q71 || []),
+        q71: survey.answers?.q71 || survey.answers?.q71_des || survey.answers?.q71_other || '',
+        // Map q6_des to q6_other (IndexedDB structure)
+        q6_other: survey.answers?.q6_other || survey.answers?.q6_des || '',
+        // Ensure notes field exists
+        notes: survey.answers?.notes || survey.note || '',
         q1_des: survey.answers?.q1_des || '',
         q2_des: survey.answers?.q2_des || '',
         q3_des: survey.answers?.q3_des || ''
       }
+      
+      // Log converted answers
+      console.log(`✅ Converted answers:`, {
+        q3: this.answers.q3,
+        q6: this.answers.q6,
+        q7: this.answers.q7,
+        q6_other: this.answers.q6_other,
+        notes: this.answers.notes,
+      });
       this.currentActivityIndex = survey.currentActivityIndex || 0
       this.currentQ5Index = survey.currentQ5Index || 0
-      // Handle both old single image and new array format
+      
+      // Handle image formats: new (object with base64/url), old (string), or legacy (single image)
       if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
-        this.surveyImages = survey.surveyImages
+        this.surveyImages = survey.surveyImages.map((img, idx) => {
+          if (typeof img === 'string') {
+            // Legacy format: convert string to new object format
+            return {
+              base64: img,
+              url: null,
+              key: `pic${idx + 1}`
+            }
+          } else if (typeof img === 'object') {
+            // New format: already has base64 and url
+            return img
+          }
+          return null
+        }).filter(Boolean)
       } else if (survey.surveyImage) {
-        // Backward compatibility: convert old single image to array
-        this.surveyImages = [survey.surveyImage]
+        // Very old format: single image string
+        this.surveyImages = [{
+          base64: survey.surveyImage,
+          url: null,
+          key: 'pic1'
+        }]
       } else {
         this.surveyImages = []
       }
+      
       if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys)) {
         this.surveyImageKeys = survey.surveyImageKeys
       } else if (survey.surveyImageKey) {
@@ -1033,7 +1093,7 @@ export default {
             params: {
               homevisitor: username,
               stid: this.visitorData.stid,
-              time_visit: this.visitorData.time_visit
+              time: this.visitorData.time
             }
           }
         )
@@ -1056,7 +1116,7 @@ export default {
         // กรองกิจกรรมที่ตรงกับอายุและครั้งที่เยี่ยม
         const matchingActivities = allActivities.filter(activity => {
           return Number(activity.month_age) === Number(this.visitorData.month_age) &&
-                 Number(activity.time) === Number(this.visitorData.time_visit)
+                 Number(activity.time) === Number(this.visitorData.time)
         })
         
         this.activities = matchingActivities
@@ -1074,7 +1134,7 @@ export default {
         const progressData = {
           id: this.surveyId,
           stid: this.visitorData.stid,
-          time_visit: this.visitorData.time_visit,
+          time: this.visitorData.time,
           month_age: this.visitorData.month_age,
           timeStart: this.timeStart,
           timeEnd: this.timeEnd,
@@ -1083,6 +1143,7 @@ export default {
           currentActivityIndex: this.currentActivityIndex,
           currentQ5Index: this.currentQ5Index,
           answers: this.answers,
+          note: this.answers.notes || '', // เก็บ note ที่ top level เพื่อ sync ได้ตรง
           newAppointment: this.newAppointment,
           surveyImages: this.surveyImages,
           surveyImageKeys: this.surveyImageKeys,
@@ -1116,16 +1177,16 @@ export default {
       }
     },
     
-    toggleQ71Answer(value) {
-      // Ensure q71 is initialized as array
-      if (!this.answers.q71) {
-        this.$set(this.answers, 'q71', [])
+    toggleQ7Answer(value) {
+      // Ensure q7 is initialized as array
+      if (!this.answers.q7) {
+        this.$set(this.answers, 'q7', [])
       }
-      const index = this.answers.q71.indexOf(value)
+      const index = this.answers.q7.indexOf(value)
       if (index > -1) {
-        this.answers.q71.splice(index, 1)
+        this.answers.q7.splice(index, 1)
       } else {
-        this.answers.q71.push(value)
+        this.answers.q7.push(value)
       }
     },
     
@@ -1213,7 +1274,13 @@ export default {
       try {
         // แปลงเป็น WebP และปรับขนาด
         const webpBase64 = await this.convertToWebP(file)
-        this.$set(this.surveyImages, index, webpBase64)
+        
+        // Store as object with base64 and url
+        this.$set(this.surveyImages, index, {
+          base64: webpBase64,
+          url: null,  // Will be set after sync to S3
+          key: `pic${index + 1}`
+        })
         
         // บันทึกลง IndexedDB
         await this.saveImageToIndexedDB(webpBase64, index)
@@ -1348,7 +1415,7 @@ export default {
       
       this.currentStep++
       
-      // ข้าม step 5 ถ้า time_visit = 1 หรือ q2 === 3
+      // ข้าม step 5 ถ้า time = 1 หรือ q2 === 3
       if (this.currentStep === 5 && (!this.shouldShowStep5 || this.skippedFromQ2)) {
         this.currentStep++
       }
@@ -1399,7 +1466,7 @@ export default {
           this.currentStep--
         }
         
-        // ข้าม step 5 ถ้า time_visit = 1 หรือ q2 === 3 (เมื่อย้อนกลับจาก step 6)
+        // ข้าม step 5 ถ้า time = 1 หรือ q2 === 3 (เมื่อย้อนกลับจาก step 6)
         if (this.currentStep === 5 && (!this.shouldShowStep5 || this.skippedFromQ2)) {
           this.currentStep--
         }
@@ -1457,12 +1524,12 @@ export default {
           }
           break
         case 7:
-          if (this.answers.q7 === null) {
-            this.$toast.warning('กรุณาเลือกคำตอบ')
+          if (!this.answers.q7 || this.answers.q7.length === 0) {
+            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
             return false
           }
-          if (this.answers.q7 === 1 && this.answers.q71 && this.answers.q71.includes(13) && !this.answers.q71_des.trim()) {
-            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ ระบุ"')
+          if (this.answers.q7.includes(13) && !this.answers.q71.trim()) {
+            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ โปรดระบุ"')
             return false
           }
           break
@@ -1480,7 +1547,8 @@ export default {
           break
         case 11:
           if (!this.skippedFromQ1 && !this.skippedFromQ2) {
-            if (!this.surveyImages[0] || !this.surveyImages[1]) {
+            // ต้องมี 2 รูป (pic1 และ pic2)
+            if (!this.displayImage1 || !this.displayImage2) {
               this.$toast.warning('กรุณาอัพโหลดรูปภาพทั้ง 2 รูป')
               return false
             }
@@ -1569,7 +1637,7 @@ export default {
           type: 'SUBMIT_SURVEY',
           surveyId: this.surveyId,
           stid: this.visitorData.stid,
-          time_visit: this.visitorData.time_visit,
+          time: this.visitorData.time,
           month_age: this.visitorData.month_age,
           data: survey,
           timestamp: new Date().toISOString()
@@ -1593,8 +1661,8 @@ export default {
         const visitor = await this.$indexedDB.getVisitor(this.visitorData.stid)
         const existingBooking = await this.$indexedDB.getBooking(this.visitorData.stid)
         
-        // คำนวณอายุเดือนจากวันเกิดถึงวันนี้
-      const today = new Date()
+        // คำนวณอายุเดือนจากวันเกิดถึงวันปัจจุบัน
+        const today = new Date()
         const birthYear = parseInt(visitor.year_birth) - 543
         const birthMonth = parseInt(visitor.month_birth)
         let calculatedMonthAge = (today.getFullYear() - birthYear) * 12 + (today.getMonth() + 1 - birthMonth)
@@ -1603,35 +1671,41 @@ export default {
         if (calculatedMonthAge > 48) calculatedMonthAge = 48
         if (calculatedMonthAge < 0) calculatedMonthAge = 0
         
-        // คำนวณครั้งที่เยี่ยม
+        // คำนวณครั้งที่เยี่ยมตาม logic เดียวกับ index.vue
         let newMonthAge = calculatedMonthAge
         let newTimeVisit = 1
         
         if (existingBooking && existingBooking.last_visit_date) {
+          // ใช้วันที่ที่เลือกในการคำนวณ daysSinceLastVisit
+          const selectedDate = new Date(christianYear, this.newAppointment.month - 1, this.newAppointment.day)
           const lastVisitDate = new Date(existingBooking.last_visit_date)
-          const daysSinceLastVisit = Math.floor((today - lastVisitDate) / (1000 * 60 * 60 * 24))
+          const daysSinceLastVisit = Math.floor((selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24))
           
           if (daysSinceLastVisit > 21) {
+            // เกิน 21 วัน: ใช้อายุเดือนใหม่และรีเซ็ตครั้งที่เยี่ยม
             newMonthAge = calculatedMonthAge
-            newTimeVisit = (existingBooking.time_visit || 0) + 1
-            
-            if (existingBooking.time_visit === 4) {
-              newTimeVisit = 1
-            } else if (newTimeVisit > 4) {
-              newTimeVisit = 4
-            }
+            newTimeVisit = 1
           } else {
+            // 21 วันหรือน้อยกว่า: ใช้อายุเดือนเดิมและเพิ่มครั้งที่เยี่ยม
             newMonthAge = existingBooking.month_age || calculatedMonthAge
-            newTimeVisit = (existingBooking.time_visit || 0) + 1
+            newTimeVisit = (existingBooking.time || 0) + 1
             
-            if (existingBooking.time_visit === 4) {
+            // กรณีพิเศษ: ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยม
+            if (existingBooking.time === 4) {
               newMonthAge = (existingBooking.month_age || 0) + 1
               newTimeVisit = 1
+              
+              // จำกัดอายุเดือนไว้ที่ 48
+              if (newMonthAge > 48) {
+                newMonthAge = 48
+              }
             } else if (newTimeVisit > 4) {
+              // จำกัดครั้งที่เยี่ยมไว้ที่ 4
               newTimeVisit = 4
             }
           }
           
+          // จำกัดอายุเดือนไว้ที่ 48
           if (newMonthAge > 48) newMonthAge = 48
         }
         
@@ -1641,12 +1715,12 @@ export default {
           appointmentDate: appointmentDate,
           appointmentTime: appointmentTime,
           month_age: newMonthAge,
-          time_visit: newTimeVisit,
+          time: newTimeVisit,
           last_visit_date: new Date().toISOString(),
           dataSource: 'local',
           lastSyncedAt: new Date().toISOString()
         })
-        } catch (error) {
+      } catch (error) {
         throw error
       }
     },

@@ -40,13 +40,14 @@
             >
               <div v-if="visitor.appointmentDate" class="appointment-date">
                 <div class="appointment-date">{{ formatAppointmentDateShort(visitor.appointmentDate) }}</div>
-                <div class="appointment-time">{{ visitor.appointmentTime }}  <template v-if="visitor.month_age && visitor.time_visit">
-                  ({{ visitor.month_age }} / {{ visitor.time_visit }})
+                <div class="appointment-time">{{ visitor.appointmentTime }}  <template v-if="visitor.month_age && visitor.time">
+                  ({{ visitor.month_age }}/{{ visitor.time }})
                 </template></div>
                
               </div>
               <div v-else class="appointment-placeholder">
-                ยังไม่ได้กำหนดหมาย
+                ยังไม่ได้กำหนดวันนัดหมาย
+
               </div>
             </div>
 
@@ -54,23 +55,46 @@
               class="card-col card-col-visit"
               :class="{
                 'visit-ready': visitor.appointmentDate && canRecordVisit(visitor),
-                'visit-disabled': !visitor.appointmentDate || !canRecordVisit(visitor)
+                'visit-disabled': !visitor.appointmentDate || !canRecordVisit(visitor),
+                'visit-completed': visitor.currentSurveyCompleted && visitor.currentSurveySynced,
+                'visit-warning': visitor.currentSurveyNote && !visitor.currentSurveyApproved,
+                'visit-pending-upload': visitor.currentSurveyCompleted && !visitor.currentSurveySynced
               }"
               @click="visitor.appointmentDate && canRecordVisit(visitor) ? recordVisit(visitor) : null"
               :style="{ cursor: visitor.appointmentDate && canRecordVisit(visitor) ? 'pointer' : 'not-allowed' }"
             >
-              <div v-if="!canRecordVisit(visitor) && visitor.appointmentDate" class="visit-text-disabled">
+              <!-- กรณีทำแบบทดสอบเสร็จแล้วแต่ยังไม่ sync -->
+              <div v-if="visitor.currentSurveyCompleted && !visitor.currentSurveySynced" class="visit-text-disabled">
+                รอการอัพโหลด<br>ขึ้นระบบ
+              </div>
+              <!-- กรณีมี note จาก API และยังไม่อนุมัติ -->
+              <div v-else-if="visitor.currentSurveyCompleted && visitor.currentSurveySynced && !visitor.currentSurveyApproved && visitor.currentSurveyNote" class="visit-text-warning">
+                {{ visitor.currentSurveyNote }}
+              </div>
+              <!-- กรณีบันทึกเรียบร้อยแล้วแต่ยังไม่อนุมัติ และไม่มี note -->
+              <div v-else-if="visitor.currentSurveyCompleted && visitor.currentSurveySynced && !visitor.currentSurveyApproved && !visitor.currentSurveyNote" class="visit-text-disabled">
+                บันทึกเรียบร้อย
+              </div>
+              <!-- กรณีรอการอนุมัติ (ครั้งที่แล้วยังไม่อนุมัติ) - เช็คเฉพาะ time >= 2 -->
+              <div v-else-if="!canRecordVisit(visitor) && visitor.appointmentDate && visitor.time >= 2" class="visit-text-disabled">
                 รอการอนุมัติ<br>จากระบบ
               </div>
-              <div v-else-if="visitor.appointmentDate" class="visit-text">
+              <!-- กรณีพร้อมบันทึก -->
+              <div v-else-if="visitor.appointmentDate && canRecordVisit(visitor)" class="visit-text">
                 บันทึกเยี่ยมบ้าน
               </div>
+              <!-- กรณียังไม่ได้บันทึก -->
               <div v-else class="visit-text-disabled">
                 ยังไม่ได้บันทึก<br>การเยี่ยมบ้าน
               </div>
             </div>
 
-            <div class="card-col card-col-edit" @click="showVisitHistory(visitor)">
+            <div 
+              class="card-col card-col-edit" 
+              :class="{ 'card-col-disabled': !visitor.hasCompletedSurveys }"
+              @click="visitor.hasCompletedSurveys ? showVisitHistory(visitor) : null"
+              :style="{ cursor: visitor.hasCompletedSurveys ? 'pointer' : 'not-allowed' }"
+            >
               <div class="edit-text">แก้ไขการเยี่ยมบ้าน</div>
             </div>
           </div>
@@ -353,24 +377,32 @@
               <div class="visit-time-text">{{ visit.time }}</div>
               <div class="visit-status-badges">
                 <span v-if="!visit.synced" class="badge badge-warning">
-                  <i class="fas fa-clock"></i> รอ Sync
+                 รอ Sync
                 </span>
                 <span v-else-if="!visit.approved" class="badge badge-secondary">
-                  <i class="fas fa-hourglass-half"></i> รออนุมัติ
+                  รออนุมัติ
                 </span>
                 <span v-else class="badge badge-success">
-                  <i class="fas fa-check-circle"></i> อนุมัติแล้ว
+                   อนุมัติแล้ว
                 </span>
               </div>
             </div>
           </div>
           
-          <div class="visit-card visit-card-action visit-card-edit-record" @click="editVisitRecord(visit)">
+          <div 
+            class="visit-card visit-card-action visit-card-edit-record" 
+            :class="{ 'disabled': visit.approved }"
+            @click="visit.approved ? null : editVisitRecord(visit)"
+          >
             <i class="fas fa-edit"></i>
             <span>แก้ไขบันทึกการเยี่ยม</span>
           </div>
 
-          <div class="visit-card visit-card-action visit-card-edit-photos" @click="editVisitPhotos(visit)">
+          <div 
+            class="visit-card visit-card-action visit-card-edit-photos" 
+            :class="{ 'disabled': visit.approved }"
+            @click="visit.approved ? null : editVisitPhotos(visit)"
+          >
             <i class="fas fa-images"></i>
             <span>แก้ไขรูปภาพ</span>
           </div>
@@ -746,8 +778,14 @@ export default {
               // ส่งการนัดหมายที่ยังไม่ซิงค์ก่อน
               await this.$systemInit.pushBookingsToAPI()
               
+              // ส่งผลการทำแบบทดสอบที่ยังไม่ซิงค์
+              await this.$systemInit.pushSurveyResultsToAPI()
+              
               // จากนั้นดึงการนัดหมายล่าสุดจาก API
               await this.$systemInit.syncBookings(username)
+              
+              // ซิงค์ผลการบันทึกเยี่ยมบ้าน
+              await this.$systemInit.syncSurveyResults(username)
               
               // โหลดข้อมูลใหม่พร้อมการนัดหมายที่อัพเดท
               await this.loadVisitors()
@@ -780,6 +818,14 @@ export default {
           // ส่งการนัดหมายที่ยังไม่ซิงค์
           this.loadingMessage = 'กำลังส่งข้อมูลการนัดหมาย...'
           await this.$systemInit.pushBookingsToAPI()
+          
+          // ส่งผลการทำแบบทดสอบที่ยังไม่ซิงค์
+          this.loadingMessage = 'กำลังส่งผลการทำแบบทดสอบ...'
+          await this.$systemInit.pushSurveyResultsToAPI()
+          
+          // ซิงค์ผลการบันทึกเยี่ยมบ้าน
+          this.loadingMessage = 'กำลังซิงค์ผลการบันทึกเยี่ยมบ้าน...'
+          await this.$systemInit.syncSurveyResults(username)
           
         }
         
@@ -838,33 +884,51 @@ export default {
           const allSurveys = await this.$indexedDB.getAllSurveysByStid(visitor.stid)
           
           // คำนวณว่าสามารถแก้ไขนัดหมายได้หรือไม่
-          const timeVisit = booking?.time_visit || 1
+          const timeVisit = booking?.time || 1
           let canEdit = true
           
           // ดึงแบบสอบถามที่ completed เท่านั้น (สำหรับแสดงสถานะ)
           const completedSurveys = allSurveys
             .filter(s => s.completed)
             .sort((a, b) => {
-              // เรียงตาม time_visit จากมากไปน้อย
-              const timeA = parseInt(a.time_visit) || 0
-              const timeB = parseInt(b.time_visit) || 0
+              // เรียงตาม time จากมากไปน้อย
+              const timeA = parseInt(a.time) || 0
+              const timeB = parseInt(b.time) || 0
               return timeB - timeA
             })
           
-          // ดึง survey ของครั้งที่แล้ว (time_visit - 1) สำหรับเช็คการอนุมัติ
+          // ดึง survey ของครั้งที่แล้ว (time - 1) สำหรับเช็คการอนุมัติ
           const previousTimeVisit = parseInt(timeVisit) - 1
           const previousCompletedSurvey = completedSurveys.find(s => 
-            String(s.time_visit) === String(previousTimeVisit)
+            String(s.time) === String(previousTimeVisit)
           )
           
           // ตรวจสอบว่ามี survey_progress ของครั้งนี้หรือไม่ (ไม่ว่า completed จะเป็นอะไร)
-          const currentVisitSurvey = allSurveys.find(s => String(s.time_visit) === String(timeVisit))
+          const currentVisitSurvey = allSurveys.find(s => String(s.time) === String(timeVisit))
+          
+          // Debug log เพื่อตรวจสอบสถานะ
+          if (currentVisitSurvey) {
+            console.log(`📊 Survey status for ${visitor.stid} (time: ${timeVisit}):`, {
+              completed: currentVisitSurvey.completed,
+              synced: currentVisitSurvey.synced,
+              approve_status: currentVisitSurvey.approve_status,
+              hasAnswers: !!currentVisitSurvey.answers,
+              q1: currentVisitSurvey.answers?.q1
+            })
+          }
           
           if (currentVisitSurvey) {
-            // ถ้ามี survey_progress ของครั้งนี้แล้ว ไม่สามารถแก้ไขนัดหมายได้
-            // TODO: เมื่อ approve_status = 1 จะปลดล็อคให้แก้ไขได้
-            canEdit = false
+            // ถ้ามี survey_progress ของครั้งนี้แล้ว
+            // ถ้า approve_status = 1 แล้ว ให้ปลดล็อคเพื่อแก้ไขนัดหมายครั้งถัดไปได้
+            if (currentVisitSurvey.approve_status === 1) {
+              canEdit = true
+            } else {
+              canEdit = false
+            }
           }
+          
+          // ตรวจสอบว่า time >= 2 แต่ไม่มีข้อมูลครั้งที่แล้ว
+          const needsPreviousVisit = parseInt(timeVisit) >= 2 && !previousCompletedSurvey
           
           return {
             id: visitor.stid, // ใช้ stid เป็น id
@@ -877,16 +941,24 @@ export default {
             appointmentDate: booking?.appointmentDate || null,
             appointmentTime: booking?.appointmentTime || null,
             month_age: booking?.month_age || null,
-            time_visit: timeVisit,
+            time: timeVisit,
             dataSource: visitor.dataSource || 'api',
             lastSyncedAt: visitor.lastSyncedAt || null,
             // สถานะการซิงค์แบบสอบถามของครั้งที่แล้ว (สำหรับเช็คว่าสามารถบันทึกครั้งถัดไปได้หรือไม่)
+            needsPreviousVisit: needsPreviousVisit, // ต้องบันทึกครั้งที่แล้วก่อน
             latestSurveySynced: previousCompletedSurvey?.synced || false,
             latestSurveyApproved: previousCompletedSurvey?.approve_status === 1,
+            // สถานะของการบันทึกเยี่ยมบ้านครั้งปัจจุบัน
+            currentSurveyCompleted: currentVisitSurvey?.completed || false,
+            currentSurveySynced: currentVisitSurvey?.synced || false,
+            currentSurveyApproved: currentVisitSurvey?.approve_status === 1,
+            currentSurveyNote: currentVisitSurvey?.note || null,
             // สถานะว่าสามารถแก้ไขนัดหมายได้หรือไม่
             canEditAppointment: canEdit,
             // เก็บข้อมูลว่ามี survey_progress หรือไม่
-            hasSurveyProgress: !!currentVisitSurvey
+            hasSurveyProgress: !!currentVisitSurvey,
+            // เช็คว่ามีรายการบันทึกเยี่ยมบ้านที่เสร็จแล้วหรือไม่
+            hasCompletedSurveys: completedSurveys.length > 0
           }
         })
         
@@ -979,10 +1051,10 @@ export default {
           timeVisit = 1
         } else {
           // 21 วันหรือน้อยกว่า เพิ่มครั้งที่เยี่ยม
-          timeVisit = (existingBooking.time_visit || 0) + 1
+          timeVisit = (existingBooking.time || 0) + 1
           
           // ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยม
-          if (existingBooking.time_visit === 4) {
+          if (existingBooking.time === 4) {
             calculatedMonthAge = (existingBooking.month_age || 0) + 1
             timeVisit = 1
             
@@ -1345,7 +1417,7 @@ export default {
         if (patient.appointmentDate && existingBooking) {
           // กำลังแก้ไขนัดหมายเดิม เก็บค่าเดิมไว้
           monthAge = existingBooking.month_age || calculatedMonthAge
-          timeVisit = existingBooking.time_visit || 1
+          timeVisit = existingBooking.time || 1
         } else if (existingBooking && existingBooking.last_visit_date) {
           // กำลังสร้างนัดหมายใหม่ คำนวณจากครั้งสุดท้าย
           const lastVisitDate = new Date(existingBooking.last_visit_date)
@@ -1363,10 +1435,10 @@ export default {
           } else {
             // 21 วันหรือน้อยกว่า ใช้อายุเดือนเดิมและเพิ่มครั้งที่เยี่ยม
             monthAge = existingBooking.month_age || calculatedMonthAge
-            timeVisit = (existingBooking.time_visit || 0) + 1
+            timeVisit = (existingBooking.time || 0) + 1
             
             // กรณีพิเศษ ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยมเป็น 1
-            if (existingBooking.time_visit === 4) {
+            if (existingBooking.time === 4) {
               monthAge = (existingBooking.month_age || 0) + 1
               timeVisit = 1
               
@@ -1444,15 +1516,15 @@ export default {
         visitor.appointmentDate = appointmentDate
         visitor.appointmentTime = appointmentTime
         visitor.month_age = this.appointmentForm.monthAge
-        visitor.time_visit = this.appointmentForm.timeVisit
+        visitor.time = this.appointmentForm.timeVisit
         
-        // บันทึกลงตารางการนัดหมาย (IndexedDB)
+        // บันทึกลงตารางการนัดหมาย (IndexedDB) - cnt_app จะอัพเดทหลังจาก sync กับ API
         await this.$indexedDB.addBooking({
           stid: visitor.stid,
           appointmentDate: appointmentDate,
           appointmentTime: appointmentTime,
           month_age: this.appointmentForm.monthAge,
-          time_visit: this.appointmentForm.timeVisit,
+          time: this.appointmentForm.timeVisit,
           last_visit_date: new Date().toISOString(),
           dataSource: 'local',
           lastSyncedAt: new Date().toISOString()
@@ -1470,20 +1542,23 @@ export default {
                 params: {
                   homevisitor: username,
                   stid: visitor.stid,
-                  time_visit: this.appointmentForm.timeVisit
+                  time: this.appointmentForm.timeVisit
                 }
               }
             )
             
-            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time_visit และ month_age หรือไม่
-            const recordExists = checkResponse?.results?.some(record => 
+            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time และ month_age หรือไม่
+            const existingRecord = checkResponse?.results?.find(record => 
               record.stid === visitor.stid && 
-              String(record.time_visit) === String(this.appointmentForm.timeVisit) && 
+              String(record.time) === String(this.appointmentForm.timeVisit) && 
               String(record.month_age) === String(this.appointmentForm.monthAge)
             )
             
-            if (recordExists) {
-              // แก้ไขนัดหมาย - ใช้ PUT
+            if (existingRecord) {
+              // แก้ไขนัดหมาย (เลื่อนนัด) - ใช้ PUT และเพิ่ม cnt_app
+              const currentCntApp = parseInt(existingRecord.cnt_app) || 1
+              const newCntApp = currentCntApp + 1
+              
               await this.$axios.$put(
                 '/api/parenting2025_census/put/homevisit/putdata.php',
                 {
@@ -1502,7 +1577,7 @@ export default {
                   value: [
                     appointmentTime,        // time_app_curr
                     appointmentDate,        // date_app_curr
-                    '1',                    // cnt_app - จำนวนครั้งที่นัด
+                    String(newCntApp),      // cnt_app - จำนวนการเลื่อนนัด (เพิ่มขึ้นทุกครั้งที่แก้ไข)
                     this.appointmentForm.monthAge,
                     this.appointmentForm.timeVisit,
                     activityIds[0],
@@ -1511,13 +1586,13 @@ export default {
                     activityIds[3],
                     activityIds[4]
                   ],
-                  pk: ['stid', 'time_visit'],
+                  pk: ['stid', 'time'],
                   pkval: [visitor.stid, this.appointmentForm.timeVisit],
                   tb: 'homevisitor_app'
                 }
               )
             } else {
-              // สร้างนัดหมายครั้งแรก - ใช้ POST
+              // สร้างนัดหมายครั้งแรก - ใช้ POST (cnt_app = 1)
               await this.$axios.$post(
                 '/api/parenting2025_census/post/homevisit/datarecord1row.php',
                 {
@@ -1526,7 +1601,7 @@ export default {
                     'stid',
                     'project',
                     'recStart',
-                    'time_visit',
+                    'time',
                     'fname_ch',
                     'lname_ch',
                     'month_age',
@@ -1535,6 +1610,7 @@ export default {
                     'date_app_first',
                     'time_app_curr',
                     'date_app_curr',
+                    'cnt_app',
                     'q1_name',
                     'q2_name',
                     'q3_name',
@@ -1555,6 +1631,7 @@ export default {
                     appointmentDate,  // date_app_first
                     appointmentTime,  // time_app_curr
                     appointmentDate,  // date_app_curr
+                    '1',              // cnt_app - ค่าเริ่มต้น
                     activityIds[0],
                     activityIds[1],
                     activityIds[2],
@@ -1633,10 +1710,10 @@ export default {
     },
     async goToSurvey(patient) {
       try {
-        // Get booking data for month_age and time_visit
+        // Get booking data for month_age and time
         const booking = await this.$indexedDB.getBooking(patient.stid)
         
-        if (!booking || !booking.month_age || !booking.time_visit) {
+        if (!booking || !booking.month_age || !booking.time) {
           this.$toast.error('ไม่พบข้อมูลการนัดหมาย กรุณากำหนดนัดหมายก่อน')
           return
         }
@@ -1645,7 +1722,7 @@ export default {
         const surveyData = {
           ...patient,
           month_age: booking.month_age,
-          time_visit: booking.time_visit,
+          time: booking.time,
           appointmentDate: booking.appointmentDate,
           appointmentTime: booking.appointmentTime || this.visitForm.startTime
         }
@@ -1668,8 +1745,13 @@ export default {
     },
     // ตรวจสอบว่าสามารถบันทึกการเยี่ยมใหม่ได้หรือไม่
     canRecordVisit(visitor) {
+      // ถ้าบันทึกครั้งปัจจุบันเสร็จแล้ว (ไม่ว่าจะ sync หรือยัง) ไม่ให้บันทึกซ้ำ
+      if (visitor.currentSurveyCompleted) {
+        return false
+      }
+      
       // ครั้งที่ 1 สามารถบันทึกได้เสมอ
-      if (!visitor.time_visit || String(visitor.time_visit) === '1') {
+      if (!visitor.time || String(visitor.time) === '1') {
         return true
       }
       
@@ -1680,13 +1762,17 @@ export default {
     // แสดงประวัติการเยี่ยมบ้าน
     async showVisitHistory(patient) {
       try {
-        // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้
+        console.log(`📋 Loading visit history for stid: ${patient.stid}`)
+        
+        // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
+        
+        console.log(`📋 Found ${surveys.length} completed surveys for ${patient.name} (${patient.stid})`)
         
         // แปลงข้อมูลแบบสอบถามเป็นประวัติการเยี่ยม
         const visits = surveys.map((survey, index) => {
-          const visitDate = survey.appointmentDate || survey.timeStart.split(' ')[0]
-          const visitTime = survey.appointmentTime || survey.timeStart.split(' ')[1]
+          const visitDate = survey.appointmentDate || survey.timeStart?.split(' ')[0] || ''
+          const visitTime = survey.appointmentTime || survey.timeStart?.split(' ')[1] || ''
           
           return {
             id: survey.id,
@@ -1694,7 +1780,7 @@ export default {
             date: visitDate,
             time: visitTime,
             patientId: patient.id,
-            visitNumber: survey.time_visit || (surveys.length - index),
+            visitNumber: survey.time || (index + 1),
             timeStart: survey.timeStart,
             timeEnd: survey.timeEnd,
             synced: survey.synced || false,
@@ -1704,6 +1790,8 @@ export default {
             surveyImageKey: survey.surveyImageKey
           }
         })
+        
+        console.log(`📋 Prepared ${visits.length} visit records`)
         
         this.visitHistoryForm = {
           id: patient.id,
@@ -1715,6 +1803,7 @@ export default {
         }
         this.showVisitHistoryModal = true
       } catch (error) {
+        console.error('❌ Error loading visit history:', error)
         this.$toast.error('ไม่สามารถโหลดประวัติการเยี่ยมบ้านได้')
       }
     },
@@ -1740,6 +1829,12 @@ export default {
     },
     async editVisitRecord(visit) {
       try {
+        // ตรวจสอบว่าอนุมัติแล้วหรือไม่ (approve_status == 1)
+        if (visit.approved === true) {
+          this.$toast.error('ไม่สามารถแก้ไขบันทึกที่อนุมัติแล้ว')
+          return
+        }
+        
         this.showVisitHistoryModal = false
         
         // เก็บข้อมูลแบบสอบถามสำหรับแก้ไข
@@ -1749,7 +1844,7 @@ export default {
           stid: this.visitHistoryForm.stid,
           name: this.visitHistoryForm.patientName,
           nickname: this.visitHistoryForm.nickname,
-          time_visit: visit.visitNumber,
+          time: visit.visitNumber,
           editAllowed: true // อนุญาตให้แก้ไขทั้งหมด
         }
         
@@ -1777,14 +1872,24 @@ export default {
         if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
           // New format: array of images
           for (let i = 0; i < survey.surveyImages.length; i++) {
-            if (survey.surveyImageKeys && survey.surveyImageKeys[i]) {
+            const img = survey.surveyImages[i]
+            
+            // Check if it's new object format { base64, url, key }
+            if (typeof img === 'object' && img !== null) {
+              // Prioritize URL, fallback to base64
+              const imageData = img.url || img.base64
+              currentImages.push(imageData)
+              currentImageKeys.push(survey.surveyImageKeys?.[i] || null)
+            } else if (typeof img === 'string') {
+              // Old format: string base64
+              currentImages.push(img)
+              currentImageKeys.push(survey.surveyImageKeys?.[i] || null)
+            } else if (survey.surveyImageKeys && survey.surveyImageKeys[i]) {
+              // Load from images store
               const imageObject = await this.$indexedDB.getImage(survey.surveyImageKeys[i])
-              const imageData = imageObject?.data || imageObject?.image || survey.surveyImages[i] || null
+              const imageData = imageObject?.data || imageObject?.image || null
               currentImages.push(imageData)
               currentImageKeys.push(survey.surveyImageKeys[i])
-            } else if (survey.surveyImages[i]) {
-              currentImages.push(survey.surveyImages[i])
-              currentImageKeys.push(null)
             }
           }
         } else {
@@ -1817,6 +1922,7 @@ export default {
         this.showVisitHistoryModal = false
         this.showEditPhotoModal = true
       } catch (error) {
+        console.error('❌ Error loading photos:', error)
         this.$toast.error('ไม่สามารถเปิดหน้าแก้ไขรูปภาพได้')
       }
     },
@@ -1917,6 +2023,21 @@ export default {
     
     async savePhotoEdit() {
       try {
+        // ตรวจสอบว่ามีการเลือกรูปภาพอย่างน้อย 1 รูป
+        const hasImage1 = this.editPhotoForm.currentImages[0] !== null && this.editPhotoForm.currentImages[0] !== undefined
+        const hasImage2 = this.editPhotoForm.currentImages[1] !== null && this.editPhotoForm.currentImages[1] !== undefined
+        
+        if (!hasImage1 && !hasImage2) {
+          this.$toast.warning('กรุณาเลือกรูปภาพอย่างน้อย 1 รูป')
+          return
+        }
+        
+        // ตรวจสอบว่ามีรูปภาพครบ 2 รูป
+        if (!hasImage1 || !hasImage2) {
+          this.$toast.warning('กรุณาเลือกรูปภาพให้ครบ 2 รูป')
+          return
+        }
+        
         this.loading = true
         this.loadingMessage = 'กำลังบันทึกรูปภาพ...'
         
@@ -1924,6 +2045,7 @@ export default {
         const survey = await this.$indexedDB.getSurveyProgressById(this.editPhotoForm.surveyId)
         if (!survey) {
           this.$toast.error('ไม่พบข้อมูลการเยี่ยมบ้าน')
+          this.loading = false
           return
         }
         
@@ -1946,24 +2068,43 @@ export default {
               await this.$indexedDB.deleteImage(newImageKeys[i])
             }
             
-            // บันทึกรูปภาพใหม่
+            // บันทึกรูปภาพใหม่เป็น object format
             const timestamp = Date.now()
             const newKey = `survey_${this.editPhotoForm.surveyId}_${i}_${timestamp}`
             await this.$indexedDB.saveImage(newKey, this.editPhotoForm.newImages[i])
             newImageKeys[i] = newKey
-            newImages[i] = this.editPhotoForm.newImages[i]
+            
+            // บันทึกเป็น object format { base64, url, key }
+            newImages[i] = {
+              base64: this.editPhotoForm.newImages[i],
+              url: null,  // จะถูกอัพเดทหลัง sync
+              key: `pic${i + 1}`
+            }
           } else if (!this.editPhotoForm.removeCurrentPhotos[i]) {
             // Keep existing image if not removed and no new image
             newImageKeys[i] = this.editPhotoForm.currentImageKeys[i] || newImageKeys[i]
-            newImages[i] = this.editPhotoForm.currentImages[i] || newImages[i]
+            
+            // ตรวจสอบว่าเป็น object format หรือไม่
+            const existingImg = this.editPhotoForm.currentImages[i] || newImages[i]
+            if (typeof existingImg === 'string') {
+              // Convert old format to new format
+              newImages[i] = {
+                base64: existingImg,
+                url: null,
+                key: `pic${i + 1}`
+              }
+            } else {
+              newImages[i] = existingImg
+            }
           }
         }
         
-        // อัพเดทแบบสอบถามด้วยรหัสรูปภาพใหม่
+        // อัพเดทแบบสอบถามด้วยรหัสรูปภาพใหม่และเปลี่ยนสถานะเป็นยังไม่ sync
         await this.$indexedDB.update('survey_progress', {
           ...survey,
           surveyImages: newImages.filter(img => img !== null && img !== undefined),
           surveyImageKeys: newImageKeys.filter((key, idx) => newImages[idx] !== null && newImages[idx] !== undefined),
+          synced: false, // เปลี่ยนสถานะเป็นยังไม่ sync เพื่อให้อัพเดทขึ้น API ใหม่
           lastUpdated: new Date().toISOString()
         })
         
@@ -1972,12 +2113,37 @@ export default {
         this.loading = false
         this.showEditPhotoModal = false
         
+        // รีเฟรสการแสดงผลหน้าหลัก
+        await this.loadVisitors()
+        
+        // ถ้า online อยู่ ให้ sync ข้อมูลทันที
+        if (this.$store.state.isOnline) {
+          this.loadingMessage = 'กำลัง Sync ข้อมูลไปยังเซิร์ฟเวอร์...'
+          this.loading = true
+          
+          try {
+            await this.$systemInit.pushSurveyResultsToAPI()
+            this.$toast.success('อัพเดทข้อมูลไปยังเซิร์ฟเวอร์สำเร็จ')
+            
+            // รีเฟรสข้อมูลหลัง sync
+            await this.loadVisitors()
+          } catch (error) {
+            console.error('❌ Sync error:', error)
+            this.$toast.warning('บันทึกสำเร็จ แต่ยังไม่สามารถ Sync ไปยังเซิร์ฟเวอร์ได้ กรุณา Sync อีกครั้ง')
+          } finally {
+            this.loading = false
+          }
+        } else {
+          this.$toast.info('บันทึกสำเร็จ จะอัพเดทไปยังเซิร์ฟเวอร์เมื่อออนไลน์')
+        }
+        
         // โหลดประวัติการเยี่ยมใหม่
         const patient = this.visitors.find(v => v.stid === this.visitHistoryForm.stid)
         if (patient) {
           await this.showVisitHistory(patient)
         }
       } catch (error) {
+        console.error('❌ Save photo error:', error)
         this.$toast.error('เกิดข้อผิดพลาดในการบันทึกรูปภาพ')
         this.loading = false
       }
@@ -2462,6 +2628,40 @@ export default {
   border-color: #adb5bd;
 }
 
+.card-col-visit.visit-completed {
+  background: #28a745;
+  color: white;
+  border-color: #218838;
+}
+
+.card-col-visit.visit-completed:hover {
+  background: #218838;
+  border-color: #1e7e34;
+}
+
+.card-col-visit.visit-warning {
+  background: #dc3545;
+  color: white;
+  border-color: #c82333;
+}
+
+.card-col-visit.visit-warning:hover {
+  background: #c82333;
+  border-color: #bd2130;
+}
+
+.card-col-visit.visit-pending-upload {
+  background: #ffc107;
+  color: #333;
+  border-color: #ff9800;
+  cursor: not-allowed;
+}
+
+.card-col-visit.visit-pending-upload:hover {
+  background: #ffc107;
+  border-color: #ff9800;
+}
+
 .visit-text {
   font-size: 1.4rem;
   font-weight: 400;
@@ -2471,6 +2671,15 @@ export default {
   font-size: 1.4rem;
   line-height: 1.6;
   font-weight: 300;
+}
+
+.visit-text-warning {
+  font-size: 1.3rem;
+  line-height: 1.5;
+  font-weight: 500;
+  color: white;
+  text-align: center;
+  padding: 0.5rem;
 }
 
 /* Edit Card */
@@ -2483,6 +2692,20 @@ export default {
 .card-col-edit:hover {
   background: #5a6268;
   border-color: #545b62;
+}
+
+.card-col-edit.card-col-disabled {
+  background: #e9ecef;
+  color: #adb5bd;
+  border-color: #dee2e6;
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+.card-col-edit.card-col-disabled:hover {
+  background: #e9ecef;
+  border-color: #dee2e6;
+  transform: none;
 }
 
 .edit-text {
@@ -3190,6 +3413,17 @@ export default {
 
 .visit-card-edit-photos i {
   color: #333;
+}
+
+.visit-card-action.disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+.visit-card-action.disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .empty-visit-history {

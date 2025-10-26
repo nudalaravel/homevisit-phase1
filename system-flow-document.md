@@ -70,7 +70,7 @@ Indexes:
   appointmentDate: string,   // วันนัดหมาย (YYYY-MM-DD)
   appointmentTime: string,   // เวลานัดหมาย (HH:MM น.)
   month_age: number,         // อายุเป็นเดือน
-  time_visit: number,        // ครั้งที่เยี่ยม (1-4)
+  time: number,        // ครั้งที่เยี่ยม (1-4)
   last_visit_date: string,   // วันที่เยี่ยมล่าสุด
   dataSource: 'api'|'local',
   lastSyncedAt: string
@@ -79,7 +79,7 @@ Indexes:
 Indexes:
 - stid (unique)
 - month_age
-- time_visit
+- time
 ```
 
 #### 3. **activities** (กิจกรรมตามพัฒนาการ)
@@ -88,7 +88,7 @@ Indexes:
 {
   no: number,                // Primary Key - ลำดับกิจกรรม
   month_age: number,         // อายุเป็นเดือน
-  time_visit: number,        // ครั้งที่เยี่ยม (1-4)
+  time: number,        // ครั้งที่เยี่ยม (1-4)
   title: string,             // หัวข้อกิจกรรม
   activity: string,          // คำอธิบายกิจกรรม
   activity_detail: string,   // รายละเอียดกิจกรรม
@@ -97,17 +97,17 @@ Indexes:
 
 Indexes:
 - month_age
-- time_visit
-- [month_age + time_visit] (compound)
+- time
+- [month_age + time] (compound)
 ```
 
 #### 4. **survey_progress** (ความคืบหน้าแบบสอบถาม)
 
 ```javascript
 {
-  id: string,                // Primary Key - survey_${stid}_${time_visit}_${timestamp}
+  id: string,                // Primary Key - survey_${stid}_${time}_${timestamp}
   stid: string,              // รหัสประจำตัว
-  time_visit: number,        // ครั้งที่เยี่ยม
+  time: number,        // ครั้งที่เยี่ยม
   month_age: number,         // อายุเป็นเดือน
   timeStart: string,         // เวลาเริ่มต้น (YYYY-MM-DD HH:MM:SS)
   timeEnd: string,           // เวลาสิ้นสุด (YYYY-MM-DD HH:MM:SS)
@@ -151,7 +151,7 @@ Indexes:
 
 Indexes:
 - stid
-- time_visit
+- time
 - completed
 - lastUpdated
 ```
@@ -173,7 +173,7 @@ Indexes:
   type: string,              // 'UPDATE_VISITOR' | 'SUBMIT_SURVEY'
   stid: string,              // รหัสประจำตัว
   surveyId: string,          // Survey ID (for SUBMIT_SURVEY)
-  time_visit: number,        // ครั้งที่เยี่ยม
+  time: number,        // ครั้งที่เยี่ยม
   month_age: number,         // อายุเป็นเดือน
   data: object,              // ข้อมูลที่ต้อง sync
   payload: object,           // API payload
@@ -325,7 +325,7 @@ Indexes:
          │                   ┌─────────────────────┐
          │                   │ Editing Appointment │
          │                   │ - Keep month_age    │
-         │                   │ - Keep time_visit   │
+         │                   │ - Keep time   │
          │                   └────────┬────────────┘
          │                            │
          └─── New Booking ────┐       │
@@ -355,7 +355,7 @@ Indexes:
                                          ┌────────────────────┐
                                          │ Fetch Activity     │
                                          │ by month_age +     │
-                                         │ time_visit         │
+                                         │ time         │
                                          └────────┬───────────┘
                                                   │
                                                   ▼
@@ -377,8 +377,8 @@ Indexes:
 
 1. **ครั้งที่ 1**: สามารถแก้ไขนัดหมายได้เสมอ
 2. **ครั้งที่ 2+**: ต้อง sync แบบทดสอบครั้งก่อนแล้วเท่านั้น
-3. **time_visit**: วนซ้ำ 1→2→3→4→1→2→...
-4. **month_age**: เพิ่มขึ้นตามอายุจริง หรือเมื่อ time_visit วนรอบ
+3. **time**: วนซ้ำ 1→2→3→4→1→2→...
+4. **month_age**: เพิ่มขึ้นตามอายุจริง หรือเมื่อ time วนรอบ
 
 ### 🏃 4. Record Visit Flow
 
@@ -392,9 +392,9 @@ Indexes:
 │ Check canRecordVisit()     │
 └────────┬───────────────────┘
          │
-         ├─── time_visit = 1 ──→ [Allow]
+         ├─── time = 1 ──→ [Allow]
          │
-         └─── time_visit > 1 ───┐
+         └─── time > 1 ───┐
                                 ▼
                        ┌─────────────────────┐
                        │ Check Latest Survey │
@@ -513,7 +513,7 @@ Indexes:
                             ┌──────────────────────┐
                             │ Calculate Next Visit │
                             │ - New month_age      │
-                            │ - New time_visit     │
+                            │ - New time     │
                             └────────┬─────────────┘
                                      │
                                      ▼
@@ -618,7 +618,7 @@ Indexes:
   type: 'SUBMIT_SURVEY',
   surveyId: 'survey_900601010105_2_1729754400000',
   stid: '900601010105',
-  time_visit: 2,
+  time: 2,
   month_age: 12,
   data: {
     // Full survey_progress object
@@ -830,9 +830,9 @@ Indexes:
 │ Check canEditAppointment() │
 └────────┬───────────────────┘
          │
-         ├─── time_visit = 1 ──→ [Allow]
+         ├─── time = 1 ──→ [Allow]
          │
-         └─── time_visit > 1 ───┐
+         └─── time > 1 ───┐
                                 ▼
                        ┌─────────────────────┐
                        │ Check Latest Survey │
@@ -847,7 +847,7 @@ Indexes:
 
 **Edit vs Create:**
 
-- **Edit Mode**: มี appointmentDate → keep month_age, time_visit
+- **Edit Mode**: มี appointmentDate → keep month_age, time
 - **Create Mode**: ไม่มี appointmentDate → calculate new values
 
 ---
@@ -903,7 +903,7 @@ Indexes:
   name: string,
   nickname: string,
   month_age: number,
-  time_visit: number,
+  time: number,
   appointmentDate: string,
   appointmentTime: string
 }
@@ -915,7 +915,7 @@ Indexes:
   stid: string,
   name: string,
   nickname: string,
-  time_visit: number,
+  time: number,
   editAllowed: boolean
 }
 ```
@@ -1012,7 +1012,7 @@ let month_age =
 month_age = Math.min(month_age, 48);
 ```
 
-#### 2. **time_visit Logic**
+#### 2. **time Logic**
 
 - Cycles: 1 → 2 → 3 → 4 → 1 → 2 → ...
 - Increments with each visit
@@ -1023,15 +1023,15 @@ month_age = Math.min(month_age, 48);
 ```
 If (days since last visit > 21):
   → Recalculate month_age
-  → Increment time_visit
+  → Increment time
 
 Else (≤ 21 days):
   → Keep same month_age
-  → Increment time_visit
+  → Increment time
 
-If (time_visit was 4):
+If (time was 4):
   → Advance month_age by 1
-  → Reset time_visit to 1
+  → Reset time to 1
 ```
 
 #### 4. **Permission Matrix**
@@ -1092,7 +1092,7 @@ try {
 
 ```javascript
 // Check before navigation
-if (!booking || !booking.month_age || !booking.time_visit) {
+if (!booking || !booking.month_age || !booking.time) {
   this.$toast.error("ไม่พบข้อมูลการนัดหมาย กรุณากำหนดนัดหมายก่อน");
   return;
 }

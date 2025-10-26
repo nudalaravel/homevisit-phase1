@@ -108,11 +108,19 @@ export const actions = {
       // ส่งการแก้ไข bookings ที่รอ sync ก่อน
       await app.$systemInit.pushBookingsToAPI();
 
+      // ส่งผลการทำแบบทดสอบที่รอ sync
+      await app.$systemInit.pushSurveyResultsToAPI();
+
       // ซิงค์ผู้รับบริการ (getchildsample.php)
       const visitorsSuccess = await app.$systemInit.syncVisitors(username);
 
       // ซิงค์ข้อมูลวันนัดหมาย (getchildsample_app.php)
       const bookingsSuccess = await app.$systemInit.syncBookings(username);
+
+      // ซิงค์ผลการบันทึกเยี่ยมบ้าน (getchildsample_result.php)
+      const surveyResultsSuccess = await app.$systemInit.syncSurveyResults(
+        username
+      );
 
       if (visitorsSuccess) {
         const syncTime = new Date().toISOString();
