@@ -1017,33 +1017,15 @@ export default function ({ app }, inject) {
               `📊 Scanned ${totalScanned} activities, found ${matchingActivities.length} matches`
             );
 
-            // Return null if no matches, or merge all matching activities
-            if (matchingActivities.length === 0) {
-              resolve(null);
-            } else if (matchingActivities.length === 1) {
-              resolve(matchingActivities[0]);
-            } else {
-              // Merge multiple activities into one object
-              const merged = {
-                month_age: monthAge,
-                time: timeVisit,
-                activity: matchingActivities
-                  .map((a) => a.title || a.activity)
-                  .filter(Boolean)
-                  .join("\n\n"),
-                objective: matchingActivities
-                  .map((a) => a.objective)
-                  .filter(Boolean)
-                  .join("\n\n"),
-                song:
-                  matchingActivities
-                    .map((a) => a.song || a.description)
-                    .filter(Boolean)
-                    .join("\n\n") || null,
-              };
-              console.log(`🔀 Merged ${matchingActivities.length} activities`);
-              resolve(merged);
-            }
+            // Return array of all matching activities
+            // Format each activity to ensure consistent structure
+            const formattedActivities = matchingActivities.map((activity) => ({
+              ...activity,
+              activity: activity.title || activity.activity || "",
+              objective: activity.objective || "",
+            }));
+
+            resolve(formattedActivities);
           }
         };
         request.onerror = () => {
@@ -1310,6 +1292,35 @@ export default function ({ app }, inject) {
             (a, b) => new Date(b.timeStart) - new Date(a.timeStart)
           );
           resolve(completedSurveys);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    /** ดึงแบบสอบถามทั้งหมด (รวม completed และไม่ completed) ตาม stid */
+    async getAllSurveysByStid(stid) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return [];
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(
+          ["survey_progress"],
+          "readonly"
+        );
+        const store = transaction.objectStore("survey_progress");
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          const surveys = request.result;
+          const allSurveys = surveys.filter((s) => s.stid === stid);
+          // Sort by timeStart descending (newest first)
+          allSurveys.sort(
+            (a, b) => new Date(b.timeStart) - new Date(a.timeStart)
+          );
+          resolve(allSurveys);
         };
         request.onerror = () => reject(request.error);
       });

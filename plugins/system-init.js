@@ -427,8 +427,10 @@ export default function ({ app, store, $axios }, inject) {
         if (apiBookings.length > 0) {
           console.log("📋 Sample booking data:", {
             stid: apiBookings[0].stid,
-            appointmentDate: apiBookings[0].appointmentDate,
-            appointmentTime: apiBookings[0].appointmentTime,
+            appointmentDate: apiBookings[0].date_app_curr,
+            appointmentTime: apiBookings[0].time_app_curr,
+            month_age: apiBookings[0].month_age,
+            time_visit: apiBookings[0].time_visit,
           });
         }
 
@@ -451,7 +453,7 @@ export default function ({ app, store, $axios }, inject) {
           }
 
           // ตรวจสอบว่า API ส่งข้อมูลนัดหมายมาหรือไม่
-          if (!apiBooking.appointmentDate && !apiBooking.appointmentTime) {
+          if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) {
             // ไม่มีข้อมูลนัดหมาย - ข้ามไป
             continue;
           }
@@ -462,8 +464,10 @@ export default function ({ app, store, $axios }, inject) {
             // ข้อมูลใหม่จาก API
             await app.$indexedDB.addBooking({
               stid: apiBooking.stid,
-              appointmentDate: apiBooking.appointmentDate || null,
-              appointmentTime: apiBooking.appointmentTime || null,
+              appointmentDate: apiBooking.date_app_curr || null,
+              appointmentTime: apiBooking.time_app_curr || null,
+              month_age: apiBooking.month_age || null,
+              time_visit: apiBooking.time_visit || null,
               dataSource: "api",
               lastSyncedAt: new Date().toISOString(),
             });
@@ -479,8 +483,10 @@ export default function ({ app, store, $axios }, inject) {
             // ข้อมูลจาก API ปกติ - อัพเดททั้งหมด
             await app.$indexedDB.updateBooking({
               stid: apiBooking.stid,
-              appointmentDate: apiBooking.appointmentDate || null,
-              appointmentTime: apiBooking.appointmentTime || null,
+              appointmentDate: apiBooking.date_app_curr || null,
+              appointmentTime: apiBooking.time_app_curr || null,
+              month_age: apiBooking.month_age || null,
+              time_visit: apiBooking.time_visit || null,
               dataSource: "api",
               lastSyncedAt: new Date().toISOString(),
             });
@@ -535,23 +541,146 @@ export default function ({ app, store, $axios }, inject) {
         let successCount = 0;
         let errorCount = 0;
 
+        // Get username
+        const username = app.$offlineAuth?.getUser?.()?.username;
+
         // ส่งทีละรายการ
         for (const booking of unsyncedBookings) {
           try {
-            const payload = {
-              variable: [["appointmentDate", "appointmentTime"]],
-              value: [
-                [booking.appointmentDate || "", booking.appointmentTime || ""],
-              ],
-              pk: [["stid"]],
-              pkval: [[booking.stid]],
-              tb: "homevisitor_sample_students",
-            };
+            // ดึงข้อมูล visitor เพื่อเอา fname, lname
+            const visitor = await app.$indexedDB.getVisitor(booking.stid);
 
-            await $axios.$put(
-              "/api/parenting2025_census/put/homevisit/putdata_arr.php",
-              payload
+            // ดึงกิจกรรมตาม month_age และ time_visit
+            const activities =
+              await app.$indexedDB.getActivityByMonthAgeAndTime(
+                booking.month_age,
+                booking.time_visit
+              );
+
+            // สร้าง activity IDs
+            const activityIds = [];
+            for (let i = 0; i < 5; i++) {
+              if (activities && activities[i]) {
+                activityIds.push(activities[i].no || "");
+              } else {
+                activityIds.push("");
+              }
+            }
+
+            // สร้าง recStart (MySQL format: YYYY-MM-DD HH:MM:SS)
+            const now = new Date();
+            const recStart = `${now.getFullYear()}-${String(
+              now.getMonth() + 1
+            ).padStart(2, "0")}-${String(now.getDate()).padStart(
+              2,
+              "0"
+            )} ${String(now.getHours()).padStart(2, "0")}:${String(
+              now.getMinutes()
+            ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+
+            // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+            const checkResponse = await $axios.$get(
+              "/api/parenting2025_census/get/homevisit/getchildsample_app.php",
+              {
+                params: {
+                  homevisitor: username,
+                  stid: booking.stid,
+                  time_visit: booking.time_visit,
+                },
+              }
             );
+
+            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time_visit และ month_age หรือไม่
+            const recordExists = checkResponse?.results?.some(
+              (record) =>
+                record.stid === booking.stid &&
+                String(record.time_visit) === String(booking.time_visit) &&
+                String(record.month_age) === String(booking.month_age)
+            );
+
+            if (recordExists) {
+              // แก้ไขนัดหมาย - ใช้ PUT
+              await $axios.$put(
+                "/api/parenting2025_census/put/homevisit/putdata.php",
+                {
+                  variable: [
+                    "time_app_curr",
+                    "date_app_curr",
+                    "cnt_app",
+                    "month_age",
+                    "time",
+                    "q1_name",
+                    "q2_name",
+                    "q3_name",
+                    "q4_name",
+                    "q5_name",
+                  ],
+                  value: [
+                    booking.appointmentTime,
+                    booking.appointmentDate,
+                    "1",
+                    booking.month_age,
+                    booking.time_visit,
+                    activityIds[0],
+                    activityIds[1],
+                    activityIds[2],
+                    activityIds[3],
+                    activityIds[4],
+                  ],
+                  pk: ["stid", "time_visit"],
+                  pkval: [booking.stid, booking.time_visit],
+                  tb: "homevisitor_app",
+                }
+              );
+            } else {
+              // สร้างนัดหมายครั้งแรก - ใช้ POST
+              await $axios.$post(
+                "/api/parenting2025_census/post/homevisit/datarecord1row.php",
+                {
+                  variable: [
+                    "recby",
+                    "stid",
+                    "project",
+                    "recStart",
+                    "time_visit",
+                    "fname_ch",
+                    "lname_ch",
+                    "month_age",
+                    "time",
+                    "time_app_first",
+                    "date_app_first",
+                    "time_app_curr",
+                    "date_app_curr",
+                    "q1_name",
+                    "q2_name",
+                    "q3_name",
+                    "q4_name",
+                    "q5_name",
+                  ],
+                  value: [
+                    username || "",
+                    booking.stid,
+                    "15",
+                    recStart,
+                    booking.time_visit,
+                    visitor?.fname || "",
+                    visitor?.lname || "",
+                    booking.month_age,
+                    booking.appointmentTime,
+                    booking.appointmentTime,
+                    booking.appointmentDate,
+                    booking.appointmentTime,
+                    booking.appointmentDate,
+                    activityIds[0],
+                    activityIds[1],
+                    activityIds[2],
+                    activityIds[3],
+                    activityIds[4],
+                  ],
+                  tb: "homevisitor_app",
+                }
+              );
+            }
 
             // อัพเดทสถานะเป็น synced
             await app.$indexedDB.updateBooking({

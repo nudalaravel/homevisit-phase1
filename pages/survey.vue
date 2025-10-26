@@ -1358,6 +1358,11 @@ export default {
         this.currentStep++
       }
       
+      // ข้าม step 11 (อัพโหลดรูป) ถ้า q1 === 3 หรือ q2 === 3
+      if (this.currentStep === 11 && (this.skippedFromQ1 || this.skippedFromQ2)) {
+        this.currentStep++
+      }
+      
       this.currentActivityIndex = 0
       this.currentQ5Index = 0
       await this.saveProgress()
@@ -1383,6 +1388,11 @@ export default {
         }
         
         this.currentStep--
+        
+        // ข้าม step 11 (อัพโหลดรูป) ถ้า q1 === 3 หรือ q2 === 3 (เมื่อย้อนกลับจาก step 12)
+        if (this.currentStep === 11 && (this.skippedFromQ1 || this.skippedFromQ2)) {
+          this.currentStep--
+        }
         
         // ข้าม step 9 ถ้า q2 === 3 (เมื่อย้อนกลับจาก step 10)
         if (this.currentStep === 9 && this.skippedFromQ2) {
