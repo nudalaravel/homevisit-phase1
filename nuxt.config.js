@@ -2,8 +2,6 @@ export default {
   ssr: false,
   mode: "spa",
 
-  // Server configuration
-  // ⚠️ PRODUCTION: แก้ port หรือใช้ environment variable
   server: {
     port: 3300,
     host: "0.0.0.0",
@@ -25,13 +23,13 @@ export default {
       { name: "apple-mobile-web-app-title", content: "Riped V2 Research" },
     ],
     link: [
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
+      { rel: "icon", type: "image/x-icon", href: "/homevisit/favicon.ico" },
       {
         rel: "stylesheet",
-        href: "/fonts/kanit.css",
+        href: "/homevisit/fonts/kanit.css",
       },
-      { rel: "apple-touch-icon", href: "/logo.png" },
-      { rel: "manifest", href: "/manifest.json" },
+      { rel: "apple-touch-icon", href: "/homevisit/logo.png" },
+      { rel: "manifest", href: "/homevisit/manifest.json" },
     ],
   },
   loading: { color: "#3551a4" },
@@ -62,12 +60,11 @@ export default {
     "@nuxtjs/bootstrap-vue",
     "@nuxtjs/pwa",
   ],
-  // ⚠️ PRODUCTION: แก้ baseURL เป็น production API URL
-  // เช่น baseURL: "https://api.yourdomain.com"
+
   axios: {
-    baseURL: "/api",
-    browserBaseURL: "/api",
-    proxy: true, // ⚠️ PRODUCTION: เปลี่ยนเป็น false ถ้าไม่ใช้ proxy
+    baseURL: "https://ripedresearch.org",
+    browserBaseURL: "https://ripedresearch.org",
+    proxy: false, // ⚠️ PRODUCTION: เปลี่ยนเป็น false ถ้าไม่ใช้ proxy
     credentials: true,
   },
 
@@ -76,7 +73,7 @@ export default {
   // Proxy config - bypass CORS ทุกครั้ง
   proxy: {
     "/api": {
-      target: "https://ripedresearch.org", // ⚠️ PRODUCTION: แก้เป็น production API URL
+      target: "https://ripedresearch.org",
       pathRewrite: {
         "^/api": "",
       },
@@ -120,7 +117,7 @@ export default {
   },
   router: {
     // ⚠️ PRODUCTION: ถ้า deploy ใน subfolder ให้ uncomment และแก้ path
-    // base: "/folder-deploy/",
+    base: "/homevisit/",
     middleware: [],
   },
   // serverMiddleware: ["~/api"], // Disabled - API runs separately
@@ -128,38 +125,30 @@ export default {
     meta: {
       title: "Riped V2 Research",
       author: "Riped Team",
-      description: "Research Dashboard Template",
+      description: "",
       theme_color: "#3551a4",
       lang: "th",
-      ogSiteName: "Riped V2 Research",
-      ogTitle: "Riped V2 Research",
-      ogDescription: "Research Dashboard Template",
-      ogImage: "/logo.png", //แก้พาท logo
-      ogUrl: "https://ripped-v2.com", // ⚠️ PRODUCTION: แก้เป็น production URL
-      twitterCard: "summary_large_image",
-      twitterSite: "@ripped", // ⚠️ PRODUCTION: แก้เป็น Twitter account จริง (ถ้ามี)
-      twitterCreator: "@ripped", // ⚠️ PRODUCTION: แก้เป็น Twitter account จริง (ถ้ามี)
     },
     manifest: {
       name: "Riped V2 Research",
       short_name: "Riped Research",
-      description: "Research Dashboard Template with Offline Support",
+      description: "",
       theme_color: "#3551a4",
       background_color: "#ffffff",
       display: "standalone",
       orientation: "portrait",
-      scope: "/",
-      start_url: "/",
+      scope: "/homevisit/",
+      start_url: "/homevisit/",
       lang: "th",
       icons: [
         {
-          src: "/logo.png",
+          src: "/homevisit/logo.png",
           sizes: "192x192",
           type: "image/png",
           purpose: "any maskable",
         },
         {
-          src: "/logo.png",
+          src: "/homevisit/logo.png",
           sizes: "512x512",
           type: "image/png",
           purpose: "any maskable",
@@ -172,7 +161,7 @@ export default {
       runtimeCaching: [
         {
           // ⚠️ PRODUCTION: แก้ urlPattern เป็น production API URL
-          urlPattern: "^http://localhost:3001/.*",
+          urlPattern: "^https://ripedresearch.org/api/.*",
           handler: "networkFirst",
           method: "GET",
           strategyOptions: {

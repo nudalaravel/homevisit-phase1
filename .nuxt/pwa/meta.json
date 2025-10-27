@@ -26,11 +26,6 @@
       "content": "Riped Team"
     },
     {
-      "hid": "description",
-      "name": "description",
-      "content": "Research Dashboard Template"
-    },
-    {
       "hid": "theme-color",
       "name": "theme-color",
       "content": "#3551a4"
@@ -52,53 +47,23 @@
       "name": "og:site_name",
       "property": "og:site_name",
       "content": "Riped V2 Research"
-    },
-    {
-      "hid": "og:description",
-      "name": "og:description",
-      "property": "og:description",
-      "content": "Research Dashboard Template"
-    },
-    {
-      "hid": "og:url",
-      "name": "og:url",
-      "property": "og:url",
-      "content": "https://ripped-v2.com"
-    },
-    {
-      "hid": "twitter:card",
-      "name": "twitter:card",
-      "property": "twitter:card",
-      "content": "summary_large_image"
-    },
-    {
-      "hid": "twitter:site",
-      "name": "twitter:site",
-      "property": "twitter:site",
-      "content": "@ripped"
-    },
-    {
-      "hid": "twitter:creator",
-      "name": "twitter:creator",
-      "property": "twitter:creator",
-      "content": "@ripped"
     }
   ],
   "link": [
     {
       "hid": "shortcut-icon",
       "rel": "shortcut icon",
-      "href": "/logo.png"
+      "href": "/homevisit/logo.png"
     },
     {
       "hid": "apple-touch-icon",
       "rel": "apple-touch-icon",
-      "href": "/logo.png",
+      "href": "/homevisit/logo.png",
       "sizes": "512x512"
     },
     {
       "rel": "manifest",
-      "href": "/_nuxt/manifest.f8dc4549.json",
+      "href": "/homevisit/_nuxt/manifest.c6b8400c.json",
       "hid": "manifest"
     }
   ],

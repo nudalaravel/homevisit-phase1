@@ -5,7 +5,7 @@
       <div class="header-container">
         <div class="header-left">
           <div class="logo-container">
-            <img src="/logo.png" alt="Logo" class="logo-img" />
+            <img src="/homevisit/logo.png" alt="Logo" class="logo-img" />
           </div>
           <h1 class="page-title">แบบบันทึกข้อมูลสำหรับผู้เยี่ยมบ้าน</h1>
         </div>

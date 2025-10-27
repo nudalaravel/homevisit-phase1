@@ -6,7 +6,7 @@
       <div class="login-card">
         <div class="login-header">
           <div class="logo">
-            <img src="/logo.png" alt="Logo" class="logo-img" />
+            <img src="/homevisit/logo.png" alt="Logo" class="logo-img" />
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export default {
   },
   computed: {
     isFormInvalid() {
-      return !this.form.username || !this.form.password || this.form.username.length < 3 || this.form.password.length < 6
+      return !this.form.username || !this.form.password || this.form.username.length < 1 || this.form.password.length < 1
     }
   },
   beforeMount() {
