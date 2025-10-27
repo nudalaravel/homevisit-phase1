@@ -3,6 +3,7 @@ export default {
   mode: "spa",
 
   // Server configuration
+  // ⚠️ PRODUCTION: แก้ port หรือใช้ environment variable
   server: {
     port: 3300,
     host: "0.0.0.0",
@@ -61,23 +62,27 @@ export default {
     "@nuxtjs/bootstrap-vue",
     "@nuxtjs/pwa",
   ],
+  // ⚠️ PRODUCTION: แก้ baseURL เป็น production API URL
+  // เช่น baseURL: "https://api.yourdomain.com"
   axios: {
     baseURL: "/api",
     browserBaseURL: "/api",
-    proxy: true,
+    proxy: true, // ⚠️ PRODUCTION: เปลี่ยนเป็น false ถ้าไม่ใช้ proxy
     credentials: true,
   },
 
+  // ⚠️ PRODUCTION: ถ้าไม่ใช้ proxy ให้ลบหรือ comment block นี้ออก
+  // หรือเปลี่ยน target เป็น production API URL
   // Proxy config - bypass CORS ทุกครั้ง
   proxy: {
     "/api": {
-      target: "https://ripedresearch.org",
+      target: "https://ripedresearch.org", // ⚠️ PRODUCTION: แก้เป็น production API URL
       pathRewrite: {
         "^/api": "",
       },
       changeOrigin: true,
       secure: false,
-      cookieDomainRewrite: "localhost",
+      cookieDomainRewrite: "localhost", // ⚠️ PRODUCTION: แก้เป็น production domain
       headers: {
         Connection: "keep-alive",
       },
@@ -114,6 +119,7 @@ export default {
     },
   },
   router: {
+    // ⚠️ PRODUCTION: ถ้า deploy ใน subfolder ให้ uncomment และแก้ path
     // base: "/folder-deploy/",
     middleware: [],
   },
@@ -128,11 +134,11 @@ export default {
       ogSiteName: "Riped V2 Research",
       ogTitle: "Riped V2 Research",
       ogDescription: "Research Dashboard Template",
-      ogImage: "/logo.png",
-      ogUrl: "https://ripped-v2.com",
+      ogImage: "/logo.png", //แก้พาท logo
+      ogUrl: "https://ripped-v2.com", // ⚠️ PRODUCTION: แก้เป็น production URL
       twitterCard: "summary_large_image",
-      twitterSite: "@ripped",
-      twitterCreator: "@ripped",
+      twitterSite: "@ripped", // ⚠️ PRODUCTION: แก้เป็น Twitter account จริง (ถ้ามี)
+      twitterCreator: "@ripped", // ⚠️ PRODUCTION: แก้เป็น Twitter account จริง (ถ้ามี)
     },
     manifest: {
       name: "Riped V2 Research",
@@ -161,9 +167,11 @@ export default {
       ],
     },
     workbox: {
-      enabled: false, // ปิด cache ไว้ก่อน เพื่อการ development
+      // ⚠️ PRODUCTION: เปลี่ยนเป็น true เพื่อเปิดใช้งาน service worker และ cache
+      enabled: false, // ปิด cache ไว้ก่อน เพื่อการ development *อย่าพึ่งเปิด
       runtimeCaching: [
         {
+          // ⚠️ PRODUCTION: แก้ urlPattern เป็น production API URL
           urlPattern: "^http://localhost:3001/.*",
           handler: "networkFirst",
           method: "GET",
