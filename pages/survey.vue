@@ -200,7 +200,7 @@
               :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 1 }"
               @click="setQ5Answer(activities[currentQ5Index].no, 1)"
             >
-              ทำได้ (1)
+              ทำได้เอง (1)
             </button>
             
             <button
@@ -208,7 +208,7 @@
               :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 2 }"
               @click="setQ5Answer(activities[currentQ5Index].no, 2)"
             >
-              ทำได้บ้าง (2)
+              ทำได้โดยได้รับการช่วยเหลือ (2)
             </button>
 
             <button
@@ -216,7 +216,7 @@
               :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 3 }"
               @click="setQ5Answer(activities[currentQ5Index].no, 3)"
             >
-              ทำไม่ได้ (3)
+              ทำไม่ได้เลย (3)
             </button>
           </div>
 
@@ -402,7 +402,7 @@
               :class="{ 'selected': answers.q9[activities[currentActivityIndex].no] === 1 }"
               @click="setActivityAnswer(activities[currentActivityIndex].no, 1)"
             >
-              ทำได้ (1)
+              ทำได้เอง (1)
             </button>
             
             <button
@@ -410,7 +410,7 @@
               :class="{ 'selected': answers.q9[activities[currentActivityIndex].no] === 2 }"
               @click="setActivityAnswer(activities[currentActivityIndex].no, 2)"
             >
-              ทำได้บ้าง (2)
+              ทำได้โดยได้รับการช่วยเหลือ (2)
             </button>
 
             <button
@@ -418,7 +418,7 @@
               :class="{ 'selected': answers.q9[activities[currentActivityIndex].no] === 3 }"
               @click="setActivityAnswer(activities[currentActivityIndex].no, 3)"
             >
-              ทำไม่ได้ (3)
+              ทำไม่ได้เลย (3)
             </button>
           </div>
 
