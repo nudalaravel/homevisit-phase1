@@ -157,8 +157,8 @@ export default {
         this.errors.password = 'กรุณากรอกรหัสผ่าน'
         return false
       }
-      if (this.form.password.length < 6) {
-        this.errors.password = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'
+      if (this.form.password.length < 2) {
+        this.errors.password = 'รหัสผ่านต้องมีอย่างน้อย 2 ตัวอักษร'
         return false
       }
       delete this.errors.password

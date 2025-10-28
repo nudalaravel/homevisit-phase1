@@ -610,9 +610,10 @@ export default function ({ app, store, $axios }, inject) {
                 q6: parseArrayFromString(result.q6),
                 q6_des: result.q6_des || "", // เก็บทั้งสอง q6_des และ q6_other
                 q6_other: result.q6_des || "", // ใน IndexedDB ใช้ q6_other
-                // q7 จาก API เป็น string ต้อง convert เป็น array of numbers
-                q7: parseArrayFromString(result.q7),
-                q71: result.q71 || "",
+                // q7 เป็น single value (1 = มี, 0 = ไม่มี)
+                q7: result.q7 != null ? Number(result.q7) : null,
+                // q71 จาก API เป็น string ต้อง convert เป็น array of numbers
+                q71: parseArrayFromString(result.q71),
                 q71_des: result.q71_des || "",
                 q8: result.q8 != null ? Number(result.q8) : null,
                 // q9 ใช้ activity ID เป็น key (จาก q91_name, q92_name, ...)
@@ -927,18 +928,27 @@ export default function ({ app, store, $axios }, inject) {
     /**
      * อัพโหลดรูปภาพ base64 ไป S3
      * @param {string} base64Image - รูปภาพในรูปแบบ base64
+     * @param {string} picname - ชื่อรูป: "toy" (activity equipment) หรือ "activity" (interaction)
+     * @param {string} stid - รหัสผู้รับบริการ
+     * @param {string} timeVisit - ครั้งที่เยี่ยม
      * @returns {Promise<string|null>} URL ของรูปภาพบน S3 หรือ null ถ้าล้มเหลว
      */
-    async uploadImageToS3(base64Image) {
-      return "test.jpg";
+    async uploadImageToS3(base64Image, picname, stid, timeVisit) {
+      // return "test.jpg";
       try {
         if (!base64Image || !base64Image.startsWith("data:image")) {
           return null;
         }
 
-        const response = await $axios.$post("/api/spa/s3upload.php", {
-          image: base64Image,
-        });
+        const response = await $axios.$post(
+          "/api/parenting2025_census/post/homevisit/s3upload.php",
+          {
+            image: base64Image,
+            picname: picname,
+            stid: stid,
+            time_visit: timeVisit,
+          }
+        );
 
         if (response && response.url) {
           return response.url;
@@ -1006,58 +1016,94 @@ export default function ({ app, store, $axios }, inject) {
             const pic3 = ""; // pic3 ไม่ใช้งาน - ส่งค่าว่าง
 
             try {
-              // Process image 1
+              // Process image 1 (toy/equipment)
               if (survey.surveyImages?.[0]) {
                 const img1 = survey.surveyImages[0];
-                if (typeof img1 === "object" && img1.url) {
-                  // Already has URL, use it
+                const hasValidUrl =
+                  typeof img1 === "object" &&
+                  img1.url &&
+                  (img1.url.startsWith("http://") ||
+                    img1.url.startsWith("https://"));
+
+                if (hasValidUrl) {
+                  // ✅ รูปมี URL แล้ว (อัพโหลดไปแล้ว) - ใช้ URL เดิม ไม่อัพโหลดซ้ำ
                   pic1 = img1.url;
                 } else if (
                   (typeof img1 === "object" && img1.base64) ||
                   typeof img1 === "string"
                 ) {
-                  // Upload base64 to S3
+                  // ⚠️ รูปใหม่ที่ยังไม่มี URL - อัพโหลดไป S3
                   const base64Data =
                     typeof img1 === "object" ? img1.base64 : img1;
-                  const uploadedUrl = await this.uploadImageToS3(base64Data);
-                  if (uploadedUrl) {
-                    pic1 = uploadedUrl;
-                    // Update survey with URL
-                    survey.surveyImages[0] = {
-                      base64: base64Data,
-                      url: uploadedUrl,
-                      key: "pic1",
-                    };
+
+                  if (base64Data && base64Data.startsWith("data:image")) {
+                    const uploadedUrl = await this.uploadImageToS3(
+                      base64Data,
+                      "toy",
+                      survey.stid,
+                      String(survey.time)
+                    );
+                    if (uploadedUrl) {
+                      pic1 = uploadedUrl;
+                      // Update survey with URL
+                      survey.surveyImages[0] = {
+                        base64: base64Data,
+                        url: uploadedUrl,
+                        key: "pic1",
+                      };
+                    } else {
+                      throw new Error(
+                        "ไม่สามารถอัพโหลดรูปภาพที่ 1 ไปยัง S3 ได้"
+                      );
+                    }
                   } else {
-                    throw new Error("ไม่สามารถอัพโหลดรูปภาพที่ 1 ไปยัง S3 ได้");
+                    console.warn("⚠️ รูปภาพที่ 1 ไม่ถูกต้อง - ข้ามการอัพโหลด");
                   }
                 }
               }
 
-              // Process image 2
+              // Process image 2 (activity/interaction)
               if (survey.surveyImages?.[1]) {
                 const img2 = survey.surveyImages[1];
-                if (typeof img2 === "object" && img2.url) {
-                  // Already has URL, use it
+                const hasValidUrl =
+                  typeof img2 === "object" &&
+                  img2.url &&
+                  (img2.url.startsWith("http://") ||
+                    img2.url.startsWith("https://"));
+
+                if (hasValidUrl) {
+                  // ✅ รูปมี URL แล้ว (อัพโหลดไปแล้ว) - ใช้ URL เดิม ไม่อัพโหลดซ้ำ
                   pic2 = img2.url;
                 } else if (
                   (typeof img2 === "object" && img2.base64) ||
                   typeof img2 === "string"
                 ) {
-                  // Upload base64 to S3
+                  // ⚠️ รูปใหม่ที่ยังไม่มี URL - อัพโหลดไป S3
                   const base64Data =
                     typeof img2 === "object" ? img2.base64 : img2;
-                  const uploadedUrl = await this.uploadImageToS3(base64Data);
-                  if (uploadedUrl) {
-                    pic2 = uploadedUrl;
-                    // Update survey with URL
-                    survey.surveyImages[1] = {
-                      base64: base64Data,
-                      url: uploadedUrl,
-                      key: "pic2",
-                    };
+
+                  if (base64Data && base64Data.startsWith("data:image")) {
+                    const uploadedUrl = await this.uploadImageToS3(
+                      base64Data,
+                      "activity",
+                      survey.stid,
+                      String(survey.time)
+                    );
+                    if (uploadedUrl) {
+                      pic2 = uploadedUrl;
+                      // Update survey with URL
+                      survey.surveyImages[1] = {
+                        base64: base64Data,
+                        url: uploadedUrl,
+                        key: "pic2",
+                      };
+                    } else {
+                      throw new Error(
+                        "ไม่สามารถอัพโหลดรูปภาพที่ 2 ไปยัง S3 ได้"
+                      );
+                    }
                   } else {
-                    throw new Error("ไม่สามารถอัพโหลดรูปภาพที่ 2 ไปยัง S3 ได้");
+                    console.warn("⚠️ รูปภาพที่ 2 ไม่ถูกต้อง - ข้ามการอัพโหลด");
                   }
                 }
               }
@@ -1178,11 +1224,12 @@ export default function ({ app, store, $axios }, inject) {
                     ? survey.answers.q6.join(",")
                     : String(survey.answers?.q6 || ""),
                   survey.answers?.q6_other || survey.answers?.q6_des || "",
-                  // q7 เป็น array ต้อง convert เป็น string
-                  Array.isArray(survey.answers?.q7)
-                    ? survey.answers.q7.join(",")
-                    : String(survey.answers?.q7 || ""),
-                  String(survey.answers?.q71 || ""),
+                  // q7 เป็น single value (1 = มี, 0 = ไม่มี)
+                  String(survey.answers?.q7 ?? ""),
+                  // q71 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q71)
+                    ? survey.answers.q71.join(",")
+                    : String(survey.answers?.q71 || ""),
                   survey.answers?.q71_des || "",
                   String(survey.answers?.q8 || ""),
                   q9ActivityNames[0],
@@ -1313,11 +1360,12 @@ export default function ({ app, store, $axios }, inject) {
                     ? survey.answers.q6.join(",")
                     : String(survey.answers?.q6 || ""),
                   survey.answers?.q6_other || survey.answers?.q6_des || "",
-                  // q7 เป็น array ต้อง convert เป็น string
-                  Array.isArray(survey.answers?.q7)
-                    ? survey.answers.q7.join(",")
-                    : String(survey.answers?.q7 || ""),
-                  String(survey.answers?.q71 || ""),
+                  // q7 เป็น single value (1 = มี, 0 = ไม่มี)
+                  String(survey.answers?.q7 ?? ""),
+                  // q71 เป็น array ต้อง convert เป็น string
+                  Array.isArray(survey.answers?.q71)
+                    ? survey.answers.q71.join(",")
+                    : String(survey.answers?.q71 || ""),
                   survey.answers?.q71_des || "",
                   String(survey.answers?.q8 || ""),
                   q9ActivityNames[0],

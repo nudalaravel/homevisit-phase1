@@ -62,24 +62,35 @@ export default {
   ],
 
   axios: {
-    baseURL: "https://ripedresearch.org",
-    browserBaseURL: "https://ripedresearch.org",
-    proxy: false, // ⚠️ PRODUCTION: เปลี่ยนเป็น false ถ้าไม่ใช้ proxy
+    baseURL:
+      process.env.NODE_ENV === "production"
+        ? "https://ripedresearch.org"
+        : "/api",
+    browserBaseURL:
+      process.env.NODE_ENV === "production"
+        ? "https://ripedresearch.org"
+        : "/api",
+    proxy: true, // เปิดใช้ proxy เพื่อ bypass CORS
     credentials: true,
   },
 
-  // ⚠️ PRODUCTION: ถ้าไม่ใช้ proxy ให้ลบหรือ comment block นี้ออก
-  // หรือเปลี่ยน target เป็น production API URL
-  // Proxy config - bypass CORS ทุกครั้ง
+  // Proxy config - bypass CORS
   proxy: {
     "/api": {
       target: "https://ripedresearch.org",
       pathRewrite: {
-        "^/api": "",
+        "^/api": "", // ลบ /api prefix ก่อนส่งไปยัง target
       },
-      changeOrigin: true,
-      secure: false,
-      cookieDomainRewrite: "localhost", // ⚠️ PRODUCTION: แก้เป็น production domain
+      changeOrigin: true, // เปลี่ยน origin header ให้ตรงกับ target
+      secure: false, // อนุญาตให้ติดต่อกับ HTTPS ที่มี self-signed certificate
+      cookieDomainRewrite: {
+        "*": "", // ลบ domain จาก cookies
+      },
+      onProxyReq(proxyReq, req, res) {
+        // เพิ่ม headers เพื่อให้ server ยอมรับ request
+        proxyReq.setHeader("Origin", "https://ripedresearch.org");
+        proxyReq.setHeader("Referer", "https://ripedresearch.org/");
+      },
       headers: {
         Connection: "keep-alive",
       },
@@ -157,21 +168,60 @@ export default {
     },
     workbox: {
       // ⚠️ PRODUCTION: เปลี่ยนเป็น true เพื่อเปิดใช้งาน service worker และ cache
-      enabled: false, // ปิด cache ไว้ก่อน เพื่อการ development *อย่าพึ่งเปิด
+      enabled: process.env.NODE_ENV === "production", // เปิดใน production, ปิดใน development
       runtimeCaching: [
         {
-          // ⚠️ PRODUCTION: แก้ urlPattern เป็น production API URL
-          urlPattern: "^https://ripedresearch.org/api/.*",
+          // API Cache - networkFirst (ลองเน็ตก่อน ถ้าไม่ได้ใช้ cache)
+          urlPattern: "^https://ripedresearch.org/.*",
           handler: "networkFirst",
           method: "GET",
           strategyOptions: {
             cacheName: "api-cache",
+            networkTimeoutSeconds: 10,
             cacheableResponse: {
               statuses: [0, 200],
+            },
+            expiration: {
+              maxEntries: 50,
+              maxAgeSeconds: 60 * 60 * 24 * 365, // 365 days
+            },
+          },
+        },
+        {
+          // Image Cache - cacheFirst (ใช้ cache ก่อน ประหยัดเน็ต)
+          urlPattern: /\.(png|jpg|jpeg|gif|webp|svg)$/,
+          handler: "cacheFirst",
+          strategyOptions: {
+            cacheName: "image-cache",
+            cacheableResponse: {
+              statuses: [0, 200],
+            },
+            expiration: {
+              maxEntries: 100,
+              maxAgeSeconds: 60 * 60 * 24 * 365, // 365 days
+            },
+          },
+        },
+        {
+          // S3 Image Cache - cacheFirst
+          urlPattern: /^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*/,
+          handler: "cacheFirst",
+          strategyOptions: {
+            cacheName: "s3-image-cache",
+            cacheableResponse: {
+              statuses: [0, 200],
+            },
+            expiration: {
+              maxEntries: 200,
+              maxAgeSeconds: 60 * 60 * 24 * 365, // 365 days
             },
           },
         },
       ],
+      // Offline page
+      offlinePage: "/homevisit/offline/",
+      // Register service worker
+      autoRegister: true,
     },
   },
 };

@@ -1864,8 +1864,8 @@ export default {
             
             // Check if it's new object format { base64, url, key }
             if (typeof img === 'object' && img !== null) {
-              // Prioritize URL, fallback to base64
-              const imageData = img.url || img.base64
+              // ⚠️ Offline Mode: ใช้ base64 เมื่อ offline เพื่อให้แสดงได้
+              const imageData = (!navigator.onLine && img.base64) ? img.base64 : (img.url || img.base64)
               currentImages.push(imageData)
               currentImageKeys.push(survey.surveyImageKeys?.[i] || null)
             } else if (typeof img === 'string') {
