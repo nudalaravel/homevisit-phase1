@@ -7,13 +7,6 @@
     "_name": "_681781da"
   },
   {
-    "name": "offline",
-    "path": "/offline",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/offline.vue",
-    "chunkName": "pages/offline",
-    "_name": "_2143bdd8"
-  },
-  {
     "name": "survey",
     "path": "/survey",
     "component": "/Users/exd/Documents/works/riped-v2/pages/survey.vue",

@@ -179,7 +179,8 @@
         <!-- Show current activity question for Q5 -->
         <div v-if="currentQ5Index < activities.length">
           <h4 class="question-title">
-            5 : ให้ผู้เยี่ยมบ้านสังเกตหรือทบทวนกิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก
+            5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำ
+กิจกรรมร่วมกับเด็ก
           </h4>
           <p class="question-subtitle">
             กิจกรรมที่ {{ currentQ5Index + 1 }} / {{ activities.length }}
@@ -292,10 +293,10 @@
         
         <button
           class="option-btn"
-          :class="{ 'selected': answers.q7 === 0 }"
-          @click="answers.q7 = 0"
+          :class="{ 'selected': answers.q7 === 3 }"
+          @click="answers.q7 = 3"
         >
-          ไม่มี (0)
+          ไม่มี (3)
         </button>
       </div>
 
@@ -680,7 +681,22 @@
 </template>
 
 <script>
+import { MONTH_OPTIONS, TIME_OPTIONS } from '~/utils/constants'
+import { getDaysInMonth, generateDayOptions } from '~/utils/dateHelpers'
+import { convertToWebP } from '~/utils/imageHelpers'
+import { generateYearOptions } from '~/utils/visitHelpers'
+import { 
+  PARTICIPANT_OPTIONS, 
+  ACTIVITY_ANSWER_OPTIONS,
+  validateSurveyStep,
+  generateTimeOptions,
+  normalizeImageUrl as normalizeImageUrlHelper,
+  parseQ7Data,
+  loadSurveyImages
+} from '~/utils/surveyHelpers'
+
 export default {
+  name: 'SurveyPage',
   layout: 'admin',
   middleware: 'auth',
   data() {
@@ -736,35 +752,9 @@ export default {
       },
       
       // Options for multi-select questions
-      q3Options: [
-        { value: 1, label: 'แม่ (1)' },
-        { value: 3, label: 'พ่อ (3)' },
-        { value: 5, label: 'ย่า/ยาย (5)' },
-        { value: 7, label: 'ปู่/ตา (7)' },
-        { value: 9, label: 'พี่/น้อง (9)' },
-        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 13, label: 'อื่นๆ (13)' }
-      ],
-      
-      q6Options: [
-        { value: 1, label: 'แม่ (1)' },
-        { value: 3, label: 'พ่อ (3)' },
-        { value: 5, label: 'ย่า/ยาย (5)' },
-        { value: 7, label: 'ปู่/ตา (7)' },
-        { value: 9, label: 'พี่/น้อง (9)' },
-        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 13, label: 'อื่นๆ (13)' }
-      ],
-      
-      q71Options: [
-        { value: 1, label: 'แม่ (1)' },
-        { value: 3, label: 'พ่อ (3)' },
-        { value: 5, label: 'ย่า/ยาย (5)' },
-        { value: 7, label: 'ปู่/ตา (7)' },
-        { value: 9, label: 'พี่/น้อง (9)' },
-        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 13, label: 'อื่นๆ (13)' }
-      ],
+      q3Options: PARTICIPANT_OPTIONS,
+      q6Options: PARTICIPANT_OPTIONS,
+      q71Options: PARTICIPANT_OPTIONS,
       
       // Time options for end time
       hourOptions: [],
@@ -781,34 +771,9 @@ export default {
         activities: []
       },
       
-      monthOptions: [
-        { value: 1, text: 'มกราคม' },
-        { value: 2, text: 'กุมภาพันธ์' },
-        { value: 3, text: 'มีนาคม' },
-        { value: 4, text: 'เมษายน' },
-        { value: 5, text: 'พฤษภาคม' },
-        { value: 6, text: 'มิถุนายน' },
-        { value: 7, text: 'กรกฎาคม' },
-        { value: 8, text: 'สิงหาคม' },
-        { value: 9, text: 'กันยายน' },
-        { value: 10, text: 'ตุลาคม' },
-        { value: 11, text: 'พฤศจิกายน' },
-        { value: 12, text: 'ธันวาคม' }
-      ],
+      monthOptions: MONTH_OPTIONS,
       yearOptions: [],
-      timeOptions: [
-        { value: '08:00 น.', text: '08:00 น.' },
-        { value: '09:00 น.', text: '09:00 น.' },
-        { value: '10:00 น.', text: '10:00 น.' },
-        { value: '11:00 น.', text: '11:00 น.' },
-        { value: '12:00 น.', text: '12:00 น.' },
-        { value: '13:00 น.', text: '13:00 น.' },
-        { value: '14:00 น.', text: '14:00 น.' },
-        { value: '15:00 น.', text: '15:00 น.' },
-        { value: '16:00 น.', text: '16:00 น.' },
-        { value: '17:00 น.', text: '17:00 น.' },
-        { value: '18:00 น.', text: '18:00 น.' }
-      ]
+      timeOptions: TIME_OPTIONS
     }
   },
   computed: {
@@ -817,11 +782,11 @@ export default {
       const year = this.newAppointment.year
       
       if (!month || !year) {
-        return this.generateDayOptions(31)
+        return generateDayOptions(31)
       }
       
-      const daysInMonth = this.getDaysInMonth(month, year)
-      return this.generateDayOptions(daysInMonth)
+      const daysInMonth = getDaysInMonth(month, year)
+      return generateDayOptions(daysInMonth)
     },
     
     // ตรวจสอบว่าควรแสดง step 5 หรือไม่ (ไม่แสดงถ้า time = 1)
@@ -881,23 +846,14 @@ export default {
   },
   async mounted() {
     this.initTimeOptions()
+    this.yearOptions = generateYearOptions(0, 2) // Current year to +2
     await this.initializeSurvey()
   },
   methods: {
     initTimeOptions() {
-      // Generate hour options (00-23)
-      this.hourOptions = [{ value: null, text: '-ชั่วโมง-' }]
-      for (let i = 0; i < 24; i++) {
-        const hour = String(i).padStart(2, '0')
-        this.hourOptions.push({ value: hour, text: hour })
-      }
-      
-      // Generate minute options (00-59)
-      this.minuteOptions = [{ value: null, text: '-นาที-' }]
-      for (let i = 0; i < 60; i++) {
-        const minute = String(i).padStart(2, '0')
-        this.minuteOptions.push({ value: minute, text: minute })
-      }
+      const { hourOptions, minuteOptions } = generateTimeOptions()
+      this.hourOptions = hourOptions
+      this.minuteOptions = minuteOptions
       
       // Set default to current time
       const now = new Date()
@@ -920,19 +876,7 @@ export default {
     },
     
     normalizeImageUrl(url) {
-      // แปลง URL ให้เป็น full URL ถ้าจำเป็น
-      if (!url) return null
-      
-      // ถ้าเป็น base64 data URL ให้ return ทันที
-      if (url.startsWith('data:')) return url
-      
-      // ถ้าเป็น full URL แล้ว (http:// หรือ https://) ให้ return ทันที
-      if (url.startsWith('http://') || url.startsWith('https://')) return url
-      
-      // ถ้าเป็น relative path ให้เพิ่ม base URL
-      // สมมติว่า API อยู่ที่ domain เดียวกันกับ frontend
-      const baseUrl = window.location.origin
-      return url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`
+      return normalizeImageUrlHelper(url, !navigator.onLine)
     },
     
     async loadPatientsCount() {
@@ -1100,27 +1044,11 @@ export default {
       // ⚠️ Convert string to number for q1, q2, q4, q8 (from API)
       
       // Backward compatibility: Old q7 was array, new q7 is single value (1/0)
-      let q7Value = null
-      let q71Array = []
-      let q71DesValue = ''
-      
-      if (survey.answers?.q7 != null) {
-        if (Array.isArray(survey.answers.q7)) {
-          // Old format: q7 was array
-          if (survey.answers.q7.length > 0) {
-            q7Value = 1 // มี
-            q71Array = survey.answers.q7.map(v => Number(v))
-            q71DesValue = survey.answers?.q71 || survey.answers?.q71_des || ''
-          } else {
-            q7Value = 0 // ไม่มี
-          }
-        } else {
-          // New format: q7 is single value
-          q7Value = Number(survey.answers.q7)
-          q71Array = Array.isArray(survey.answers?.q71) ? survey.answers.q71.map(v => Number(v)) : []
-          q71DesValue = survey.answers?.q71_des || ''
-        }
-      }
+      const q7Data = parseQ7Data(
+        survey.answers?.q7,
+        survey.answers?.q71,
+        survey.answers?.q71_des || survey.answers?.q71 || ''
+      )
       
       this.answers = {
         ...this.answers,
@@ -1134,9 +1062,9 @@ export default {
         q3: Array.isArray(survey.answers?.q3) ? survey.answers.q3.map(v => Number(v)) : [],
         q6: Array.isArray(survey.answers?.q6) ? survey.answers.q6.map(v => Number(v)) : [],
         // New q7 structure with backward compatibility
-        q7: q7Value,
-        q71: q71Array,
-        q71_des: q71DesValue,
+        q7: q7Data.q7,
+        q71: q7Data.q71,
+        q71_des: q7Data.q71_des,
         // Map q6_des to q6_other (IndexedDB structure)
         q6_other: survey.answers?.q6_other || survey.answers?.q6_des || '',
         // Ensure notes field exists
@@ -1560,8 +1488,8 @@ export default {
       this.processing = true
       
       try {
-        // แปลงเป็น WebP และปรับขนาด
-        const webpBase64 = await this.convertToWebP(file)
+        // แปลงเป็น WebP และปรับขนาด (ใช้ max 1000px สำหรับ survey)
+        const webpBase64 = await convertToWebP(file, 1000, 1000, 0.90)
         
         // Store as object with base64 and url
         this.$set(this.surveyImages, index, {
@@ -1581,52 +1509,6 @@ export default {
       }
     },
     
-    async convertToWebP(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        
-        reader.onload = (e) => {
-          const img = new Image()
-          
-          img.onload = () => {
-            // คำนวณขนาดใหม่ ความกว้างสูงสุด 1000px
-            let width = img.width
-            let height = img.height
-            const maxWidth = 1000
-            
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width)
-              width = maxWidth
-            }
-            
-            // สร้าง canvas
-            const canvas = document.createElement('canvas')
-            canvas.width = width
-            canvas.height = height
-            
-            const ctx = canvas.getContext('2d')
-            ctx.drawImage(img, 0, 0, width, height)
-            
-            // แปลงเป็น WebP
-            try {
-              const webpDataUrl = canvas.toBlob ? 
-                canvas.toDataURL('image/webp', 0.90) :
-                canvas.toDataURL('image/jpeg', 0.90)
-              
-              resolve(webpDataUrl)
-            } catch (error) {
-              reject(error)
-            }
-          }
-          
-          img.onerror = reject
-          img.src = e.target.result
-        }
-        
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-    },
     
     async saveImageToIndexedDB(base64Image, index) {
       if (!this.$indexedDB) {
@@ -1812,101 +1694,27 @@ export default {
     },
     
     validateCurrentStep() {
-      switch(this.currentStep) {
-        case 1:
-          if (this.answers.q1 == null) {
-            this.$toast.warning('กรุณาเลือกคำตอบ')
-            return false
-          }
-          if (this.answers.q1 === 3 && !this.answers.q1_des.trim()) {
-            this.$toast.warning('กรุณากรอกเหตุผล')
-            return false
-          }
-          break
-        case 2:
-          if (this.answers.q2 == null) {
-            this.$toast.warning('กรุณาเลือกคำตอบ')
-            return false
-          }
-          if (this.answers.q2 === 3 && !this.answers.q2_des.trim()) {
-            this.$toast.warning('กรุณากรอกเหตุผล')
-            return false
-          }
-          break
-        case 3:
-          if (this.answers.q3.length === 0) {
-            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
-            return false
-          }
-          if (this.answers.q3.includes(13) && !this.answers.q3_des.trim()) {
-            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ ระบุ"')
-            return false
-          }
-          break
-        case 4:
-          if (this.answers.q4 == null) {
-            this.$toast.warning('กรุณาเลือกคำตอบ')
-            return false
-          }
-          break
-        case 6:
-          if (this.answers.q6.length === 0) {
-            this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
-            return false
-          }
-          if (this.answers.q6.includes(13) && !this.answers.q6_other.trim()) {
-            this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ ระบุ"')
-            return false
-          }
-          break
-        case 7:
-          if (this.answers.q7 == null) {
-            this.$toast.warning('กรุณาเลือกคำตอบ')
-            return false
-          }
-          // If "มี" is selected, validate q71
-          if (this.answers.q7 === 1) {
-            if (!this.answers.q71 || this.answers.q71.length === 0) {
-              this.$toast.warning('กรุณาเลือกคำตอบอย่างน้อย 1 ตัวเลือก')
-              return false
-            }
-            if (this.answers.q71.includes(13) && !this.answers.q71_des.trim()) {
-              this.$toast.warning('กรุณากรอกข้อมูลในช่อง "อื่นๆ โปรดระบุ"')
-              return false
-            }
-          }
-          break
-        case 8:
-          if (this.answers.q8 == null) {
-            this.$toast.warning('กรุณาเลือกคำตอบ')
-            return false
-          }
-          break
-        case 10:
-          if (!this.answers.endHour || !this.answers.endMinute) {
-            this.$toast.warning('กรุณาเลือกเวลาสิ้นสุดการเยี่ยม')
-            return false
-          }
-          break
-        case 11:
-          if (!this.skippedFromQ1 && !this.skippedFromQ2) {
-            // Validate based on current sub-step
-            if (this.currentImageSubStep === 2) {
-              // Leaving Step 11, both images must be uploaded
-              if (!this.displayImage2) {
-                this.$toast.warning('กรุณาอัพโหลดรูปภาพที่ 2')
-                return false
-              }
-            }
-          }
-          break
-        case 12:
-          if (!this.newAppointment.day || !this.newAppointment.month || !this.newAppointment.year || !this.newAppointment.time) {
-            this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
-            return false
-          }
-          break
+      const result = validateSurveyStep(
+        this.currentStep,
+        this.answers,
+        { image1: this.displayImage1, image2: this.displayImage2 },
+        this.currentImageSubStep
+      )
+      
+      if (!result.valid) {
+        this.$toast.warning(result.error)
+        return false
       }
+      
+      // Additional validation for step 12
+      if (this.currentStep === 12) {
+        if (!this.newAppointment.day || !this.newAppointment.month || 
+            !this.newAppointment.year || !this.newAppointment.time) {
+          this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
+          return false
+        }
+      }
+      
       return true
     },
     
@@ -2055,32 +1863,10 @@ export default {
       await this.recalculateMonthAgeAndActivities()
     },
     
-    isLeapYear(year) {
-      const gregorianYear = year - 543
-      return (gregorianYear % 4 === 0 && gregorianYear % 100 !== 0) || (gregorianYear % 400 === 0)
-    },
-    
-    getDaysInMonth(month, year) {
-      const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-      
-      if (month === 2 && this.isLeapYear(year)) {
-        return 29
-      }
-      
-      return daysInMonth[month - 1]
-    },
-    
-    generateDayOptions(maxDays) {
-      const options = []
-      for (let i = 1; i <= maxDays; i++) {
-        options.push({ value: i, text: i.toString() })
-      }
-      return options
-    },
     
     async onMonthChange() {
       if (this.newAppointment.day && this.newAppointment.year) {
-        const daysInMonth = this.getDaysInMonth(this.newAppointment.month, this.newAppointment.year)
+        const daysInMonth = getDaysInMonth(this.newAppointment.month, this.newAppointment.year)
         
         if (this.newAppointment.day > daysInMonth) {
           this.newAppointment.day = daysInMonth
@@ -2093,7 +1879,7 @@ export default {
     
     async onYearChange() {
       if (this.newAppointment.day && this.newAppointment.month === 2) {
-        const daysInMonth = this.getDaysInMonth(2, this.newAppointment.year)
+        const daysInMonth = getDaysInMonth(2, this.newAppointment.year)
         
         if (this.newAppointment.day > daysInMonth) {
           this.newAppointment.day = daysInMonth
@@ -2220,7 +2006,7 @@ export default {
   text-align: left;
   padding-bottom: 1rem;
   border-bottom: 3px solid #3551a4;
-  display: flex;
+  /* display: flex; */
   align-items: center;
   gap: 0.75rem;
 }
