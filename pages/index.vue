@@ -789,6 +789,9 @@ export default {
               
               // โหลดข้อมูลใหม่พร้อมการนัดหมายที่อัพเดท
               await this.loadVisitors()
+              
+              // Preload รูปภาพจาก S3 เพื่อให้ Service Worker cache ไว้
+              this.preloadSurveyImages() // ไม่ await เพื่อไม่ block UI
             } catch (error) {
               // จัดการข้อผิดพลาดการซิงค์นัดหมาย
             }
@@ -827,6 +830,9 @@ export default {
           this.loadingMessage = 'กำลังซิงค์ผลการบันทึกเยี่ยมบ้าน...'
           await this.$systemInit.syncSurveyResults(username)
           
+          // Preload รูปภาพจาก S3 เพื่อให้ Service Worker cache ไว้
+          this.loadingMessage = 'กำลังโหลดรูปภาพล่วงหน้า...'
+          this.preloadSurveyImages() // ไม่ await เพื่อไม่ block UI
         }
         
         // โหลดข้อมูลผู้รับบริการจาก IndexedDB
@@ -844,6 +850,45 @@ export default {
         await this.loadVisitors()
       } catch (error) {
         this.$toast.error('ไม่สามารถโหลดข้อมูลใหม่ได้')
+      }
+    },
+    async preloadSurveyImages() {
+      // 🎯 Preload รูปภาพจาก S3 URL เพื่อให้ Service Worker cache ไว้
+      // ทำงานใน background ไม่ block UI
+      try {
+        if (!navigator.onLine) return // ข้ามถ้า offline
+        
+        // ดึง survey ทั้งหมดที่มีรูปภาพ
+        const allSurveys = await this.$indexedDB.getAllSurveyProgress()
+        
+        let preloadCount = 0
+        const maxPreload = 50 // จำกัดจำนวนรูปที่ preload ครั้งละไม่เกิน 50 รูป
+        
+        for (const survey of allSurveys) {
+          if (preloadCount >= maxPreload) break
+          
+          if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
+            for (const img of survey.surveyImages) {
+              if (preloadCount >= maxPreload) break
+              
+              // เช็คว่าเป็น object format และมี URL จาก S3
+              if (typeof img === 'object' && img?.url) {
+                const url = img.url
+                
+                // เช็คว่าเป็น URL จริง (ไม่ใช่ base64)
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                  // Preload รูปโดยสร้าง Image object
+                  const image = new Image()
+                  image.src = url
+                  // ไม่ต้อง await เพื่อ preload หลายรูปพร้อมกัน
+                  preloadCount++
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Silent fail - ไม่แสดง error เพราะเป็น background task
       }
     },
     async loadVisitors() {
