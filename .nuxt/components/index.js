@@ -1,4 +1,5 @@
 export { default as EditPatientModal } from '../../components/EditPatientModal.vue'
+export { default as FailedSyncManager } from '../../components/FailedSyncManager.vue'
 export { default as Loading } from '../../components/Loading.vue'
 export { default as OnlineStatus } from '../../components/OnlineStatus.vue'
 export { default as PatientListItem } from '../../components/PatientListItem.vue'

@@ -12,6 +12,8 @@
       v-if="hasPendingSync"
       variant="info"
       class="sync-badge ml-2"
+      style="cursor: pointer"
+      @click="showSyncQueueDetails"
     >
       <i class="fas fa-sync-alt fa-spin"></i>
       รอซิงค์ {{ syncQueueLength }} รายการ
@@ -67,6 +69,46 @@
         </b-button>
       </template>
     </b-modal>
+
+    <!-- Sync Queue Details Modal -->
+    <b-modal
+      id="syncQueueModal"
+      v-model="showQueueModal"
+      title="รายละเอียด Sync Queue"
+      size="lg"
+      ok-only
+      ok-title="ปิด"
+    >
+      <div v-if="syncQueueDetails.length === 0" class="text-center text-muted">
+        <i class="fas fa-check-circle fa-3x mb-3"></i>
+        <p>ไม่มีข้อมูลรอซิงค์</p>
+      </div>
+      <div v-else>
+        <div 
+          v-for="(item, index) in syncQueueDetails" 
+          :key="item.id || index"
+          class="sync-queue-item"
+        >
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <strong>{{ item.action || 'Unknown Action' }}</strong>
+              <div class="text-muted small">
+                เวลา: {{ formatTimestamp(item.timestamp) }}
+              </div>
+              <div v-if="item.retries" class="text-warning small">
+                <i class="fas fa-redo"></i> ลองใหม่: {{ item.retries }} ครั้ง
+              </div>
+              <div v-if="item.lastError" class="text-danger small">
+                <i class="fas fa-exclamation-triangle"></i> {{ item.lastError }}
+              </div>
+            </div>
+            <b-badge :variant="getItemBadgeVariant(item)">
+              {{ getItemStatusText(item) }}
+            </b-badge>
+          </div>
+        </div>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -77,7 +119,9 @@ export default {
     return {
       indexedDBSyncQueueLength: 0,
       showSyncModal: false,
-      lastSyncTime: null
+      showQueueModal: false,
+      lastSyncTime: null,
+      syncQueueDetails: []
     }
   },
   computed: {
@@ -196,6 +240,39 @@ export default {
           this.indexedDBSyncQueueLength = 0
         }
       }
+    },
+
+    async showSyncQueueDetails() {
+      if (this.$indexedDB) {
+        try {
+          this.syncQueueDetails = await this.$indexedDB.getSyncQueue()
+          this.showQueueModal = true
+        } catch (error) {
+          console.error('Failed to load sync queue details:', error)
+          this.$bvToast.toast('ไม่สามารถโหลดรายละเอียดได้', {
+            title: 'ข้อผิดพลาด',
+            variant: 'danger',
+            solid: true
+          })
+        }
+      }
+    },
+
+    formatTimestamp(timestamp) {
+      if (!timestamp) return '-'
+      const date = new Date(timestamp)
+      return date.toLocaleString('th-TH')
+    },
+
+    getItemBadgeVariant(item) {
+      if (item.retries >= 5) return 'danger'
+      if (item.retries >= 3) return 'warning'
+      return 'info'
+    },
+
+    getItemStatusText(item) {
+      if (!item.retries) return 'รอซิงค์'
+      return `กำลังลองครั้งที่ ${item.retries + 1}`
     }
   }
 }
@@ -305,5 +382,23 @@ export default {
     justify-content: center;
     margin-top: 8px;
   }
+}
+
+/* Sync Queue Modal Styles */
+.sync-queue-item {
+  padding: 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  margin-bottom: 0.75rem;
+  background-color: #f8f9fa;
+  transition: background-color 0.2s;
+}
+
+.sync-queue-item:hover {
+  background-color: #e9ecef;
+}
+
+.sync-queue-item:last-child {
+  margin-bottom: 0;
 }
 </style>

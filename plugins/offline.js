@@ -5,8 +5,11 @@ export default function ({ app, store }, inject) {
       this.isOnline = navigator.onLine;
       this.syncQueue = [];
       this.syncInProgress = false;
+      this.lastOnlineCheck = null;
+      this.onlineCheckInterval = null;
       this.setupEventListeners();
       this.loadSyncQueue();
+      this.startOnlineCheck();
     }
 
     setupEventListeners() {
@@ -102,21 +105,40 @@ export default function ({ app, store }, inject) {
           const itemsToSync = [...this.syncQueue];
 
           for (const item of itemsToSync) {
+            // เช็คว่าต้อง delay ก่อน retry หรือไม่ (exponential backoff)
+            if (item.lastRetryAt && item.retries > 0) {
+              const timeSinceLastRetry = Date.now() - new Date(item.lastRetryAt).getTime();
+              const retryDelay = Math.min(1000 * Math.pow(2, item.retries), 30000); // max 30s
+
+              if (timeSinceLastRetry < retryDelay) {
+                // ยังไม่ถึงเวลา retry ข้ามไปก่อน
+                continue;
+              }
+            }
+
             try {
               await this.syncItem(item);
               // Remove successful item from queue
               this.syncQueue = this.syncQueue.filter((q) => q.id !== item.id);
             } catch (error) {
               console.error("Sync failed for item:", item, error);
-              item.retries++;
+              item.retries = (item.retries || 0) + 1;
+              item.lastRetryAt = new Date().toISOString();
+              item.lastError = error.message || "Unknown error";
 
-              // Remove item after 3 retries
-              if (item.retries >= 3) {
+              // ย้ายไป failed queue หลัง retry 10 ครั้ง
+              if (item.retries >= 10) {
+                item.status = "failed";
+                item.failedAt = new Date().toISOString();
+
+                // บันทึกลง IndexedDB ถ้ามี
+                if (app.$indexedDB) {
+                  await app.$indexedDB.saveFailedSyncItem(item);
+                }
+
+                // ลบออกจาก sync queue
                 this.syncQueue = this.syncQueue.filter((q) => q.id !== item.id);
-                console.warn(
-                  "Removed item from sync queue after 3 retries:",
-                  item
-                );
+                console.warn("Moved item to failed queue after 10 retries:", item);
               }
             }
           }
@@ -171,6 +193,71 @@ export default function ({ app, store }, inject) {
       } catch (error) {
         console.error("Failed to load sync queue:", error);
         this.syncQueue = [];
+      }
+    }
+
+    // Check actual online status by pinging server
+    async checkOnlineStatus() {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+        // Ping a static file that we know exists (favicon)
+        // Using HEAD request to minimize data transfer
+        // Add timestamp to prevent cache
+        const response = await fetch("/homevisit/favicon.ico?t=" + Date.now(), {
+          method: "HEAD",
+          signal: controller.signal,
+          cache: "no-cache",
+        });
+
+        clearTimeout(timeoutId);
+
+        const isActuallyOnline = response.ok;
+
+        // Update status if changed
+        if (this.isOnline !== isActuallyOnline) {
+          this.isOnline = isActuallyOnline;
+          store.commit("setOnlineStatus", isActuallyOnline);
+
+          if (isActuallyOnline) {
+            this.showOnlineNotification();
+            this.processSyncQueue();
+          } else {
+            this.showOfflineNotification();
+          }
+        }
+
+        this.lastOnlineCheck = new Date().toISOString();
+        return isActuallyOnline;
+      } catch (error) {
+        // If fetch fails, assume offline
+        if (this.isOnline) {
+          this.isOnline = false;
+          store.commit("setOnlineStatus", false);
+          this.showOfflineNotification();
+        }
+        this.lastOnlineCheck = new Date().toISOString();
+        return false;
+      }
+    }
+
+    // Start periodic online status checking (every 30 seconds)
+    startOnlineCheck() {
+      // Check immediately on start
+      this.checkOnlineStatus();
+
+      // Then check every 30 seconds
+      this.onlineCheckInterval = setInterval(() => {
+        this.checkOnlineStatus();
+      }, 30000); // 30 วินาที
+    }
+
+    // Stop online status checking
+    stopOnlineCheck() {
+      if (this.onlineCheckInterval) {
+        clearInterval(this.onlineCheckInterval);
+        this.onlineCheckInterval = null;
       }
     }
 

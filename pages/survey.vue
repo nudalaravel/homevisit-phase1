@@ -706,6 +706,7 @@ import { MONTH_OPTIONS, TIME_OPTIONS } from '~/utils/constants'
 import { getDaysInMonth, generateDayOptions } from '~/utils/dateHelpers'
 import { convertToWebP } from '~/utils/imageHelpers'
 import { generateYearOptions } from '~/utils/visitHelpers'
+import { debounce } from '~/utils/helpers'
 import { 
   PARTICIPANT_OPTIONS, 
   ACTIVITY_ANSWER_OPTIONS,
@@ -736,6 +737,9 @@ export default {
       surveyId: null,
       timeStart: null,
       timeEnd: null,
+      
+      // Debounced save function
+      saveProgressDebounced: null,
       
       // Activities from database
       activities: [],
@@ -833,8 +837,11 @@ export default {
         return null
       }
       
+      // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+      const isOffline = !this.$store.state.isOnline
+      
       if (typeof img === 'object') {
-        if (!navigator.onLine && img.base64) {
+        if (isOffline && img.base64) {
           return this.normalizeImageUrl(img.base64)
         }
         const rawUrl = img.url || img.base64 || null
@@ -850,8 +857,11 @@ export default {
         return null
       }
       
+      // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+      const isOffline = !this.$store.state.isOnline
+      
       if (typeof img === 'object') {
-        if (!navigator.onLine && img.base64) {
+        if (isOffline && img.base64) {
           return this.normalizeImageUrl(img.base64)
         }
         const rawUrl = img.url || img.base64 || null
@@ -863,6 +873,12 @@ export default {
   async mounted() {
     this.initTimeOptions()
     this.yearOptions = generateYearOptions(0, 2) // Current year to +2
+    
+    // สร้าง debounced save function (รอ 1000ms ก่อนบันทึก)
+    this.saveProgressDebounced = debounce(() => {
+      this.saveProgress()
+    }, 1000)
+    
     await this.initializeSurvey()
   },
   methods: {
@@ -1704,6 +1720,11 @@ export default {
       
       this.currentStep++
       
+      // บันทึกความคืบหน้าแบบ debounce (ไม่ block UI)
+      if (this.saveProgressDebounced) {
+        this.saveProgressDebounced()
+      }
+      
       // ข้าม step 3, 4, 5 ถ้า time = 1 (first visit)
       if (this.currentStep === 3 && this.visitorData && Number(this.visitorData.time) === 1) {
         // ล้าง value ของคำถามที่ข้าม (q3, q4, q5)
@@ -1800,7 +1821,10 @@ export default {
           this.currentStep--
         }
         
-        await this.saveProgress()
+        // บันทึกความคืบหน้าแบบ debounce (ไม่ block UI)
+        if (this.saveProgressDebounced) {
+          this.saveProgressDebounced()
+        }
       }
     },
     

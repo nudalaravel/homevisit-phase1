@@ -200,9 +200,9 @@ export default {
           },
         },
         {
-          // S3 Image Cache - cacheFirst
+          // S3 Image Cache - staleWhileRevalidate (แสดง cache แล้วอัพเดทในพื้นหลัง)
           urlPattern: /^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*/,
-          handler: "cacheFirst",
+          handler: "staleWhileRevalidate",
           strategyOptions: {
             cacheName: "s3-image-cache",
             cacheableResponse: {
@@ -210,7 +210,8 @@ export default {
             },
             expiration: {
               maxEntries: 200,
-              maxAgeSeconds: 60 * 60 * 24 * 365, // 365 days
+              maxAgeSeconds: 60 * 60 * 24 * 7, // 7 วัน (ลดจาก 365 วัน)
+              purgeOnQuotaError: true, // ลบ cache เก่าเมื่อพื้นที่เต็ม
             },
           },
         },

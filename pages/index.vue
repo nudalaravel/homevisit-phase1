@@ -822,41 +822,54 @@ export default {
         // เริ่มต้นระบบผ่าน store
         await this.$store.dispatch('initializeSystem', this)
         
-        // ซิงค์ข้อมูลถ้าออนไลน์
-        const username = this.$offlineAuth?.getUser?.()?.username
-        if (this.$store.state.isOnline && username) {
-          this.loadingMessage = 'กำลังซิงค์ข้อมูลผู้รับบริการ...'
-          await this.$systemInit.syncVisitors(username)
-          
-          
-          this.loadingMessage = 'กำลังซิงค์ข้อมูลการนัดหมาย...'
-          await this.$systemInit.syncBookings(username)
-          
-          // ส่งการนัดหมายที่ยังไม่ซิงค์
-          this.loadingMessage = 'กำลังส่งข้อมูลการนัดหมาย...'
-          await this.$systemInit.pushBookingsToAPI()
-          
-          // ส่งผลการทำแบบทดสอบที่ยังไม่ซิงค์
-          this.loadingMessage = 'กำลังส่งผลการทำแบบทดสอบ...'
-          await this.$systemInit.pushSurveyResultsToAPI()
-          
-          // ซิงค์ผลการบันทึกเยี่ยมบ้าน
-          this.loadingMessage = 'กำลังซิงค์ผลการบันทึกเยี่ยมบ้าน...'
-          await this.$systemInit.syncSurveyResults(username)
-          
-          // Preload รูปภาพจาก S3 เพื่อให้ Service Worker cache ไว้
-          this.loadingMessage = 'กำลังโหลดรูปภาพล่วงหน้า...'
-          this.preloadSurveyImages() // ไม่ await เพื่อไม่ block UI
-        }
-        
-        // โหลดข้อมูลผู้รับบริการจาก IndexedDB
+        // โหลดข้อมูลจาก IndexedDB ก่อนเสมอ (ทำงานได้ทั้ง online/offline)
         this.loadingMessage = 'กำลังโหลดข้อมูลผู้รับบริการ...'
         await this.loadVisitors()
+        
+        // ซิงค์ในพื้นหลังถ้าออนไลน์ (ไม่ block UI)
+        const username = this.$offlineAuth?.getUser?.()?.username
+        if (this.$store.state.isOnline && username) {
+          this.syncDataInBackground(username)
+        }
         
         this.loading = false
       } catch (error) {
         this.loading = false
         this.$toast.error('เกิดข้อผิดพลาดในการเริ่มต้นระบบ')
+      }
+    },
+    async syncDataInBackground(username) {
+      try {
+        // ซิงค์ข้อมูลในพื้นหลัง (ไม่แสดง loading overlay)
+        console.log('Starting background sync...')
+        
+        // ซิงค์ผู้รับบริการ
+        await this.$systemInit.syncVisitors(username)
+        
+        // ซิงค์การนัดหมาย
+        await this.$systemInit.syncBookings(username)
+        
+        // ส่งการนัดหมายที่ยังไม่ซิงค์
+        await this.$systemInit.pushBookingsToAPI()
+        
+        // ส่งผลการทำแบบทดสอบที่ยังไม่ซิงค์
+        await this.$systemInit.pushSurveyResultsToAPI()
+        
+        // ซิงค์ผลการบันทึกเยี่ยมบ้าน
+        await this.$systemInit.syncSurveyResults(username)
+        
+        // โหลดข้อมูลใหม่หลังซิงค์เสร็จ
+        await this.loadVisitors()
+        
+        // Preload รูปภาพจาก S3 เพื่อให้ Service Worker cache ไว้
+        this.preloadSurveyImages() // ไม่ await เพื่อไม่ block
+        
+        this.$toast.success('ซิงค์ข้อมูลเสร็จสิ้น')
+        console.log('Background sync completed')
+      } catch (error) {
+        console.error('Background sync failed:', error)
+        // ไม่แสดง error toast เพราะเป็น background task
+        // ผู้ใช้ยังสามารถใช้งานได้ปกติจากข้อมูลใน IndexedDB
       }
     },
     async handleSyncCompleted() {

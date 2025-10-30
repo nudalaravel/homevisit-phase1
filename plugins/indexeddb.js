@@ -6,7 +6,7 @@ export default function ({ app }, inject) {
   class IndexedDBManager {
     constructor() {
       this.dbName = "RipedV2DB"; // ชื่อฐานข้อมูล
-      this.version = 9; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
+      this.version = 10; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema) - เพิ่มเป็น 10 สำหรับ failed_sync store
       this.db = null; // Instance ของ database
       this.isInitialized = false; // สถานะการเริ่มต้นงาน
     }
@@ -166,6 +166,18 @@ export default function ({ app }, inject) {
             surveyProgressStore.createIndex("lastUpdated", "lastUpdated", {
               unique: false,
             });
+          }
+
+          // 12. Failed Sync Store - เก็บคิวข้อมูลที่ sync ล้มเหลว (สำหรับ retry ภายหลัง)
+          if (!db.objectStoreNames.contains("failed_sync")) {
+            const failedSyncStore = db.createObjectStore("failed_sync", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+            failedSyncStore.createIndex("action", "action", { unique: false });
+            failedSyncStore.createIndex("timestamp", "timestamp", { unique: false });
+            failedSyncStore.createIndex("failedAt", "failedAt", { unique: false });
+            failedSyncStore.createIndex("retries", "retries", { unique: false });
           }
         };
       });
@@ -1467,6 +1479,169 @@ export default function ({ app }, inject) {
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
+      });
+    }
+
+    // ========================================
+    // Failed Sync Methods (จัดการ sync items ที่ล้มเหลว)
+    // ========================================
+
+    /**
+     * บันทึก sync item ที่ล้มเหลวลง failed_sync store
+     * @param {Object} item - sync item ที่ล้มเหลว
+     * @returns {Promise<number>} - ID ของ item ที่บันทึก
+     */
+    async saveFailedSyncItem(item) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return null;
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["failed_sync"], "readwrite");
+        const store = transaction.objectStore("failed_sync");
+        
+        const itemToSave = {
+          ...item,
+          failedAt: item.failedAt || new Date().toISOString(),
+          status: "failed",
+        };
+        
+        const request = store.add(itemToSave);
+
+        request.onsuccess = () => {
+          resolve(request.result);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to save failed sync item:", request.error);
+          reject(request.error);
+        };
+      });
+    }
+
+    /**
+     * ดึงรายการ failed sync items ทั้งหมด
+     * @returns {Promise<Array>} - Array ของ failed sync items
+     */
+    async getFailedSyncItems() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return [];
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["failed_sync"], "readonly");
+        const store = transaction.objectStore("failed_sync");
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          resolve(request.result || []);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to get failed sync items:", request.error);
+          reject(request.error);
+        };
+      });
+    }
+
+    /**
+     * ลบ failed sync item ตาม ID
+     * @param {number} id - ID ของ item ที่ต้องการลบ
+     * @returns {Promise<boolean>} - สำเร็จหรือไม่
+     */
+    async deleteFailedSyncItem(id) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return false;
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["failed_sync"], "readwrite");
+        const store = transaction.objectStore("failed_sync");
+        const request = store.delete(id);
+
+        request.onsuccess = () => {
+          resolve(true);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to delete failed sync item:", request.error);
+          reject(request.error);
+        };
+      });
+    }
+
+    /**
+     * ย้าย failed sync item กลับไปยัง sync queue เพื่อ retry
+     * @param {number} id - ID ของ item ที่ต้องการ retry
+     * @returns {Promise<boolean>} - สำเร็จหรือไม่
+     */
+    async retryFailedSyncItem(id) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return false;
+      }
+
+      try {
+        // 1. ดึง failed item
+        const failedItems = await this.getFailedSyncItems();
+        const item = failedItems.find((i) => i.id === id);
+        
+        if (!item) {
+          console.warn("Failed sync item not found:", id);
+          return false;
+        }
+
+        // 2. เพิ่มกลับเข้า sync queue (รีเซ็ต retries)
+        const syncItem = {
+          action: item.action,
+          data: item.data,
+          timestamp: new Date().toISOString(),
+          retries: 0,
+        };
+        
+        await this.addToSyncQueue(syncItem.action, syncItem.data);
+
+        // 3. ลบออกจาก failed_sync
+        await this.deleteFailedSyncItem(id);
+
+        return true;
+      } catch (error) {
+        console.error("Failed to retry failed sync item:", error);
+        return false;
+      }
+    }
+
+    /**
+     * ลบ failed sync items ทั้งหมด
+     * @returns {Promise<boolean>} - สำเร็จหรือไม่
+     */
+    async clearFailedSyncItems() {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) {
+        console.warn("IndexedDB is not available, operation skipped");
+        return false;
+      }
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["failed_sync"], "readwrite");
+        const store = transaction.objectStore("failed_sync");
+        const request = store.clear();
+
+        request.onsuccess = () => {
+          resolve(true);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to clear failed sync items:", request.error);
+          reject(request.error);
+        };
       });
     }
 

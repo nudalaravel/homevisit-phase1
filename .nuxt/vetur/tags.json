@@ -2,6 +2,9 @@
   "EditPatientModal": {
     "description": "Auto imported from components/EditPatientModal.vue"
   },
+  "FailedSyncManager": {
+    "description": "Auto imported from components/FailedSyncManager.vue"
+  },
   "Loading": {
     "description": "Auto imported from components/Loading.vue"
   },

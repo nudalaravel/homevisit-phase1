@@ -3,18 +3,21 @@
     "name": "login",
     "path": "/login",
     "component": "/Users/exd/Documents/works/riped-v2/pages/login.vue",
-    "chunkName": "pages/login"
+    "chunkName": "pages/login",
+    "_name": "_681781da"
   },
   {
     "name": "survey",
     "path": "/survey",
     "component": "/Users/exd/Documents/works/riped-v2/pages/survey.vue",
-    "chunkName": "pages/survey"
+    "chunkName": "pages/survey",
+    "_name": "_4510288e"
   },
   {
     "name": "index",
     "path": "/",
     "component": "/Users/exd/Documents/works/riped-v2/pages/index.vue",
-    "chunkName": "pages/index"
+    "chunkName": "pages/index",
+    "_name": "_c320427a"
   }
 ]
