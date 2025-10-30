@@ -833,17 +833,14 @@ export default {
         return null
       }
       
-      // Support both new format (object) and old format (string)
       if (typeof img === 'object') {
-        // ⚠️ Offline Mode: ใช้ base64 เพื่อให้แสดงได้เมื่อไม่มีเน็ต
         if (!navigator.onLine && img.base64) {
           return this.normalizeImageUrl(img.base64)
         }
-        // Online Mode: Prioritize URL over base64
         const rawUrl = img.url || img.base64 || null
         return this.normalizeImageUrl(rawUrl)
       }
-      return this.normalizeImageUrl(img)  // Legacy: string base64 or URL
+      return this.normalizeImageUrl(img)
     },
     
     // แสดงรูปภาพที่ 2 - รองรับ Offline (ใช้ base64 เมื่อ offline)
@@ -853,17 +850,14 @@ export default {
         return null
       }
       
-      // Support both new format (object) and old format (string)
       if (typeof img === 'object') {
-        // ⚠️ Offline Mode: ใช้ base64 เพื่อให้แสดงได้เมื่อไม่มีเน็ต
         if (!navigator.onLine && img.base64) {
           return this.normalizeImageUrl(img.base64)
         }
-        // Online Mode: Prioritize URL over base64
         const rawUrl = img.url || img.base64 || null
         return this.normalizeImageUrl(rawUrl)
       }
-      return this.normalizeImageUrl(img)  // Legacy: string base64 or URL
+      return this.normalizeImageUrl(img)
     }
   },
   async mounted() {
@@ -928,19 +922,25 @@ export default {
         // โหลดจำนวนผู้รับบริการและอัพเดทข้อมูลในระบบ
         await this.loadPatientsCount()
         
+        // ตรวจสอบ query parameters จาก URL ก่อน (สำหรับกรณีรีเฟรสหน้า)
+        const urlParams = this.$route.query
+        const mode = urlParams.mode
+        const surveyIdFromUrl = urlParams.surveyId
+        
         // ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
         const editDataStr = localStorage.getItem('surveyEdit')
+        
         if (editDataStr) {
-          // โหมดแก้ไข
+          // โหมดแก้ไข (จาก localStorage)
           await this.loadEditMode(JSON.parse(editDataStr))
           localStorage.removeItem('surveyEdit')
+        } else if (mode === 'edit' && surveyIdFromUrl) {
+          // โหมดแก้ไข (จาก URL query parameters - กรณีรีเฟรสหน้า)
+          await this.loadEditModeFromUrl(surveyIdFromUrl)
         } else {
           // โหมดสร้างใหม่
           await this.loadNewSurveyMode()
         }
-        
-        // ดึงข้อมูลจาก API
-        // await this.fetchSurveyData()
         
         // โหลดกิจกรรมสำหรับคำถาม
         await this.loadActivities()
@@ -980,7 +980,6 @@ export default {
             monthAge = booking.month_age
           }
         } catch (error) {
-          console.warn('Failed to get month_age from booking:', error)
         }
       }
       
@@ -997,13 +996,114 @@ export default {
       
       // โหลดข้อมูลแบบสอบถามเดิม
       await this.loadExistingSurvey(survey)
+      
+      // อัพเดท URL ให้มี query parameters (ถ้ายังไม่มี)
+      if (!this.$route.query.mode || !this.$route.query.surveyId) {
+        this.$router.replace({
+          path: '/survey',
+          query: { mode: 'edit', surveyId: editData.surveyId }
+        })
+      }
+      
+      this.$toast.info('กำลังแก้ไขบันทึกการเยี่ยมบ้าน')
+    },
+    
+    async loadEditModeFromUrl(surveyId) {
+      // โหลดข้อมูลจาก IndexedDB โดยใช้ surveyId จาก URL (กรณีรีเฟรสหน้า)
+      const survey = await this.$indexedDB.getSurveyProgressById(surveyId)
+      if (!survey) {
+        this.$toast.error('ไม่พบข้อมูลการเยี่ยมบ้านที่ต้องการแก้ไข')
+        this.$router.push('/')
+        return
+      }
+      
+      // ตรวจสอบว่าอนุมัติแล้วหรือไม่ (approve_status == 1)
+      if (survey.approve_status === 1) {
+        this.$toast.error('ไม่สามารถแก้ไขได้ เนื่องจากได้รับการอนุมัติแล้ว')
+        this.$router.push('/')
+        return
+      }
+      
+      // ดึงข้อมูลผู้รับบริการจาก IndexedDB
+      const visitor = await this.$indexedDB.getVisitor(survey.stid)
+      if (!visitor) {
+        this.$toast.error('ไม่พบข้อมูลผู้รับบริการ')
+        this.$router.push('/')
+        return
+      }
+      
+      // ถ้า survey ไม่มี month_age ให้ดึงจาก booking
+      let monthAge = survey.month_age
+      if (!monthAge) {
+        try {
+          const booking = await this.$indexedDB.getBooking(survey.stid)
+          if (booking && booking.month_age) {
+            monthAge = booking.month_age
+          }
+        } catch (error) {
+        }
+      }
+      
+      // ตั้งค่าข้อมูลผู้รับบริการ
+      this.visitorData = {
+        stid: survey.stid,
+        name: visitor.cname || visitor.name,
+        nickname: visitor.cnickname || visitor.nickname,
+        time: survey.time,
+        month_age: monthAge,
+        appointmentDate: survey.appointmentDate,
+        appointmentTime: survey.appointmentTime
+      }
+      
+      // โหลดข้อมูลแบบสอบถามเดิม
+      await this.loadExistingSurvey(survey)
       this.$toast.info('กำลังแก้ไขบันทึกการเยี่ยมบ้าน')
     },
     
     async loadNewSurveyMode() {
       // ดึงข้อมูลผู้รับบริการจาก localStorage
-      const visitorDataStr = localStorage.getItem('surveyPatient')
+      let visitorDataStr = localStorage.getItem('surveyPatient')
+      
+      // ถ้าไม่มีใน localStorage ให้ลองดึงจาก query parameters
       if (!visitorDataStr) {
+        const urlParams = this.$route.query
+        const stid = urlParams.stid
+        const time = urlParams.time
+        
+        if (stid && time) {
+          // ลองโหลดจาก IndexedDB โดยใช้ stid และ time
+          const existingSurvey = await this.$indexedDB.getSurveyProgress(stid, time)
+          
+          if (existingSurvey) {
+            // พบแบบสอบถามที่ยังไม่เสร็จ
+            const visitor = await this.$indexedDB.getVisitor(stid)
+            if (visitor) {
+              this.visitorData = {
+                stid: stid,
+                name: visitor.cname || visitor.name,
+                nickname: visitor.cnickname || visitor.nickname,
+                time: time,
+                month_age: existingSurvey.month_age,
+                appointmentDate: existingSurvey.appointmentDate,
+                appointmentTime: existingSurvey.appointmentTime
+              }
+              await this.loadExistingSurvey(existingSurvey)
+              
+              // อัพเดท URL ให้มี query parameters (ถ้ายังไม่มี)
+              if (!this.$route.query.stid || !this.$route.query.time) {
+                this.$router.replace({
+                  path: '/survey',
+                  query: { stid: stid, time: time }
+                })
+              }
+              
+              this.$toast.info('พบแบบสอบถามที่ยังไม่เสร็จสิ้น กำลังโหลดความคืบหน้า...')
+              return
+            }
+          }
+        }
+        
+        // ไม่พบข้อมูลเลย
         this.$toast.error('ไม่พบข้อมูลผู้รับบริการ')
         this.$router.push('/')
         return
@@ -1024,6 +1124,14 @@ export default {
       } else {
         // สร้างแบบสอบถามใหม่
         await this.createNewSurvey()
+      }
+      
+      // อัพเดท URL ให้มี query parameters (ถ้ายังไม่มี)
+      if (!this.$route.query.stid || !this.$route.query.time) {
+        this.$router.replace({
+          path: '/survey',
+          query: { stid: this.visitorData.stid, time: this.visitorData.time }
+        })
       }
     },
     
@@ -1052,9 +1160,6 @@ export default {
       
       // ตรวจสอบว่า survey นี้ sync แล้วหรือยัง
       this.isSyncedSurvey = survey.synced === true
-      
-      // ⚠️ ถ้าแบบทดสอบ complete แล้ว ให้เริ่มต้นที่ข้อ 1 เสมอ
-      // ถ้ายังไม่ complete ให้ดูว่าทำค้างไว้ที่ไหน
       if (survey.completed) {
         this.currentStep = 1
       } else {
@@ -1062,10 +1167,6 @@ export default {
       }
       
       // Merge answers with defaults to ensure new fields exist
-      // Handle backward compatibility for old field names
-      // ⚠️ Convert string to number for q1, q2, q4, q8 (from API)
-      
-      // Backward compatibility: Old q7 was array, new q7 is single value (1/0)
       const q7Data = parseQ7Data(
         survey.answers?.q7,
         survey.answers?.q71,
@@ -1101,10 +1202,6 @@ export default {
         q5: savedAnswers.q5 ? this.convertActivityAnswersToNumber(savedAnswers.q5) : {},
         q9: savedAnswers.q9 ? this.convertActivityAnswersToNumber(savedAnswers.q9) : {}
       }
-      
-      // ⚠️ ถ้าเป็น synced survey ให้บันทึก values เดิมไว้
-      
-      // ⚠️ ถ้าแบบทดสอบ complete แล้ว ให้ reset activity index ด้วย
       if (survey.completed) {
         this.currentActivityIndex = 0
         this.currentQ5Index = 0
@@ -1113,18 +1210,13 @@ export default {
         this.currentQ5Index = survey.currentQ5Index || 0
       }
       
-      // Handle image formats: new (object with base64/url), old (string), or legacy (single image)
-      // ⚠️ ใช้วิธีเดียวกับ index.vue ในการโหลดรูปภาพ
-      if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
-        // สร้าง array สำหรับรูปภาพที่โหลดมา
+        if (survey.surveyImages && Array.isArray(survey.surveyImages)) {
         const loadedImages = []
         
         for (let i = 0; i < survey.surveyImages.length; i++) {
           const img = survey.surveyImages[i]
           
           if (typeof img === 'object' && img !== null) {
-            // New format: object with { base64, url, key }
-            // ใช้ url ก่อน fallback เป็น base64
             const imageData = img.url || img.base64
             if (imageData) {
               loadedImages.push({
@@ -1133,21 +1225,18 @@ export default {
                 key: img.key || `pic${i + 1}`
               })
             } else {
-              loadedImages.push(null) // placeholder
+              loadedImages.push(null)
             }
           } else if (typeof img === 'string') {
-            // Old format: string (base64 or url)
             loadedImages.push({
               base64: img.startsWith('data:') ? img : null,
               url: img.startsWith('http') ? img : img.startsWith('/') ? img : null,
               key: `pic${i + 1}`
             })
           } else {
-            loadedImages.push(null) // placeholder
+            loadedImages.push(null)
           }
         }
-        
-        // ⚠️ ถ้ารูปใดไม่มีข้อมูล ให้ลองโหลดจาก images store (เหมือน index.vue)
         if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys)) {
           for (let i = 0; i < survey.surveyImageKeys.length; i++) {
             if ((!loadedImages[i] || (!loadedImages[i].url && !loadedImages[i].base64)) && survey.surveyImageKeys[i]) {
@@ -1162,7 +1251,6 @@ export default {
                   }
                 }
               } catch (error) {
-                // Silently handle error
               }
             }
           }
@@ -1171,14 +1259,12 @@ export default {
         this.surveyImages = loadedImages.filter(Boolean)
         
       } else if (survey.surveyImage) {
-        // Very old format: single image string
         this.surveyImages = [{
           base64: survey.surveyImage.startsWith('data:') ? survey.surveyImage : null,
           url: survey.surveyImage.startsWith('http') || survey.surveyImage.startsWith('/') ? survey.surveyImage : null,
           key: 'pic1'
         }]
       } else if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys) && survey.surveyImageKeys.length > 0) {
-        // ⚠️ ไม่มี surveyImages เลย แต่มี imageKeys ให้ลองโหลดจาก images store
         const loadedImages = []
         for (let i = 0; i < survey.surveyImageKeys.length; i++) {
           if (survey.surveyImageKeys[i]) {
@@ -1193,7 +1279,6 @@ export default {
                 })
               }
             } catch (error) {
-              // Silently handle error
             }
           }
         }
@@ -1205,20 +1290,15 @@ export default {
       if (survey.surveyImageKeys && Array.isArray(survey.surveyImageKeys)) {
         this.surveyImageKeys = survey.surveyImageKeys
       } else if (survey.surveyImageKey) {
-        // Backward compatibility
         this.surveyImageKeys = [survey.surveyImageKey]
       } else {
         this.surveyImageKeys = []
       }
-      
-      // ถ้าอยู่ขั้นตอนที่ 12 โหลดข้อมูลนัดหมาย
-      if (this.currentStep === 12 && survey.newAppointment) {
+      if (survey.newAppointment) {
         this.newAppointment = survey.newAppointment
       }
-      
-      // โหลดข้อมูลสถานะสำหรับแบบสอบถามที่เสร็จแล้ว
+
       if (survey.completed) {
-        // ดึงชั่วโมงและนาทีจากเวลาสิ้นสุด
         if (survey.timeEnd) {
           const timeEndDate = new Date(survey.timeEnd)
           this.answers.endHour = String(timeEndDate.getHours()).padStart(2, '0')
@@ -1307,11 +1387,8 @@ export default {
         // ตรวจสอบว่าแบบสอบถามเสร็จแล้วหรือยัง
         const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
         const isCompleted = existingSurvey?.completed || false
-        
-        // ⚠️ ถ้าเป็น synced survey ให้รักษา activity IDs และ values เดิมไว้
         let answersToSave = { ...this.answers }
         if (this.isSyncedSurvey && existingSurvey?.answers) {
-          // รักษา q5 และ q9 เดิมไว้ ไม่ให้เปลี่ยนแปลง activity IDs
           if (existingSurvey.answers.q5 && Object.keys(existingSurvey.answers.q5).length > 0) {
             answersToSave.q5 = { ...existingSurvey.answers.q5, ...this.answers.q5 }
           }
@@ -1372,15 +1449,10 @@ export default {
         // ถ้ามีการเปลี่ยนแปลงและเคย synced แล้ว ให้ set synced = false
         const shouldResetSync = wasSynced && hasChanges && isCompleted
         
-        // คำนวณ time_visit
-        // ⚠️ สำคัญ: time_visit จะคงค่าเดิมเมื่อแก้ไขแบบสอบถาม
-        // จะเพิ่มเฉพาะเมื่อสร้างแบบสอบถามใหม่เท่านั้น
         let timeVisit
         if (existingSurvey && existingSurvey.time_visit) {
-          // กรณีแก้ไข: ใช้ค่าเดิม
           timeVisit = existingSurvey.time_visit
         } else {
-          // กรณีสร้างใหม่: คำนวณจาก completed surveys + 1
           const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
           timeVisit = completedSurveys.length + 1
         }
@@ -1402,9 +1474,9 @@ export default {
           newAppointment: this.newAppointment,
           surveyImages: this.surveyImages,
           surveyImageKeys: this.surveyImageKeys,
-          completed: isCompleted, // เก็บสถานะเดิม
-          synced: shouldResetSync ? false : (existingSurvey?.synced || false), // Reset synced ถ้ามีการแก้ไข
-          approve_status: existingSurvey?.approve_status || 0 // เก็บสถานะการอนุมัติ
+          completed: isCompleted,
+          synced: shouldResetSync ? false : (existingSurvey?.synced || false),
+          approve_status: existingSurvey?.approve_status || 0
         }
         
         await this.$indexedDB.saveSurveyProgress(progressData)
@@ -1413,9 +1485,8 @@ export default {
       }
     },
     
-    // สลับคำตอบแบบหลายตัวเลือก
+    // สลับคำตอบแบบหลายตัวเลือก    
     toggleQ3Answer(value) {
-      // Ensure value is number for consistency
       const numValue = Number(value)
       const index = this.answers.q3.indexOf(numValue)
       if (index > -1) {
@@ -1426,7 +1497,6 @@ export default {
     },
     
     toggleQ6Answer(value) {
-      // Ensure value is number for consistency
       const numValue = Number(value)
       const index = this.answers.q6.indexOf(numValue)
       if (index > -1) {
@@ -1437,11 +1507,9 @@ export default {
     },
     
     toggleQ71Answer(value) {
-      // Ensure q71 is initialized as array
       if (!this.answers.q71) {
         this.$set(this.answers, 'q71', [])
       }
-      // Ensure value is number for consistency
       const numValue = Number(value)
       const index = this.answers.q71.indexOf(numValue)
       if (index > -1) {
@@ -1694,8 +1762,6 @@ export default {
           await this.saveProgress()
           return
         }
-        
-        // ⚠️ Skip logic: ถ้าอยู่ที่ step 6 และ time = 1 ให้กลับไป step 2 (ข้าม 3, 4, 5)
         if (this.currentStep === 6 && this.visitorData && Number(this.visitorData.time) === 1) {
           this.currentStep = 2
           await this.saveProgress()
@@ -1792,36 +1858,21 @@ export default {
           // เพิ่มเข้าคิวซิงค์
           await this.addSurveyToSyncQueue()
         } else {
-          // เสร็จสิ้นแบบสอบถามใหม่
-          // ทำเครื่องหมายว่าเสร็จสิ้น
           await this.$indexedDB.markSurveyCompleted(this.surveyId, this.timeEnd)
-          
-          // สร้างนัดหมายใหม่ พร้อม error handling
           try {
             await this.createNewAppointment()
             this.$toast.success('บันทึกแบบสอบถามสำเร็จ รอการซิงค์ขึ้นเซิร์ฟเวอร์')
           } catch (appointmentError) {
-            console.error('Failed to create appointment:', appointmentError)
             this.appointmentCreationFailed = true
             this.$toast.warning('บันทึกแบบทดสอบสำเร็จ แต่การสร้างนัดหมายล้มเหลว')
-            // ไม่ return เพื่อให้ sync queue ทำงานต่อ
           }
-          
-          // เพิ่มเข้าคิวซิงค์
           await this.addSurveyToSyncQueue()
         }
-        
-        // ตรวจสอบว่าต้องแสดง error banner หรือไม่
         if (this.appointmentCreationFailed) {
-          // ไม่ redirect ให้ user แก้ไขก่อน
           this.processing = false
           return
         }
-        
-        // ลบข้อมูล localStorage
         localStorage.removeItem('surveyPatient')
-        
-        // กลับไปหน้าแรก
         setTimeout(() => {
           this.$router.push('/')
         }, 1500)
@@ -1872,19 +1923,8 @@ export default {
         // ใช้อายุเดือนและครั้งที่เยี่ยมที่คำนวณไว้แล้วจาก recalculateMonthAgeAndActivities()
         const newMonthAge = this.newAppointment.appointmentMonthAge
         const newTimeActivity = this.newAppointment.timeActivity
-        
-        // ⚠️ คำนวณ time_visit สำหรับนัดหมายครั้งถัดไป
-        // time_visit = จำนวน completed surveys ทั้งหมด + 1
         const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
         const newTimeVisit = completedSurveys.length + 1
-        
-        console.log('Creating new appointment:', {
-          stid: this.visitorData.stid,
-          completedSurveysCount: completedSurveys.length,
-          newTimeVisit,
-          newTimeActivity,
-          newMonthAge
-        })
         
         const bookingData = {
           stid: this.visitorData.stid,
@@ -1892,7 +1932,7 @@ export default {
           appointmentTime: appointmentTime,
           month_age: newMonthAge,
           time: newTimeActivity,
-          time_visit: newTimeVisit, // ⚠️ เพิ่ม time_visit สำหรับนัดหมายครั้งถัดไป
+          time_visit: newTimeVisit,
           last_visit_date: new Date().toISOString(),
           dataSource: 'local',
           lastSyncedAt: new Date().toISOString()
@@ -1914,23 +1954,17 @@ export default {
         
         // ลบข้อมูล localStorage
         localStorage.removeItem('surveyPatient')
-        
-        // กลับไปหน้าแรก
         setTimeout(() => {
           this.$router.push('/')
         }, 1500)
       } catch (error) {
-        console.error('Retry create appointment failed:', error)
         this.$toast.error('ไม่สามารถสร้างนัดหมายได้ กรุณาลองอีกครั้ง')
         this.processing = false
       }
     },
     
     skipAndReturn() {
-      // ลบข้อมูล localStorage
       localStorage.removeItem('surveyPatient')
-      
-      // กลับไปหน้าแรก
       this.$router.push('/')
     },
     
@@ -1939,28 +1973,26 @@ export default {
       const now = new Date()
       const currentYear = now.getFullYear() + 543
       
-      // สร้างตัวเลือกปี
       for (let i = currentYear; i <= currentYear + 2; i++) {
         this.yearOptions.push({ value: i, text: i.toString() })
       }
+      const hasExistingAppointment = this.newAppointment.appointmentDay && 
+                                     this.newAppointment.appointmentMonth && 
+                                     this.newAppointment.appointmentYear
       
-      // ตั้งค่าวันที่เริ่มต้นเป็น 7 วันจาก timeStart
-      const timeStartDate = this.timeStart ? new Date(this.timeStart) : new Date()
-      const nextVisit = new Date(timeStartDate)
-      nextVisit.setDate(nextVisit.getDate() + 7)
-      
-      this.newAppointment.appointmentDay = nextVisit.getDate()
-      this.newAppointment.appointmentMonth = nextVisit.getMonth() + 1
-      this.newAppointment.appointmentYear = nextVisit.getFullYear() + 543
-      
-      // ตั้งค่าเวลาจาก timeStart
-      const hours = timeStartDate.getHours()
-      const timeSlot = `${String(hours).padStart(2, '0')}:00 น.`
-      // ตรวจสอบว่าเวลานี้มีใน timeOptions หรือไม่
-      const validTimeSlot = this.timeOptions.find(opt => opt.value === timeSlot)
-      this.newAppointment.appointmentTime = validTimeSlot ? timeSlot : '09:00 น.'
-      
-      // คำนวณอายุเดือนและกิจกรรมสำหรับวันที่เริ่มต้น
+      if (!hasExistingAppointment) {
+        const timeStartDate = this.timeStart ? new Date(this.timeStart) : new Date()
+        const nextVisit = new Date(timeStartDate)
+        nextVisit.setDate(nextVisit.getDate() + 7)
+        
+        this.newAppointment.appointmentDay = nextVisit.getDate()
+        this.newAppointment.appointmentMonth = nextVisit.getMonth() + 1
+        this.newAppointment.appointmentYear = nextVisit.getFullYear() + 543
+        const hours = timeStartDate.getHours()
+        const timeSlot = `${String(hours).padStart(2, '0')}:00 น.`
+        const validTimeSlot = this.timeOptions.find(opt => opt.value === timeSlot)
+        this.newAppointment.appointmentTime = validTimeSlot ? timeSlot : '09:00 น.'
+      }
       await this.recalculateMonthAgeAndActivities()
     },
     
@@ -1992,7 +2024,6 @@ export default {
     },
     
     async onDayChange() {
-      // คำนวณอายุเดือนและกิจกรรมใหม่
       await this.recalculateMonthAgeAndActivities()
     },
     

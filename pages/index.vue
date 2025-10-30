@@ -1177,7 +1177,7 @@ export default {
               }
               
               await this.$axios.$put(
-                '/parenting2025_census/put/homevisit/putdata_arr.php',
+                '/api/parenting2025_census/put/homevisit/putdata_arr.php',
                 payload
               )
               
@@ -1599,7 +1599,6 @@ export default {
             
             this.$toast.success('บันทึกนัดหมายและซิงค์กับเซิร์ฟเวอร์สำเร็จ')
           } catch (apiError) {
-            console.error('API Error:', apiError)
             this.$toast.warning('บันทึกนัดหมายสำเร็จ แต่ยังไม่ได้ซิงค์กับเซิร์ฟเวอร์')
           }
         } else {
@@ -1613,7 +1612,6 @@ export default {
           this.showAppointmentModal = false
         })
       } catch (error) {
-        console.error('Save appointment error:', error)
         this.$toast.error('ไม่สามารถบันทึกนัดหมายได้')
       }
     },
@@ -1654,16 +1652,8 @@ export default {
         this.appointmentFormErrors = {}
         this.loading = false
         this.showAppointmentModal = true
-        
-        console.log('Created appointment for missing case:', {
-          stid: visitor.stid,
-          appointmentData,
-          form: this.appointmentForm
-        })
       } catch (error) {
         this.loading = false
-        console.error('Failed to create missing appointment:', error)
-        
         if (error.message === 'No completed surveys found') {
           this.$toast.error('ไม่พบข้อมูลการเยี่ยมบ้านที่เสร็จสมบูรณ์')
         } else if (error.message === 'Visitor birth date not found') {
@@ -1809,7 +1799,6 @@ export default {
         }
         this.showVisitHistoryModal = true
       } catch (error) {
-        console.error('❌ Error loading visit history:', error)
         this.$toast.error('ไม่สามารถโหลดประวัติการเยี่ยมบ้านได้')
       }
     },
@@ -1921,7 +1910,6 @@ export default {
         this.showVisitHistoryModal = false
         this.showEditPhotoModal = true
       } catch (error) {
-        console.error('❌ Error loading photos:', error)
         this.$toast.error('ไม่สามารถเปิดหน้าแก้ไขรูปภาพได้')
       }
     },
@@ -2079,7 +2067,6 @@ export default {
             // รีเฟรสข้อมูลหลัง sync
             await this.loadVisitors()
           } catch (error) {
-            console.error('❌ Sync error:', error)
             this.$toast.warning('บันทึกสำเร็จ แต่ยังไม่สามารถ Sync ไปยังเซิร์ฟเวอร์ได้ กรุณา Sync อีกครั้ง')
           } finally {
             this.loading = false
@@ -2094,7 +2081,6 @@ export default {
           await this.showVisitHistory(patient)
         }
       } catch (error) {
-        console.error('❌ Save photo error:', error)
         this.$toast.error('เกิดข้อผิดพลาดในการบันทึกรูปภาพ')
         this.loading = false
       }
