@@ -2,7 +2,7 @@
   <div class="survey-step">
     <div v-if="activities.length === 0" class="alert alert-info">
       <i class="fas fa-info-circle"></i>
-      ไม่พบกิจกรรมสำหรับเดือนที่ {{ monthAge }} ครั้งที่ {{ timeVisit }}
+      ไม่พบกิจกรรมสำหรับเดือนที่ {{ monthAge }} ครั้งที่ {{ timeActivity }}
     </div>
 
     <div v-else-if="currentIndex < activities.length">
@@ -73,7 +73,7 @@ export default {
       type: Number,
       default: null
     },
-    timeVisit: {
+    timeActivity: {
       type: Number,
       default: null
     },

@@ -33,18 +33,31 @@
               :class="{
                 'has-appointment': visitor.appointmentDate,
                 'no-appointment': !visitor.appointmentDate,
-                'disabled-appointment': !visitor.canEditAppointment
+                'disabled-appointment': !visitor.canEditAppointment,
+                'needs-appointment': visitor.needsNextAppointment
               }"
               @click="visitor.canEditAppointment ? scheduleAppointment(visitor) : null"
               :style="{ cursor: visitor.canEditAppointment ? 'pointer' : 'not-allowed' }"
             >
-              <div v-if="visitor.appointmentDate" class="appointment-date">
+              <!-- กรณีต้องการสร้างนัดหมายใหม่ -->
+              <div v-if="visitor.needsNextAppointment" class="appointment-missing">
+                <div class="warning-text">
+                  <i class="fas fa-exclamation-triangle warning-icon"></i>
+                  <span>ต้องสร้างนัดหมาย</span>
+                </div>
+                <button @click.stop="createMissingAppointment(visitor)" class="btn-create-appointment">
+                  <i class="fas fa-plus"></i> สร้างนัดหมาย
+                </button>
+              </div>
+              <!-- กรณีมีนัดหมายแล้ว -->
+              <div v-else-if="visitor.appointmentDate" class="appointment-date">
                 <div class="appointment-date">{{ formatAppointmentDateShort(visitor.appointmentDate) }}</div>
                 <div class="appointment-time">{{ visitor.appointmentTime }}  <template v-if="visitor.month_age && visitor.time">
                   ({{ visitor.month_age }}/{{ visitor.time }})
                 </template></div>
                
               </div>
+              <!-- กรณียังไม่ได้กำหนดวันนัดหมาย -->
               <div v-else class="appointment-placeholder">
                 ยังไม่ได้กำหนดวันนัดหมาย
 
@@ -201,7 +214,7 @@
             >
               <b-form-select
                 id="appointment-day"
-                v-model="appointmentForm.day"
+                v-model="appointmentForm.appointmentDay"
                 :options="currentDayOptions"
                 :state="appointmentFormErrors.day ? false : null"
                 @change="onDayChange"
@@ -217,7 +230,7 @@
             >
               <b-form-select
                 id="appointment-month"
-                v-model="appointmentForm.month"
+                v-model="appointmentForm.appointmentMonth"
                 :options="monthOptions"
                 :state="appointmentFormErrors.month ? false : null"
                 @change="onMonthChange"
@@ -234,7 +247,7 @@
             >
               <b-form-select
                 id="appointment-year"
-                v-model="appointmentForm.year"
+                v-model="appointmentForm.appointmentYear"
                 :options="yearOptions"
                 :state="appointmentFormErrors.year ? false : null"
                 @change="onYearChange"
@@ -246,20 +259,20 @@
         <b-form-group 
           label="เวลาเริ่มต้นการเยี่ยมบ้าน" 
           label-for="appointment-time"
-          :invalid-feedback="appointmentFormErrors.time"
-          :state="appointmentFormErrors.time ? false : null"
+          :invalid-feedback="appointmentFormErrors.appointmentTime"
+          :state="appointmentFormErrors.appointmentTime ? false : null"
         >
           <b-form-select
             id="appointment-time"
-            v-model="appointmentForm.time"
+            v-model="appointmentForm.appointmentTime"
             :options="timeOptions"
-            :state="appointmentFormErrors.time ? false : null"
-            @change="clearAppointmentError('time')"
+            :state="appointmentFormErrors.appointmentTime ? false : null"
+            @change="clearAppointmentError('appointmentTime')"
           ></b-form-select>
         </b-form-group>
 
-        <div v-if="appointmentForm.monthAge !== null && appointmentForm.timeVisit !== null" class="appointment-info">
-          <p class="font-weight-bold">(เดือนที่ {{ appointmentForm.monthAge }} / ครั้งที่ {{ appointmentForm.timeVisit }})</p>
+        <div v-if="appointmentForm.appointmentMonthAge !== null && appointmentForm.timeActivity !== null" class="appointment-info">
+          <p class="font-weight-bold">(เดือนที่ {{ appointmentForm.appointmentMonthAge }} / ครั้งที่ {{ appointmentForm.timeActivity }})</p>
         </div>
 
         <div v-if="appointmentForm.activities && appointmentForm.activities.length > 0">
@@ -284,7 +297,7 @@
         </div>
         <div v-else class="alert alert-info">
           <i class="fas fa-info-circle"></i>
-          ไม่พบข้อมูลกิจกรรมสำหรับเดือนที่ {{ appointmentForm.monthAge }} ครั้งที่ {{ appointmentForm.timeVisit }}
+          ไม่พบข้อมูลกิจกรรมสำหรับเดือนที่ {{ appointmentForm.appointmentMonthAge }} ครั้งที่ {{ appointmentForm.timeActivity }}
         </div>
       </b-form>
       <template #modal-footer="{ ok, cancel }">
@@ -572,12 +585,12 @@ export default {
       appointmentForm: {
         id: null,
         name: '',
-        month: null,
-        day: null,
-        year: null,
-        time: '16:00 น.',
-        monthAge: null,
-        timeVisit: null,
+        appointmentMonth: null,
+        appointmentDay: null,
+        appointmentYear: null,
+        appointmentTime: '16:00 น.',
+        appointmentMonthAge: null,
+        timeActivity: null,
         activities: [],
         visitorBirthMonth: null,
         visitorBirthYear: null,
@@ -630,8 +643,8 @@ export default {
     },
     currentDayOptions() {
       // คำนวณจำนวนวันในเดือนตามเดือนและปีที่เลือก
-      const month = this.appointmentForm.month
-      const year = this.appointmentForm.year
+      const month = this.appointmentForm.appointmentMonth
+      const year = this.appointmentForm.appointmentYear
       
       if (!month || !year) {
         // คืนค่าทุกวันถ้ายังไม่ได้เลือกเดือนหรือปี
@@ -774,8 +787,6 @@ export default {
           // ซิงค์ข้อมูลผู้รับบริการจากคิว
           await this.processSyncQueue()
           
-          // TODO: ซิงค์การนัดหมายที่แก้ไขออฟไลน์
-          
           const username = this.$offlineAuth?.getUser?.()?.username
           if (this.$systemInit && username) {
             try {
@@ -817,7 +828,6 @@ export default {
           this.loadingMessage = 'กำลังซิงค์ข้อมูลผู้รับบริการ...'
           await this.$systemInit.syncVisitors(username)
           
-          // TODO: ปิดการซิงค์การนัดหมายไว้ชั่วคราว
           
           this.loadingMessage = 'กำลังซิงค์ข้อมูลการนัดหมาย...'
           await this.$systemInit.syncBookings(username)
@@ -904,7 +914,7 @@ export default {
           const allSurveys = await this.$indexedDB.getAllSurveysByStid(visitor.stid)
           
           // คำนวณว่าสามารถแก้ไขนัดหมายได้หรือไม่
-          const timeVisit = booking?.time || 1
+          const timeActivity = booking?.time || 1
           let canEdit = true
           
           // ดึงแบบสอบถามที่ completed เท่านั้น (สำหรับแสดงสถานะ)
@@ -918,13 +928,13 @@ export default {
             })
           
           // ดึง survey ของครั้งที่แล้ว (time - 1) สำหรับเช็คการอนุมัติ
-          const previousTimeVisit = parseInt(timeVisit) - 1
+          const previousTimeActivity = parseInt(timeActivity) - 1
           const previousCompletedSurvey = completedSurveys.find(s => 
-            String(s.time) === String(previousTimeVisit)
+            String(s.time) === String(previousTimeActivity)
           )
           
           // ตรวจสอบว่ามี survey_progress ของครั้งนี้หรือไม่ (ไม่ว่า completed จะเป็นอะไร)
-          const currentVisitSurvey = allSurveys.find(s => String(s.time) === String(timeVisit))
+          const currentVisitSurvey = allSurveys.find(s => String(s.time) === String(timeActivity))
           
      
           
@@ -939,7 +949,7 @@ export default {
           }
           
           // ตรวจสอบว่า time >= 2 แต่ไม่มีข้อมูลครั้งที่แล้ว
-          const needsPreviousVisit = parseInt(timeVisit) >= 2 && !previousCompletedSurvey
+          const needsPreviousVisit = parseInt(timeActivity) >= 2 && !previousCompletedSurvey
           
           return prepareVisitorData(visitor, booking, completedSurveys, allSurveys)
         })
@@ -963,13 +973,13 @@ export default {
         return
       }
       
-      if (!this.appointmentForm.month || !this.appointmentForm.year) {
+      if (!this.appointmentForm.appointmentMonth || !this.appointmentForm.appointmentYear) {
         return
       }
       
       // คำนวณอายุเดือนจากวันเกิดถึงวันที่เลือก
-      const selectedYear = this.appointmentForm.year - 543 // แปลงเป็นคริสต์ศักราช
-      const selectedMonth = this.appointmentForm.month
+      const selectedYear = this.appointmentForm.appointmentYear - 543 // แปลงเป็นคริสต์ศักราช
+      const selectedMonth = this.appointmentForm.appointmentMonth
       
       const birthYear = this.appointmentForm.visitorBirthYear - 543
       const birthMonth = this.appointmentForm.visitorBirthMonth
@@ -987,43 +997,50 @@ export default {
       }
       
       // คำนวณครั้งที่เยี่ยมตาม booking เดิม
-      let timeVisit = 1
+      let monthAge = calculatedMonthAge
+      let timeActivity = 1
       const existingBooking = this.appointmentForm.existingBooking
       
       if (existingBooking && existingBooking.last_visit_date) {
-        const selectedDate = new Date(selectedYear, selectedMonth - 1, this.appointmentForm.day || 1)
+        const selectedDate = new Date(selectedYear, selectedMonth - 1, this.appointmentForm.appointmentDay || 1)
         const lastVisitDate = new Date(existingBooking.last_visit_date)
         const daysSinceLastVisit = Math.floor((selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24))
         
         if (daysSinceLastVisit > 21) {
-          // เกิน 21 วัน รีเซ็ตครั้งที่เยี่ยม
-          timeVisit = 1
-        } else {
-          // 21 วันหรือน้อยกว่า เพิ่มครั้งที่เยี่ยม
-          timeVisit = (existingBooking.time || 0) + 1
+          // เกิน 21 วัน คำนวณอายุเดือนใหม่และรีเซ็ตครั้งที่เยี่ยม
+          monthAge = calculatedMonthAge
+          timeActivity = 1
           
-          // ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยม
+          if (monthAge > 48) {
+            monthAge = 48
+          }
+        } else {
+          // 21 วันหรือน้อยกว่า ใช้อายุเดือนเดิมและเพิ่มครั้งที่เยี่ยม
+          monthAge = existingBooking.month_age || calculatedMonthAge
+          timeActivity = (existingBooking.time || 0) + 1
+          
+          // กรณีพิเศษ ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยมเป็น 1
           if (existingBooking.time === 4) {
-            calculatedMonthAge = (existingBooking.month_age || 0) + 1
-            timeVisit = 1
+            monthAge = (existingBooking.month_age || 0) + 1
+            timeActivity = 1
             
-            if (calculatedMonthAge > 48) {
-              calculatedMonthAge = 48
+            if (monthAge > 48) {
+              monthAge = 48
             }
-          } else if (timeVisit > 4) {
-            timeVisit = 4
+          } else if (timeActivity > 4) {
+            timeActivity = 4
           }
         }
       }
       
       // อัพเดทอายุเดือนและครั้งที่เยี่ยม
-      this.appointmentForm.monthAge = calculatedMonthAge
-      this.appointmentForm.timeVisit = timeVisit
+      this.appointmentForm.appointmentMonthAge = monthAge
+      this.appointmentForm.timeActivity = timeActivity
       
       // ดึงกิจกรรมใหม่
       const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(
-        calculatedMonthAge,
-        timeVisit
+        monthAge,
+        timeActivity
       )
       this.appointmentForm.activities = activities || []
     },
@@ -1032,15 +1049,15 @@ export default {
       this.clearAppointmentError('month')
       
       // ตรวจสอบว่าวันที่เลือกใช้ได้กับเดือนใหม่หรือไม่
-      if (this.appointmentForm.day && this.appointmentForm.year) {
+      if (this.appointmentForm.appointmentDay && this.appointmentForm.appointmentYear) {
         const daysInMonth = getDaysInMonth(
-          this.appointmentForm.month,
-          this.appointmentForm.year
+          this.appointmentForm.appointmentMonth,
+          this.appointmentForm.appointmentYear
         )
         
         // ถ้าวันที่เลือกเกินจำนวนวันในเดือน ปรับเป็นวันสุดท้ายของเดือน
-        if (this.appointmentForm.day > daysInMonth) {
-          this.appointmentForm.day = daysInMonth
+        if (this.appointmentForm.appointmentDay > daysInMonth) {
+          this.appointmentForm.appointmentDay = daysInMonth
         }
       }
       
@@ -1052,12 +1069,12 @@ export default {
       this.clearAppointmentError('year')
       
       // ตรวจสอบว่าวันที่เลือกใช้ได้กับปีใหม่หรือไม่ มีผลกับกุมภาพันธ์ในปีอธิกสุรทิน
-      if (this.appointmentForm.day && this.appointmentForm.month === 2) {
-        const daysInMonth = getDaysInMonth(2, this.appointmentForm.year)
+      if (this.appointmentForm.appointmentDay && this.appointmentForm.appointmentMonth === 2) {
+        const daysInMonth = getDaysInMonth(2, this.appointmentForm.appointmentYear)
         
         // ถ้าวันที่เลือกเกินจำนวนวันในกุมภาพันธ์ ปรับเป็นวันสุดท้าย
-        if (this.appointmentForm.day > daysInMonth) {
-          this.appointmentForm.day = daysInMonth
+        if (this.appointmentForm.appointmentDay > daysInMonth) {
+          this.appointmentForm.appointmentDay = daysInMonth
         }
       }
       
@@ -1226,9 +1243,9 @@ export default {
     // ตรวจสอบความถูกต้องของฟอร์มนัดหมาย
     validateAppointmentDate() {
       const result = validateAppointmentDate(
-        this.appointmentForm.day,
-        this.appointmentForm.month,
-        this.appointmentForm.year,
+        this.appointmentForm.appointmentDay,
+        this.appointmentForm.appointmentMonth,
+        this.appointmentForm.appointmentYear,
         getDaysInMonth
       )
       
@@ -1243,11 +1260,11 @@ export default {
       return true
     },
     validateAppointmentTime() {
-      if (!this.appointmentForm.time) {
-        this.appointmentFormErrors.time = 'กรุณาเลือกเวลา'
+      if (!this.appointmentForm.appointmentTime) {
+        this.appointmentFormErrors.appointmentTime = 'กรุณาเลือกเวลา'
         return false
       }
-      delete this.appointmentFormErrors.time
+      delete this.appointmentFormErrors.appointmentTime
       return true
     },
     clearAppointmentError(field) {
@@ -1289,12 +1306,12 @@ export default {
           this.appointmentForm = {
             id: patient.id,
             name: `${patient.name} (${patient.nickname})`,
-            month: month,
-            day: day,
-            year: year,
-            time: patient.appointmentTime || '16:00 น.',
-            monthAge: null,
-            timeVisit: 1,
+            appointmentMonth: month,
+            appointmentDay: day,
+            appointmentYear: year,
+            appointmentTime: patient.appointmentTime || '16:00 น.',
+            appointmentMonthAge: null,
+            timeActivity: 1,
             activities: []
           }
           this.appointmentFormErrors = {}
@@ -1323,13 +1340,13 @@ export default {
         const existingBooking = await this.$indexedDB.getBooking(patient.stid)
         
         let monthAge = calculatedMonthAge
-        let timeVisit = 1
+        let timeActivity = 1
         
         // ตรวจสอบว่าเป็นการแก้ไขนัดหมายเดิมหรือสร้างใหม่
         if (patient.appointmentDate && existingBooking) {
           // กำลังแก้ไขนัดหมายเดิม เก็บค่าเดิมไว้
           monthAge = existingBooking.month_age || calculatedMonthAge
-          timeVisit = existingBooking.time || 1
+          timeActivity = existingBooking.time || 1
         } else if (existingBooking && existingBooking.last_visit_date) {
           // กำลังสร้างนัดหมายใหม่ คำนวณจากครั้งสุดท้าย
           const lastVisitDate = new Date(existingBooking.last_visit_date)
@@ -1338,7 +1355,7 @@ export default {
           if (daysSinceLastVisit > 21) {
             // เกิน 21 วัน คำนวณอายุเดือนใหม่และรีเซ็ตครั้งที่เยี่ยม
             monthAge = calculatedMonthAge
-            timeVisit = 1
+            timeActivity = 1
             
             // จำกัดอายุเดือนไว้ที่ 48
             if (monthAge > 48) {
@@ -1347,37 +1364,37 @@ export default {
           } else {
             // 21 วันหรือน้อยกว่า ใช้อายุเดือนเดิมและเพิ่มครั้งที่เยี่ยม
             monthAge = existingBooking.month_age || calculatedMonthAge
-            timeVisit = (existingBooking.time || 0) + 1
+            timeActivity = (existingBooking.time || 0) + 1
             
             // กรณีพิเศษ ถ้าครั้งก่อนเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยมเป็น 1
             if (existingBooking.time === 4) {
               monthAge = (existingBooking.month_age || 0) + 1
-              timeVisit = 1
+              timeActivity = 1
               
               // จำกัดอายุเดือนไว้ที่ 48
               if (monthAge > 48) {
                 monthAge = 48
               }
-            } else if (timeVisit > 4) {
+            } else if (timeActivity > 4) {
               // จำกัดครั้งที่เยี่ยมไว้ที่ 4
-              timeVisit = 4
+              timeActivity = 4
             }
           }
         }
         
         // ดึงข้อมูลกิจกรรมทั้งหมดจาก IndexedDB
-        const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeVisit)
+        const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeActivity)
         
         // ตั้งค่าฟอร์มนัดหมายพร้อมข้อมูลทั้งหมด
         this.appointmentForm = {
           id: patient.id,
           name: `${patient.name} (${patient.nickname})`,
-          month: month,
-          day: day,
-          year: year,
-          time: patient.appointmentTime || '16:00 น.',
-          monthAge: monthAge,
-          timeVisit: timeVisit,
+          appointmentMonth: month,
+          appointmentDay: day,
+          appointmentYear: year,
+          appointmentTime: patient.appointmentTime || '16:00 น.',
+          appointmentMonthAge: monthAge,
+          timeActivity: timeActivity,
           activities: activities || [],
           visitorBirthMonth: parseInt(visitor.month_birth),
           visitorBirthYear: parseInt(visitor.year_birth),
@@ -1401,9 +1418,9 @@ export default {
         if (!visitor) return
         
         // แปลงปีพุทธศักราชเป็นคริสต์ศักราช
-        const christianYear = this.appointmentForm.year - 543
-        const appointmentDate = `${christianYear}-${String(this.appointmentForm.month).padStart(2, '0')}-${String(this.appointmentForm.day).padStart(2, '0')}`
-        const appointmentTime = this.appointmentForm.time
+        const christianYear = this.appointmentForm.appointmentYear - 543
+        const appointmentDate = `${christianYear}-${String(this.appointmentForm.appointmentMonth).padStart(2, '0')}-${String(this.appointmentForm.appointmentDay).padStart(2, '0')}`
+        const appointmentTime = this.appointmentForm.appointmentTime
         
         // ดึงข้อมูล visitor จาก IndexedDB เพื่อเอา fname, lname
         const visitorData = await this.$indexedDB.getVisitor(visitor.stid)
@@ -1422,19 +1439,24 @@ export default {
           }
         }
         
+        const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(visitor.stid)
+        const timeVisit = completedSurveys.length + 1 // จำนวนครั้งที่ completed แล้ว + 1
+        
         // อัพเดทการแสดงผล
         visitor.appointmentDate = appointmentDate
         visitor.appointmentTime = appointmentTime
-        visitor.month_age = this.appointmentForm.monthAge
-        visitor.time = this.appointmentForm.timeVisit
+        visitor.month_age = this.appointmentForm.appointmentMonthAge
+        visitor.time = this.appointmentForm.timeActivity
+        visitor.time_visit = timeVisit
         
         // บันทึกลงตารางการนัดหมาย (IndexedDB) - cnt_app จะอัพเดทหลังจาก sync กับ API
         await this.$indexedDB.addBooking({
           stid: visitor.stid,
           appointmentDate: appointmentDate,
           appointmentTime: appointmentTime,
-          month_age: this.appointmentForm.monthAge,
-          time: this.appointmentForm.timeVisit,
+          month_age: this.appointmentForm.appointmentMonthAge,
+          time: this.appointmentForm.timeActivity,
+          time_visit: timeVisit,
           last_visit_date: new Date().toISOString(),
           dataSource: 'local',
           lastSyncedAt: new Date().toISOString()
@@ -1445,23 +1467,21 @@ export default {
           try {
             const username = this.$offlineAuth?.getUser?.()?.username
             
-            // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+            // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่ (ใช้ time_visit เป็น unique key)
             const checkResponse = await this.$axios.$get(
               '/api/parenting2025_census/get/homevisit/getchildsample_app.php',
               {
                 params: {
                   homevisitor: username,
-                  stid: visitor.stid,
-                  time_visit: this.appointmentForm.timeVisit
+                  stid: visitor.stid
                 }
               }
             )
             
-            // ตรวจสอบว่ามีรายการที่ตรงกับ stid, time_visit และ month_age หรือไม่
+            // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time_visit หรือไม่
             const existingRecord = checkResponse?.results?.find(record => 
               record.stid === visitor.stid && 
-              String(record.time_visit) === String(this.appointmentForm.timeVisit) && 
-              String(record.month_age) === String(this.appointmentForm.monthAge)
+              String(record.time_visit) === String(timeVisit)
             )
             
             if (existingRecord) {
@@ -1477,7 +1497,7 @@ export default {
                     'date_app_curr',
                     'cnt_app',
                     'month_age',
-                    'time_visit',
+                    'time',
                     'q1_name',
                     'q2_name',
                     'q3_name',
@@ -1488,8 +1508,8 @@ export default {
                     appointmentTime,        // time_app_curr
                     appointmentDate,        // date_app_curr
                     String(newCntApp),      // cnt_app - จำนวนการเลื่อนนัด (เพิ่มขึ้นทุกครั้งที่แก้ไข)
-                    this.appointmentForm.monthAge,
-                    this.appointmentForm.timeVisit,
+                    String(this.appointmentForm.appointmentMonthAge),
+                    String(this.appointmentForm.timeActivity),
                     activityIds[0],
                     activityIds[1],
                     activityIds[2],
@@ -1497,10 +1517,23 @@ export default {
                     activityIds[4]
                   ],
                   pk: ['stid', 'time_visit'],
-                  pkval: [visitor.stid, this.appointmentForm.timeVisit],
+                  pkval: [visitor.stid, String(timeVisit)],
                   tb: 'homevisitor_app'
                 }
               )
+              
+              // อัพเดท booking status เป็น synced
+              await this.$indexedDB.updateBooking({
+                stid: visitor.stid,
+                appointmentDate: appointmentDate,
+                appointmentTime: appointmentTime,
+                month_age: this.appointmentForm.appointmentMonthAge,
+                time: this.appointmentForm.timeActivity,
+                time_visit: timeVisit,
+                cnt_app: newCntApp,
+                dataSource: 'api',
+                lastSyncedAt: new Date().toISOString()
+              })
             } else {
               // สร้างนัดหมายครั้งแรก - ใช้ POST (cnt_app = 1)
               await this.$axios.$post(
@@ -1515,11 +1548,11 @@ export default {
                     'fname_ch',
                     'lname_ch',
                     'month_age',
+                    'time',
                     'time_app_first',
                     'date_app_first',
                     'time_app_curr',
                     'date_app_curr',
-                    'cnt_app',
                     'q1_name',
                     'q2_name',
                     'q3_name',
@@ -1531,15 +1564,15 @@ export default {
                     visitor.stid,
                     '15',
                     recStart,
-                    this.appointmentForm.timeVisit,
+                    String(timeVisit),  // time_visit - จำนวนครั้งทั้งหมดที่เยี่ยมบ้าน
                     visitorData?.fname || '',
                     visitorData?.lname || '',
-                    this.appointmentForm.monthAge,
+                    String(this.appointmentForm.appointmentMonthAge),
+                    String(this.appointmentForm.timeActivity),
                     appointmentTime,  // time_app_first
                     appointmentDate,  // date_app_first
                     appointmentTime,  // time_app_curr
                     appointmentDate,  // date_app_curr
-                    '1',              // cnt_app - ค่าเริ่มต้น
                     activityIds[0],
                     activityIds[1],
                     activityIds[2],
@@ -1549,6 +1582,19 @@ export default {
                   tb: 'homevisitor_app'
                 }
               )
+              
+              // ⚠️ สำคัญ: อัพเดท booking status เป็น synced หลัง POST สำเร็จ
+              await this.$indexedDB.updateBooking({
+                stid: visitor.stid,
+                appointmentDate: appointmentDate,
+                appointmentTime: appointmentTime,
+                month_age: this.appointmentForm.appointmentMonthAge,
+                time: this.appointmentForm.timeActivity,
+                time_visit: timeVisit,
+                cnt_app: 1,
+                dataSource: 'api',
+                lastSyncedAt: new Date().toISOString()
+              })
             }
             
             this.$toast.success('บันทึกนัดหมายและซิงค์กับเซิร์ฟเวอร์สำเร็จ')
@@ -1571,16 +1617,72 @@ export default {
         this.$toast.error('ไม่สามารถบันทึกนัดหมายได้')
       }
     },
+    async createMissingAppointment(visitor) {
+      try {
+        this.loading = true
+        this.loadingMessage = 'กำลังคำนวณนัดหมาย...'
+        
+        // คำนวณข้อมูลนัดหมายถัดไปจาก completed surveys
+        const { calculateNextAppointment } = await import('../utils/visitHelpers')
+        const appointmentData = await calculateNextAppointment(visitor.stid, this.$indexedDB)
+        
+        // แปลงวันที่เป็นรูปแบบที่ฟอร์มต้องการ
+        const appointmentDate = new Date(appointmentData.appointmentDate)
+        const month = appointmentDate.getMonth() + 1
+        const day = appointmentDate.getDate()
+        const year = appointmentDate.getFullYear() + 543 // แปลงเป็นปีพุทธศักราช
+        
+        // ดึงข้อมูล visitor จาก IndexedDB
+        const visitorData = await this.$indexedDB.getVisitor(visitor.stid)
+        
+        // ตั้งค่าฟอร์มนัดหมายพร้อมข้อมูลที่คำนวณแล้ว
+        this.appointmentForm = {
+          id: visitor.id,
+          name: `${visitor.name} (${visitor.nickname})`,
+          appointmentMonth: month,
+          appointmentDay: day,
+          appointmentYear: year,
+          appointmentTime: appointmentData.appointmentTime,
+          appointmentMonthAge: appointmentData.month_age,
+          timeActivity: appointmentData.time,
+          activities: appointmentData.activities || [],
+          visitorBirthMonth: parseInt(visitorData.month_birth),
+          visitorBirthYear: parseInt(visitorData.year_birth),
+          existingBooking: null
+        }
+        
+        this.appointmentFormErrors = {}
+        this.loading = false
+        this.showAppointmentModal = true
+        
+        console.log('Created appointment for missing case:', {
+          stid: visitor.stid,
+          appointmentData,
+          form: this.appointmentForm
+        })
+      } catch (error) {
+        this.loading = false
+        console.error('Failed to create missing appointment:', error)
+        
+        if (error.message === 'No completed surveys found') {
+          this.$toast.error('ไม่พบข้อมูลการเยี่ยมบ้านที่เสร็จสมบูรณ์')
+        } else if (error.message === 'Visitor birth date not found') {
+          this.$toast.error('ไม่พบข้อมูลวันเกิดของผู้รับบริการ')
+        } else {
+          this.$toast.error('ไม่สามารถสร้างนัดหมายได้')
+        }
+      }
+    },
     resetAppointmentForm() {
       this.appointmentForm = {
         id: null,
         name: '',
-        month: null,
-        day: null,
-        year: null,
-        time: '16:00 น.',
-        monthAge: null,
-        timeVisit: null,
+        appointmentMonth: null,
+        appointmentDay: null,
+        appointmentYear: null,
+        appointmentTime: '16:00 น.',
+        appointmentMonthAge: null,
+        timeActivity: null,
         activities: [],
         visitorBirthMonth: null,
         visitorBirthYear: null,
@@ -1678,13 +1780,13 @@ export default {
         // แปลงข้อมูลแบบสอบถามเป็นประวัติการเยี่ยม
         const visits = surveys.map((survey, index) => {
           const visitDate = survey.appointmentDate || survey.timeStart?.split(' ')[0] || ''
-          const visitTime = survey.appointmentTime || survey.timeStart?.split(' ')[1] || ''
+          const visitTimeOfDay = survey.appointmentTime || survey.timeStart?.split(' ')[1] || ''
           
           return {
             id: survey.id,
             surveyId: survey.id,
             date: visitDate,
-            time: visitTime,
+            appointmentTime: visitTimeOfDay,
             patientId: patient.id,
             visitNumber: survey.time || (index + 1),
             timeStart: survey.timeStart,
@@ -2362,6 +2464,71 @@ export default {
 .appointment-placeholder {
   font-size: 1.4rem;
   font-weight: 300;
+}
+
+/* Missing Appointment Warning */
+.card-col-appointment.needs-appointment {
+  background: #fff3cd;
+  border-color: #ffc107;
+  border-width: 3px;
+}
+
+.appointment-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.warning-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #856404;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.warning-icon {
+  color: #ff9800;
+  font-size: 1.5rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+.btn-create-appointment {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 1.1rem;
+  transition: background 0.3s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-create-appointment:hover {
+  background: #218838;
+  transform: translateY(-2px);
+}
+
+.btn-create-appointment:active {
+  transform: translateY(0);
 }
 
 /* Visit Card */

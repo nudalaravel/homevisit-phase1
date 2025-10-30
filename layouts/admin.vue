@@ -24,6 +24,13 @@
             <i class="fas" :class="$store.getters.isSyncing ? 'fa-sync fa-spin' : 'fa-sync-alt'"></i>
             <span class="sync-text">{{ $store.getters.isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูล' }}</span>
           </button>
+          <button 
+            class="info-button" 
+            @click="showSystemInfo"
+            title="ข้อมูลระบบ"
+          >
+            <i class="fas fa-info-circle"></i>
+          </button>
           <div class="user-menu">
             <div class="user-info">
               <span class="user-name">{{ $offlineAuth.getUser().username }}</span>
@@ -47,6 +54,78 @@
     <main class="page-content">
       <Nuxt />
     </main>
+
+    <!-- System Info Modal -->
+    <b-modal
+      id="systemInfoModal"
+      v-model="showSystemInfoModal"
+      title="ข้อมูลระบบ"
+      size="lg"
+      ok-only
+      ok-title="ปิด"
+      header-class="modal-header-custom"
+    >
+      <div class="system-info-content">
+        <div class="info-section">
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-code-branch"></i>
+              เวอร์ชันแอพพลิเคชัน
+            </div>
+            <div class="info-value">{{ systemInfo.appVersion }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-database"></i>
+              เวอร์ชันฐานข้อมูล
+            </div>
+            <div class="info-value">{{ systemInfo.dbVersion }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-hdd"></i>
+              พื้นที่ IndexedDB ที่ใช้
+            </div>
+            <div class="info-value">{{ systemInfo.usedStorage }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-server"></i>
+              พื้นที่ IndexedDB ที่รองรับ
+            </div>
+            <div class="info-value">{{ systemInfo.totalStorage }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-sync-alt"></i>
+              ซิงค์ข้อมูลล่าสุด
+            </div>
+            <div class="info-value">{{ systemInfo.lastSync }}</div>
+          </div>
+
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-chart-pie"></i>
+              เปอร์เซ็นต์การใช้งาน
+            </div>
+            <div class="info-value">
+              <div class="storage-progress">
+                <div 
+                  class="storage-progress-bar" 
+                  :style="{ width: systemInfo.usagePercent + '%' }"
+                  :class="getStorageClass(systemInfo.usagePercent)"
+                ></div>
+              </div>
+              <span class="usage-text">{{ systemInfo.usagePercent }}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -54,7 +133,16 @@
 export default {
   data() {
     return {
-      showDropdown: false
+      showDropdown: false,
+      showSystemInfoModal: false,
+      systemInfo: {
+        appVersion: '1.0.1',
+        dbVersion: 'N/A',
+        usedStorage: 'กำลังคำนวณ...',
+        totalStorage: 'กำลังคำนวณ...',
+        lastSync: 'ไม่มีข้อมูล',
+        usagePercent: 0
+      }
     }
   },
   computed: {
@@ -138,6 +226,71 @@ export default {
           })
         }
       }
+    },
+    async showSystemInfo() {
+      // เปิด modal
+      this.showSystemInfoModal = true
+      
+      // โหลดข้อมูลระบบ
+      await this.loadSystemInfo()
+    },
+    async loadSystemInfo() {
+      try {
+        // ดึงเวอร์ชัน DB จาก IndexedDB
+        if (this.$indexedDB) {
+          this.systemInfo.dbVersion = `Version ${this.$indexedDB.version}`
+          
+          // ใช้ฟังก์ชัน getStorageQuota() ที่มีอยู่แล้วใน IndexedDB plugin
+          const storageQuota = await this.$indexedDB.getStorageQuota()
+          
+          if (storageQuota) {
+            this.systemInfo.usedStorage = this.formatBytes(storageQuota.usage)
+            this.systemInfo.totalStorage = this.formatBytes(storageQuota.quota)
+            this.systemInfo.usagePercent = storageQuota.percentage.toFixed(2)
+          } else {
+            this.systemInfo.usedStorage = 'ไม่รองรับ'
+            this.systemInfo.totalStorage = 'ไม่รองรับ'
+            this.systemInfo.usagePercent = 0
+          }
+        } else {
+          this.systemInfo.dbVersion = 'N/A'
+          this.systemInfo.usedStorage = 'ไม่รองรับ'
+          this.systemInfo.totalStorage = 'ไม่รองรับ'
+          this.systemInfo.usagePercent = 0
+        }
+        
+        // ดึงเวลา Sync ล่าสุดจาก Store
+        if (this.$store.state.lastSyncTime) {
+          const lastSync = new Date(this.$store.state.lastSyncTime)
+          this.systemInfo.lastSync = lastSync.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        } else {
+          this.systemInfo.lastSync = 'ยังไม่เคยซิงค์'
+        }
+      } catch (error) {
+        console.error('Error loading system info:', error)
+        this.$toast.error('ไม่สามารถโหลดข้อมูลระบบได้')
+      }
+    },
+    formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes'
+      
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    },
+    getStorageClass(percent) {
+      if (percent >= 90) return 'storage-critical'
+      if (percent >= 70) return 'storage-warning'
+      return 'storage-ok'
     }
   }
 }
@@ -284,13 +437,40 @@ export default {
   }
   
   .network-status,
-  .sync-button {
+  .sync-button,
+  .info-button {
     padding: 0.5rem;
   }
   
   .header-right {
     gap: 0.75rem;
   }
+}
+
+.info-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.info-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px) scale(1.05);
+}
+
+.info-button i {
+  font-size: 1.2rem;
 }
 
 .user-menu {
@@ -437,6 +617,102 @@ export default {
   
   .logo-img {
     height: 30px;
+  }
+}
+
+/* System Info Modal Styles */
+.system-info-content {
+  padding: 1rem;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 0.5rem;
+  border-left: 4px solid #3551a4;
+  transition: all 0.2s ease;
+}
+
+
+.info-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  color: #495057;
+  font-size: 0.95rem;
+}
+
+.info-label i {
+  color: #3551a4;
+  font-size: 1.1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.info-value {
+  font-weight: 600;
+  color: #212529;
+  font-size: 0.95rem;
+  text-align: right;
+}
+
+.storage-progress {
+  width: 200px;
+  height: 20px;
+  background: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.storage-progress-bar {
+  height: 100%;
+  transition: width 0.5s ease, background-color 0.3s ease;
+  border-radius: 10px;
+}
+
+.storage-progress-bar.storage-ok {
+  background: linear-gradient(90deg, #4caf50, #81c784);
+}
+
+.storage-progress-bar.storage-warning {
+  background: linear-gradient(90deg, #ff9800, #ffb74d);
+}
+
+.storage-progress-bar.storage-critical {
+  background: linear-gradient(90deg, #f44336, #ef5350);
+}
+
+.usage-text {
+  display: block;
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .info-value {
+    text-align: left;
+  }
+  
+  .storage-progress {
+    width: 100%;
   }
 }
 </style>

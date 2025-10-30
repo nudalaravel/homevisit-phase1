@@ -283,14 +283,7 @@
       
       <!-- Parent question: มี/ไม่มี -->
       <div class="options-container">
-        <button
-          class="option-btn"
-          :class="{ 'selected': answers.q7 === 1 }"
-          @click="answers.q7 = 1"
-        >
-          มี (1)
-        </button>
-        
+         
         <button
           class="option-btn"
           :class="{ 'selected': answers.q7 === 3 }"
@@ -298,6 +291,15 @@
         >
           ไม่มี (3)
         </button>
+        
+        <button
+          class="option-btn"
+          :class="{ 'selected': answers.q7 === 1 }"
+          @click="answers.q7 = 1"
+        >
+          มี (1)
+        </button>
+       
       </div>
 
       <!-- Conditional multi-select: Show when "มี" is selected -->
@@ -589,7 +591,7 @@
               วัน
             </label>
           <b-form-select
-              v-model="newAppointment.day"
+              v-model="newAppointment.appointmentDay"
             :options="currentDayOptions"
               class="appointment-select"
               @change="onDayChange"
@@ -602,7 +604,7 @@
               เดือน
             </label>
           <b-form-select
-              v-model="newAppointment.month"
+              v-model="newAppointment.appointmentMonth"
             :options="monthOptions"
             @change="onMonthChange"
               class="appointment-select"
@@ -615,7 +617,7 @@
               ปี
             </label>
           <b-form-select
-              v-model="newAppointment.year"
+              v-model="newAppointment.appointmentYear"
             :options="yearOptions"
             @change="onYearChange"
               class="appointment-select"
@@ -628,20 +630,39 @@
               เวลา
             </label>
           <b-form-select
-              v-model="newAppointment.time"
+              v-model="newAppointment.appointmentTime"
             :options="timeOptions"
               class="appointment-select"
           ></b-form-select>
           </div>
         </div>
 
-        <div v-if="newAppointment.day && newAppointment.month && newAppointment.year && newAppointment.time" class="appointment-preview">
+        <div v-if="newAppointment.appointmentDay && newAppointment.appointmentMonth && newAppointment.appointmentYear && newAppointment.appointmentTime" class="appointment-preview">
           <i class="fas fa-info-circle"></i>
-          <span>นัดหมาย: วันที่ {{ newAppointment.day }} {{ getMonthName(newAppointment.month) }} {{ newAppointment.year }} เวลา {{ newAppointment.time }}</span>
+          <span>นัดหมาย: วันที่ {{ newAppointment.appointmentDay }} {{ getMonthName(newAppointment.appointmentMonth) }} {{ newAppointment.appointmentYear }} เวลา {{ newAppointment.appointmentTime }}</span>
         </div>
       </div>
 
-      <div class="navigation-buttons">
+      <!-- Error banner for appointment creation failure -->
+      <div v-if="appointmentCreationFailed" class="appointment-error-banner">
+        <div class="error-icon">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="error-content">
+          <h5>การสร้างนัดหมายล้มเหลว</h5>
+          <p>แบบทดสอบถูกบันทึกเรียบร้อยแล้ว แต่ไม่สามารถสร้างนัดหมายครั้งถัดไปได้</p>
+        </div>
+        <div class="error-actions">
+          <b-button variant="warning" @click="retryCreateAppointment" :disabled="processing">
+            <i class="fas fa-redo"></i> ลองสร้างอีกครั้ง
+          </b-button>
+          <b-button variant="secondary" @click="skipAndReturn" :disabled="processing">
+            <i class="fas fa-times"></i> ข้ามและกลับหน้าแรก
+          </b-button>
+        </div>
+      </div>
+
+      <div v-if="!appointmentCreationFailed" class="navigation-buttons">
         <b-button variant="primary" size="lg" @click="prevStep">
           <i class="fas fa-arrow-left"></i> ย้อนกลับ
         </b-button>
@@ -704,6 +725,7 @@ export default {
       loading: false,
       loadingMessage: '',
       processing: false,
+      appointmentCreationFailed: false,
       currentStep: 1,
       currentActivityIndex: 0,
       currentQ5Index: 0,
@@ -762,12 +784,12 @@ export default {
       
       // New appointment data
       newAppointment: {
-        day: null,
-        month: null,
-        year: null,
-        time: '09:00 น.',
+        appointmentDay: null,
+        appointmentMonth: null,
+        appointmentYear: null,
+        appointmentTime: '09:00 น.',
         monthAge: null,
-        timeVisit: 1,
+        timeActivity: 1,
         activities: []
       },
       
@@ -778,8 +800,8 @@ export default {
   },
   computed: {
     currentDayOptions() {
-      const month = this.newAppointment.month
-      const year = this.newAppointment.year
+      const month = this.newAppointment.appointmentMonth
+      const year = this.newAppointment.appointmentYear
       
       if (!month || !year) {
         return generateDayOptions(31)
@@ -1012,8 +1034,8 @@ export default {
       // ตั้งค่าเวลาเริ่มต้นจากวันที่นัดหมาย
       if (this.visitorData.appointmentDate && this.visitorData.appointmentTime) {
         const date = this.visitorData.appointmentDate
-        const time = this.visitorData.appointmentTime.replace(' น.', '')
-        this.timeStart = `${date} ${time}:00`
+        const timeValue = this.visitorData.appointmentTime.replace(' น.', '')
+        this.timeStart = `${date} ${timeValue}:00`
       } else {
         // ใช้เวลาปัจจุบัน
         this.timeStart = new Date().toISOString().slice(0, 19).replace('T', ' ')
@@ -1047,34 +1069,37 @@ export default {
       const q7Data = parseQ7Data(
         survey.answers?.q7,
         survey.answers?.q71,
-        survey.answers?.q71_des || survey.answers?.q71 || ''
+        survey.answers?.q71_des || ''
       )
       
+      // แยกการ merge เพื่อป้องกัน type conflict
+      const baseAnswers = { ...this.answers }
+      const savedAnswers = survey.answers || {}
+      
       this.answers = {
-        ...this.answers,
-        ...survey.answers,
+        ...baseAnswers,
         // Convert to number (handle both string and number from API/IndexedDB)
-        q1: survey.answers?.q1 != null ? Number(survey.answers.q1) : null,
-        q2: survey.answers?.q2 != null ? Number(survey.answers.q2) : null,
-        q4: survey.answers?.q4 != null ? Number(survey.answers.q4) : null,
-        q8: survey.answers?.q8 != null ? Number(survey.answers.q8) : null,
+        q1: savedAnswers.q1 != null ? Number(savedAnswers.q1) : null,
+        q2: savedAnswers.q2 != null ? Number(savedAnswers.q2) : null,
+        q4: savedAnswers.q4 != null ? Number(savedAnswers.q4) : null,
+        q8: savedAnswers.q8 != null ? Number(savedAnswers.q8) : null,
         // Ensure q3, q6 are arrays with numbers
-        q3: Array.isArray(survey.answers?.q3) ? survey.answers.q3.map(v => Number(v)) : [],
-        q6: Array.isArray(survey.answers?.q6) ? survey.answers.q6.map(v => Number(v)) : [],
+        q3: Array.isArray(savedAnswers.q3) ? savedAnswers.q3.map(v => Number(v)) : [],
+        q6: Array.isArray(savedAnswers.q6) ? savedAnswers.q6.map(v => Number(v)) : [],
         // New q7 structure with backward compatibility
         q7: q7Data.q7,
         q71: q7Data.q71,
         q71_des: q7Data.q71_des,
         // Map q6_des to q6_other (IndexedDB structure)
-        q6_other: survey.answers?.q6_other || survey.answers?.q6_des || '',
+        q6_other: savedAnswers.q6_other || savedAnswers.q6_des || '',
         // Ensure notes field exists
-        notes: survey.answers?.notes || survey.note || '',
-        q1_des: survey.answers?.q1_des || '',
-        q2_des: survey.answers?.q2_des || '',
-        q3_des: survey.answers?.q3_des || '',
+        notes: savedAnswers.notes || survey.note || '',
+        q1_des: savedAnswers.q1_des || '',
+        q2_des: savedAnswers.q2_des || '',
+        q3_des: savedAnswers.q3_des || '',
         // Convert q5 and q9 activity answers to numbers
-        q5: survey.answers?.q5 ? this.convertActivityAnswersToNumber(survey.answers.q5) : {},
-        q9: survey.answers?.q9 ? this.convertActivityAnswersToNumber(survey.answers.q9) : {}
+        q5: savedAnswers.q5 ? this.convertActivityAnswersToNumber(savedAnswers.q5) : {},
+        q9: savedAnswers.q9 ? this.convertActivityAnswersToNumber(savedAnswers.q9) : {}
       }
       
       // ⚠️ ถ้าเป็น synced survey ให้บันทึก values เดิมไว้
@@ -1215,7 +1240,7 @@ export default {
             params: {
               homevisitor: username,
               stid: this.visitorData.stid,
-              time_visit: this.visitorData.time
+              time: this.visitorData.time
             }
           }
         )
@@ -1347,10 +1372,24 @@ export default {
         // ถ้ามีการเปลี่ยนแปลงและเคย synced แล้ว ให้ set synced = false
         const shouldResetSync = wasSynced && hasChanges && isCompleted
         
+        // คำนวณ time_visit
+        // ⚠️ สำคัญ: time_visit จะคงค่าเดิมเมื่อแก้ไขแบบสอบถาม
+        // จะเพิ่มเฉพาะเมื่อสร้างแบบสอบถามใหม่เท่านั้น
+        let timeVisit
+        if (existingSurvey && existingSurvey.time_visit) {
+          // กรณีแก้ไข: ใช้ค่าเดิม
+          timeVisit = existingSurvey.time_visit
+        } else {
+          // กรณีสร้างใหม่: คำนวณจาก completed surveys + 1
+          const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
+          timeVisit = completedSurveys.length + 1
+        }
+        
         const progressData = {
           id: this.surveyId,
           stid: this.visitorData.stid,
           time: this.visitorData.time,
+          time_visit: timeVisit,
           month_age: this.visitorData.month_age,
           timeStart: this.timeStart,
           timeEnd: this.timeEnd,
@@ -1376,20 +1415,24 @@ export default {
     
     // สลับคำตอบแบบหลายตัวเลือก
     toggleQ3Answer(value) {
-      const index = this.answers.q3.indexOf(value)
+      // Ensure value is number for consistency
+      const numValue = Number(value)
+      const index = this.answers.q3.indexOf(numValue)
       if (index > -1) {
         this.answers.q3.splice(index, 1)
       } else {
-        this.answers.q3.push(value)
+        this.answers.q3.push(numValue)
       }
     },
     
     toggleQ6Answer(value) {
-      const index = this.answers.q6.indexOf(value)
+      // Ensure value is number for consistency
+      const numValue = Number(value)
+      const index = this.answers.q6.indexOf(numValue)
       if (index > -1) {
         this.answers.q6.splice(index, 1)
       } else {
-        this.answers.q6.push(value)
+        this.answers.q6.push(numValue)
       }
     },
     
@@ -1398,11 +1441,13 @@ export default {
       if (!this.answers.q71) {
         this.$set(this.answers, 'q71', [])
       }
-      const index = this.answers.q71.indexOf(value)
+      // Ensure value is number for consistency
+      const numValue = Number(value)
+      const index = this.answers.q71.indexOf(numValue)
       if (index > -1) {
         this.answers.q71.splice(index, 1)
       } else {
-        this.answers.q71.push(value)
+        this.answers.q71.push(numValue)
       }
     },
     
@@ -1708,8 +1753,8 @@ export default {
       
       // Additional validation for step 12
       if (this.currentStep === 12) {
-        if (!this.newAppointment.day || !this.newAppointment.month || 
-            !this.newAppointment.year || !this.newAppointment.time) {
+        if (!this.newAppointment.appointmentDay || !this.newAppointment.appointmentMonth || 
+            !this.newAppointment.appointmentYear || !this.newAppointment.appointmentTime) {
           this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
           return false
         }
@@ -1751,13 +1796,26 @@ export default {
           // ทำเครื่องหมายว่าเสร็จสิ้น
           await this.$indexedDB.markSurveyCompleted(this.surveyId, this.timeEnd)
           
-          // สร้างนัดหมายใหม่
-          await this.createNewAppointment()
+          // สร้างนัดหมายใหม่ พร้อม error handling
+          try {
+            await this.createNewAppointment()
+            this.$toast.success('บันทึกแบบสอบถามสำเร็จ รอการซิงค์ขึ้นเซิร์ฟเวอร์')
+          } catch (appointmentError) {
+            console.error('Failed to create appointment:', appointmentError)
+            this.appointmentCreationFailed = true
+            this.$toast.warning('บันทึกแบบทดสอบสำเร็จ แต่การสร้างนัดหมายล้มเหลว')
+            // ไม่ return เพื่อให้ sync queue ทำงานต่อ
+          }
           
           // เพิ่มเข้าคิวซิงค์
           await this.addSurveyToSyncQueue()
-          
-          this.$toast.success('บันทึกแบบสอบถามสำเร็จ รอการซิงค์ขึ้นเซิร์ฟเวอร์')
+        }
+        
+        // ตรวจสอบว่าต้องแสดง error banner หรือไม่
+        if (this.appointmentCreationFailed) {
+          // ไม่ redirect ให้ user แก้ไขก่อน
+          this.processing = false
+          return
         }
         
         // ลบข้อมูล localStorage
@@ -1807,20 +1865,34 @@ export default {
     async createNewAppointment() {
       try {
         // แปลงปีพุทธศักราชเป็นคริสต์ศักราช
-        const christianYear = this.newAppointment.year - 543
-        const appointmentDate = `${christianYear}-${String(this.newAppointment.month).padStart(2, '0')}-${String(this.newAppointment.day).padStart(2, '0')}`
-        const appointmentTime = this.newAppointment.time
+        const christianYear = this.newAppointment.appointmentYear - 543
+        const appointmentDate = `${christianYear}-${String(this.newAppointment.appointmentMonth).padStart(2, '0')}-${String(this.newAppointment.appointmentDay).padStart(2, '0')}`
+        const appointmentTime = this.newAppointment.appointmentTime
         
         // ใช้อายุเดือนและครั้งที่เยี่ยมที่คำนวณไว้แล้วจาก recalculateMonthAgeAndActivities()
-        const newMonthAge = this.newAppointment.monthAge
-        const newTimeVisit = this.newAppointment.timeVisit
+        const newMonthAge = this.newAppointment.appointmentMonthAge
+        const newTimeActivity = this.newAppointment.timeActivity
+        
+        // ⚠️ คำนวณ time_visit สำหรับนัดหมายครั้งถัดไป
+        // time_visit = จำนวน completed surveys ทั้งหมด + 1
+        const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
+        const newTimeVisit = completedSurveys.length + 1
+        
+        console.log('Creating new appointment:', {
+          stid: this.visitorData.stid,
+          completedSurveysCount: completedSurveys.length,
+          newTimeVisit,
+          newTimeActivity,
+          newMonthAge
+        })
         
         const bookingData = {
           stid: this.visitorData.stid,
           appointmentDate: appointmentDate,
           appointmentTime: appointmentTime,
           month_age: newMonthAge,
-          time: newTimeVisit,
+          time: newTimeActivity,
+          time_visit: newTimeVisit, // ⚠️ เพิ่ม time_visit สำหรับนัดหมายครั้งถัดไป
           last_visit_date: new Date().toISOString(),
           dataSource: 'local',
           lastSyncedAt: new Date().toISOString()
@@ -1831,6 +1903,35 @@ export default {
       } catch (error) {
         throw error
       }
+    },
+    
+    async retryCreateAppointment() {
+      try {
+        this.processing = true
+        await this.createNewAppointment()
+        this.appointmentCreationFailed = false
+        this.$toast.success('สร้างนัดหมายสำเร็จ')
+        
+        // ลบข้อมูล localStorage
+        localStorage.removeItem('surveyPatient')
+        
+        // กลับไปหน้าแรก
+        setTimeout(() => {
+          this.$router.push('/')
+        }, 1500)
+      } catch (error) {
+        console.error('Retry create appointment failed:', error)
+        this.$toast.error('ไม่สามารถสร้างนัดหมายได้ กรุณาลองอีกครั้ง')
+        this.processing = false
+      }
+    },
+    
+    skipAndReturn() {
+      // ลบข้อมูล localStorage
+      localStorage.removeItem('surveyPatient')
+      
+      // กลับไปหน้าแรก
+      this.$router.push('/')
     },
     
     // ฟังก์ชันช่วยเหลือด้านวันที่
@@ -1848,16 +1949,16 @@ export default {
       const nextVisit = new Date(timeStartDate)
       nextVisit.setDate(nextVisit.getDate() + 7)
       
-      this.newAppointment.day = nextVisit.getDate()
-      this.newAppointment.month = nextVisit.getMonth() + 1
-      this.newAppointment.year = nextVisit.getFullYear() + 543
+      this.newAppointment.appointmentDay = nextVisit.getDate()
+      this.newAppointment.appointmentMonth = nextVisit.getMonth() + 1
+      this.newAppointment.appointmentYear = nextVisit.getFullYear() + 543
       
       // ตั้งค่าเวลาจาก timeStart
       const hours = timeStartDate.getHours()
       const timeSlot = `${String(hours).padStart(2, '0')}:00 น.`
       // ตรวจสอบว่าเวลานี้มีใน timeOptions หรือไม่
       const validTimeSlot = this.timeOptions.find(opt => opt.value === timeSlot)
-      this.newAppointment.time = validTimeSlot ? timeSlot : '09:00 น.'
+      this.newAppointment.appointmentTime = validTimeSlot ? timeSlot : '09:00 น.'
       
       // คำนวณอายุเดือนและกิจกรรมสำหรับวันที่เริ่มต้น
       await this.recalculateMonthAgeAndActivities()
@@ -1865,11 +1966,11 @@ export default {
     
     
     async onMonthChange() {
-      if (this.newAppointment.day && this.newAppointment.year) {
-        const daysInMonth = getDaysInMonth(this.newAppointment.month, this.newAppointment.year)
+      if (this.newAppointment.appointmentDay && this.newAppointment.appointmentYear) {
+        const daysInMonth = getDaysInMonth(this.newAppointment.appointmentMonth, this.newAppointment.appointmentYear)
         
-        if (this.newAppointment.day > daysInMonth) {
-          this.newAppointment.day = daysInMonth
+        if (this.newAppointment.appointmentDay > daysInMonth) {
+          this.newAppointment.appointmentDay = daysInMonth
         }
       }
       
@@ -1878,11 +1979,11 @@ export default {
     },
     
     async onYearChange() {
-      if (this.newAppointment.day && this.newAppointment.month === 2) {
-        const daysInMonth = getDaysInMonth(2, this.newAppointment.year)
+      if (this.newAppointment.appointmentDay && this.newAppointment.appointmentMonth === 2) {
+        const daysInMonth = getDaysInMonth(2, this.newAppointment.appointmentYear)
         
-        if (this.newAppointment.day > daysInMonth) {
-          this.newAppointment.day = daysInMonth
+        if (this.newAppointment.appointmentDay > daysInMonth) {
+          this.newAppointment.appointmentDay = daysInMonth
         }
       }
       
@@ -1896,7 +1997,7 @@ export default {
     },
     
     async recalculateMonthAgeAndActivities() {
-      if (!this.visitorData || !this.newAppointment.month || !this.newAppointment.year || !this.newAppointment.day) {
+      if (!this.visitorData || !this.newAppointment.appointmentMonth || !this.newAppointment.appointmentYear || !this.newAppointment.appointmentDay) {
         return
       }
       
@@ -1909,9 +2010,9 @@ export default {
         }
         
         // คำนวณอายุเดือนจากวันเกิดถึงวันที่เลือก
-        const selectedYear = this.newAppointment.year - 543 // แปลงเป็นคริสต์ศักราช
-        const selectedMonth = this.newAppointment.month
-        const selectedDay = this.newAppointment.day
+        const selectedYear = this.newAppointment.appointmentYear - 543 // แปลงเป็นคริสต์ศักราช
+        const selectedMonth = this.newAppointment.appointmentMonth
+        const selectedDay = this.newAppointment.appointmentDay
         
         const birthYear = parseInt(visitor.year_birth) - 543
         const birthMonth = parseInt(visitor.month_birth)
@@ -1932,7 +2033,7 @@ export default {
         // คำนวณครั้งที่เยี่ยม
         // ใช้ครั้งปัจจุบันที่เพิ่งทำในแบบทดสอบนี้ แล้ว +1 สำหรับนัดหมายครั้งถัดไป
         const currentVisitTime = parseInt(this.visitorData.time) // ครั้งปัจจุบันที่เพิ่งทำ
-        let timeVisit = currentVisitTime + 1 // ครั้งถัดไปที่จะนัดหมาย
+        let timeActivity = currentVisitTime + 1 // ครั้งถัดไปที่จะนัดหมาย
         
         const existingBooking = await this.$indexedDB.getBooking(this.visitorData.stid)
         
@@ -1943,11 +2044,14 @@ export default {
           const daysSinceLastVisit = Math.floor((selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24))
           
           if (daysSinceLastVisit > 21) {
-            // เกิน 21 วัน รีเซ็ตครั้งที่เยี่ยม
+            // เกิน 21 วัน คำนวณอายุเดือนใหม่และรีเซ็ตครั้งที่เยี่ยม
             calculatedMonthAge = (selectedYear - birthYear) * 12 + (selectedMonth - birthMonth)
             if (calculatedMonthAge > 48) calculatedMonthAge = 48
             if (calculatedMonthAge < 0) calculatedMonthAge = 0
-            timeVisit = 1
+            timeActivity = 1
+          } else {
+            // 21 วันหรือน้อยกว่า ใช้อายุเดือนเดิม
+            calculatedMonthAge = existingBooking.month_age || calculatedMonthAge
           }
         }
         
@@ -1955,24 +2059,24 @@ export default {
         if (currentVisitTime === 4) {
           // ถ้าครั้งปัจจุบันเป็นครั้งที่ 4 ให้เพิ่มอายุเดือนและรีเซ็ตครั้งที่เยี่ยม
           calculatedMonthAge = (this.visitorData.month_age || 0) + 1
-          timeVisit = 1
+          timeActivity = 1
           
           if (calculatedMonthAge > 48) {
             calculatedMonthAge = 48
           }
-        } else if (timeVisit > 4) {
+        } else if (timeActivity > 4) {
           // จำกัดครั้งที่เยี่ยมไว้ที่ 4
-          timeVisit = 4
+          timeActivity = 4
         }
         
         // อัพเดทอายุเดือนและครั้งที่เยี่ยม
-        this.newAppointment.monthAge = calculatedMonthAge
-        this.newAppointment.timeVisit = timeVisit
+        this.newAppointment.appointmentMonthAge = calculatedMonthAge
+        this.newAppointment.timeActivity = timeActivity
         
         // ดึงกิจกรรมใหม่
         const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(
           calculatedMonthAge,
-          timeVisit
+          timeActivity
         )
         this.newAppointment.activities = activities || []
       } catch (error) {
@@ -2450,6 +2554,59 @@ export default {
 .appointment-preview i {
   font-size: 1.56rem;
   color: #1976d2;
+}
+
+/* Appointment Error Banner */
+.appointment-error-banner {
+  background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+  border: 3px solid #dc3545;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  animation: slideIn 0.5s ease;
+}
+
+.error-icon {
+  flex-shrink: 0;
+}
+
+.error-icon i {
+  font-size: 3rem;
+  color: #dc3545;
+  animation: pulse 2s infinite;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-content h5 {
+  color: #721c24;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.error-content p {
+  color: #721c24;
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.error-actions .btn {
+  font-size: 1.1rem;
+  padding: 0.75rem 1.25rem;
+  white-space: nowrap;
 }
 
 @keyframes slideIn {

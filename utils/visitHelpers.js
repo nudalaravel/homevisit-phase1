@@ -1,8 +1,4 @@
-import {
-  MAX_AGE_MONTHS,
-  MAX_VISIT_TIME,
-  DAYS_BETWEEN_VISITS_THRESHOLD,
-} from "./constants";
+import { MAX_AGE_MONTHS, MAX_VISIT_TIME, DAYS_BETWEEN_VISITS_THRESHOLD } from "./constants";
 import { calculateMonthAge } from "./dateHelpers";
 
 /**
@@ -13,7 +9,7 @@ import { calculateMonthAge } from "./dateHelpers";
  * @param {number} selectedDay - Selected day
  * @param {number} birthMonth - Birth month
  * @param {number} birthYear - Birth year (Buddhist)
- * @returns {Object} { monthAge, timeVisit }
+ * @returns {Object} { monthAge, timeActivity }
  */
 export function calculateNextVisit(
   existingBooking,
@@ -30,46 +26,37 @@ export function calculateNextVisit(
     today.getMonth() + 1,
     today.getFullYear() + 543
   );
-  let timeVisit = 1;
+  let timeActivity = 1;
 
   if (!existingBooking) {
-    return { monthAge, timeVisit };
+    return { monthAge, timeActivity };
   }
 
   if (existingBooking.last_visit_date) {
-    const selectedDate = new Date(
-      selectedYear,
-      selectedMonth - 1,
-      selectedDay || 1
-    );
+    const selectedDate = new Date(selectedYear, selectedMonth - 1, selectedDay || 1);
     const lastVisitDate = new Date(existingBooking.last_visit_date);
-    const daysSinceLastVisit = Math.floor(
-      (selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24)
-    );
+    const daysSinceLastVisit = Math.floor((selectedDate - lastVisitDate) / (1000 * 60 * 60 * 24));
 
     if (daysSinceLastVisit > DAYS_BETWEEN_VISITS_THRESHOLD) {
       // Reset if more than threshold days
-      timeVisit = 1;
+      timeActivity = 1;
       monthAge = Math.min(monthAge, MAX_AGE_MONTHS);
     } else {
       // Continue sequence
       monthAge = existingBooking.month_age || monthAge;
-      timeVisit = (existingBooking.time || 0) + 1;
+      timeActivity = (existingBooking.time || 0) + 1;
 
       // Handle special case: after 4th visit, increase month age and reset time
       if (existingBooking.time === MAX_VISIT_TIME) {
-        monthAge = Math.min(
-          (existingBooking.month_age || 0) + 1,
-          MAX_AGE_MONTHS
-        );
-        timeVisit = 1;
-      } else if (timeVisit > MAX_VISIT_TIME) {
-        timeVisit = MAX_VISIT_TIME;
+        monthAge = Math.min((existingBooking.month_age || 0) + 1, MAX_AGE_MONTHS);
+        timeActivity = 1;
+      } else if (timeActivity > MAX_VISIT_TIME) {
+        timeActivity = MAX_VISIT_TIME;
       }
     }
   }
 
-  return { monthAge, timeVisit };
+  return { monthAge, timeActivity };
 }
 
 /**
@@ -89,9 +76,7 @@ export function canRecordVisit(visitor) {
   }
 
   // For visit 2+, must be synced and approved
-  return (
-    visitor.latestSurveySynced === true || visitor.latestSurveyApproved === true
-  );
+  return visitor.latestSurveySynced === true || visitor.latestSurveyApproved === true;
 }
 
 /**
@@ -104,11 +89,7 @@ export function getVisitorFullName(visitor) {
     return visitor.stname;
   }
 
-  const parts = [
-    visitor.prename || "",
-    visitor.fname || "",
-    visitor.lname || "",
-  ].filter(Boolean);
+  const parts = [visitor.prename || "", visitor.fname || "", visitor.lname || ""].filter(Boolean);
 
   return parts.join(" ").trim();
 }
@@ -121,30 +102,27 @@ export function getVisitorFullName(visitor) {
  * @param {Array} allSurveys - All surveys
  * @returns {Object} Prepared visitor data
  */
-export function prepareVisitorData(
-  visitor,
-  booking,
-  completedSurveys,
-  allSurveys
-) {
+export function prepareVisitorData(visitor, booking, completedSurveys, allSurveys) {
   const fullName = getVisitorFullName(visitor);
-  const timeVisit = booking?.time || 1;
+  const timeActivity = booking?.time || 1;
 
   // Check if can edit appointment
   let canEdit = true;
-  const currentVisitSurvey = allSurveys.find(
-    (s) => String(s.time) === String(timeVisit)
-  );
+  const currentVisitSurvey = allSurveys.find((s) => String(s.time) === String(timeActivity));
 
   if (currentVisitSurvey) {
     canEdit = currentVisitSurvey.approve_status === 1;
   }
 
   // Get previous visit survey for approval check
-  const previousTimeVisit = parseInt(timeVisit) - 1;
+  const previousTimeActivity = parseInt(timeActivity) - 1;
   const previousCompletedSurvey = completedSurveys.find(
-    (s) => String(s.time) === String(previousTimeVisit)
+    (s) => String(s.time) === String(previousTimeActivity)
   );
+
+  // ตรวจสอบว่าต้องการสร้างนัดหมายใหม่หรือไม่
+  // เงื่อนไข: มี completed surveys แต่ไม่มี booking.appointmentDate
+  const needsNextAppointment = completedSurveys.length > 0 && !booking?.appointmentDate;
 
   return {
     id: visitor.stid,
@@ -156,10 +134,11 @@ export function prepareVisitorData(
     appointmentDate: booking?.appointmentDate || null,
     appointmentTime: booking?.appointmentTime || null,
     month_age: booking?.month_age || null,
-    time: timeVisit,
+    time: timeActivity,
     dataSource: visitor.dataSource || "api",
     lastSyncedAt: visitor.lastSyncedAt || null,
-    needsPreviousVisit: parseInt(timeVisit) >= 2 && !previousCompletedSurvey,
+    needsPreviousVisit: parseInt(timeActivity) >= 2 && !previousCompletedSurvey,
+    needsNextAppointment,
     latestSurveySynced: previousCompletedSurvey?.synced || false,
     latestSurveyApproved: previousCompletedSurvey?.approve_status === 1,
     currentSurveyCompleted: currentVisitSurvey?.completed || false,
@@ -170,6 +149,20 @@ export function prepareVisitorData(
     hasSurveyProgress: !!currentVisitSurvey,
     hasCompletedSurveys: completedSurveys.length > 0,
   };
+}
+
+/**
+ * Calculate total visit count from completed surveys
+ * @param {Array} completedSurveys - Array of completed surveys
+ * @returns {number} Total number of completed visits
+ */
+export function calculateTimeVisit(completedSurveys) {
+  if (!completedSurveys || completedSurveys.length === 0) {
+    return 1; // First visit
+  }
+
+  // นับจำนวนแบบสอบถามที่ completed แล้ว แล้ว +1 สำหรับครั้งถัดไป
+  return completedSurveys.length + 1;
 }
 
 /**
@@ -187,4 +180,82 @@ export function generateYearOptions(yearsBack = 2, yearsForward = 2) {
   }
 
   return options;
+}
+
+/**
+ * Calculate next appointment data based on completed surveys
+ * @param {string} stid - Visitor stid
+ * @param {Object} indexedDB - IndexedDB plugin instance
+ * @returns {Promise<Object>} Next appointment data
+ */
+export async function calculateNextAppointment(stid, indexedDB) {
+  try {
+    // 1. ดึง completed surveys
+    const completedSurveys = await indexedDB.getCompletedSurveysByStid(stid);
+    
+    if (!completedSurveys || completedSurveys.length === 0) {
+      throw new Error('No completed surveys found');
+    }
+    
+    // 2. ดึง visitor เพื่อหาวันเกิด
+    const visitor = await indexedDB.getVisitor(stid);
+    
+    if (!visitor || !visitor.month_birth || !visitor.year_birth) {
+      throw new Error('Visitor birth date not found');
+    }
+    
+    // 3. คำนวณ time_visit
+    const newTimeVisit = completedSurveys.length + 1;
+    
+    // 4. หา survey ล่าสุดและคำนวณวันนัดหมายถัดไป (+7 วัน)
+    const lastSurvey = completedSurveys[completedSurveys.length - 1];
+    const lastVisitDate = new Date(lastSurvey.timeEnd || lastSurvey.timeStart);
+    const nextDate = new Date(lastVisitDate);
+    nextDate.setDate(nextDate.getDate() + 7);
+    
+    // 5. คำนวณ month_age และ time
+    const birthYear = parseInt(visitor.year_birth) - 543;
+    const birthMonth = parseInt(visitor.month_birth);
+    const calculatedMonthAge = (nextDate.getFullYear() - birthYear) * 12 + (nextDate.getMonth() + 1 - birthMonth);
+    
+    const currentTime = parseInt(lastSurvey.time) || 1;
+    let newTime = currentTime + 1;
+    let newMonthAge = lastSurvey.month_age || calculatedMonthAge;
+    
+    // ตรวจสอบว่าถ้าครั้งที่ 4 เสร็จแล้ว ให้เพิ่ม month_age และ reset time
+    if (currentTime === 4) {
+      newMonthAge = Math.min((lastSurvey.month_age || 0) + 1, MAX_AGE_MONTHS);
+      newTime = 1;
+    } else if (newTime > MAX_VISIT_TIME) {
+      newTime = MAX_VISIT_TIME;
+    }
+    
+    // จำกัด month_age ไม่เกิน 48
+    if (newMonthAge > MAX_AGE_MONTHS) {
+      newMonthAge = MAX_AGE_MONTHS;
+    }
+    
+    // 6. ดึง activities
+    const activities = await indexedDB.getActivityByMonthAgeAndTime(newMonthAge, newTime);
+    
+    // 7. Format วันที่เป็น YYYY-MM-DD
+    const year = nextDate.getFullYear();
+    const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+    const day = String(nextDate.getDate()).padStart(2, '0');
+    const appointmentDate = `${year}-${month}-${day}`;
+    
+    return {
+      appointmentDate,
+      appointmentTime: '09:00 น.',
+      month_age: newMonthAge,
+      time: newTime,
+      time_visit: newTimeVisit,
+      activities: activities || [],
+      lastSurveyTime: lastSurvey.time,
+      lastSurveyMonthAge: lastSurvey.month_age
+    };
+  } catch (error) {
+    console.error('Error calculating next appointment:', error);
+    throw error;
+  }
 }

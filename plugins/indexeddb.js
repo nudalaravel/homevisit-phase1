@@ -6,7 +6,7 @@ export default function ({ app }, inject) {
   class IndexedDBManager {
     constructor() {
       this.dbName = "RipedV2DB"; // ชื่อฐานข้อมูล
-      this.version = 8; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
+      this.version = 9; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema)
       this.db = null; // Instance ของ database
       this.isInitialized = false; // สถานะการเริ่มต้นงาน
     }
@@ -84,17 +84,7 @@ export default function ({ app }, inject) {
             imageStore.createIndex("timestamp", "timestamp", { unique: false });
           }
 
-          // 4. Surveys Store - เก็บข้อมูลแบบสอบถาม
-          if (!db.objectStoreNames.contains("surveys")) {
-            const surveyStore = db.createObjectStore("surveys", {
-              keyPath: "id",
-            });
-            surveyStore.createIndex("timestamp", "timestamp", {
-              unique: false,
-            });
-          }
-
-          // 5. Provinces Store - เก็บข้อมูลจังหวัด
+          // 4. Provinces Store - เก็บข้อมูลจังหวัด
           if (!db.objectStoreNames.contains("provinces")) {
             const provinceStore = db.createObjectStore("provinces", {
               keyPath: "prov_code",
@@ -104,7 +94,7 @@ export default function ({ app }, inject) {
             });
           }
 
-          // 6. Amphoe Store - เก็บข้อมูลอำเภอ
+          // 5. Amphoe Store - เก็บข้อมูลอำเภอ
           if (!db.objectStoreNames.contains("amphoe")) {
             const amphoeStore = db.createObjectStore("amphoe", {
               keyPath: "amp_code",
@@ -115,7 +105,7 @@ export default function ({ app }, inject) {
             amphoeStore.createIndex("amp_name", "amp_name", { unique: false });
           }
 
-          // 7. Tambon Store - เก็บข้อมูลตำบล
+          // 6. Tambon Store - เก็บข้อมูลตำบล
           if (!db.objectStoreNames.contains("tambon")) {
             const tambonStore = db.createObjectStore("tambon", {
               keyPath: "tam_code",
@@ -124,7 +114,7 @@ export default function ({ app }, inject) {
             tambonStore.createIndex("tam_name", "tam_name", { unique: false });
           }
 
-          // 8. Activities Store - เก็บข้อมูลกิจกรรม
+          // 7. Activities Store - เก็บข้อมูลกิจกรรม
           if (!db.objectStoreNames.contains("activities")) {
             const activityStore = db.createObjectStore("activities", {
               keyPath: "no",
@@ -163,12 +153,9 @@ export default function ({ app }, inject) {
 
           // 11. Survey Progress Store - เก็บความคืบหน้าการทำแบบสอบถาม
           if (!db.objectStoreNames.contains("survey_progress")) {
-            const surveyProgressStore = db.createObjectStore(
-              "survey_progress",
-              {
-                keyPath: "id",
-              }
-            );
+            const surveyProgressStore = db.createObjectStore("survey_progress", {
+              keyPath: "id",
+            });
             surveyProgressStore.createIndex("stid", "stid", { unique: false });
             surveyProgressStore.createIndex("time", "time", {
               unique: false,
@@ -247,12 +234,25 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
+        try {
+          // ตรวจสอบว่า database connection ยังเปิดอยู่
+          if (!this.db || this.db.objectStoreNames.length === 0) {
+            console.warn("Database connection is closed, attempting to reinitialize...");
+            this.isInitialized = false;
+            reject(new Error("Database connection closed"));
+            return;
+          }
+
         const transaction = this.db.transaction([storeName], "readonly");
         const store = transaction.objectStore(storeName);
         const request = store.getAll();
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
+        } catch (error) {
+          console.error("Error in getAll transaction:", error);
+          reject(error);
+        }
       });
     }
 
@@ -270,12 +270,25 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
+        try {
+          // ตรวจสอบว่า database connection ยังเปิดอยู่
+          if (!this.db || this.db.objectStoreNames.length === 0) {
+            console.warn("Database connection is closed, attempting to reinitialize...");
+            this.isInitialized = false;
+            reject(new Error("Database connection closed"));
+            return;
+          }
+
         const transaction = this.db.transaction([storeName], "readwrite");
         const store = transaction.objectStore(storeName);
         const request = store.put(data); // put = insert หรือ update
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
+        } catch (error) {
+          console.error("Error in update transaction:", error);
+          reject(error);
+        }
       });
     }
 
@@ -416,33 +429,6 @@ export default function ({ app }, inject) {
     }
 
     // ========================================
-    // Survey Operations (จัดการแบบสอบถาม)
-    // ========================================
-
-    /** บันทึกแบบสอบถาม */
-    async saveSurvey(survey) {
-      return await this.update("surveys", {
-        ...survey,
-        lastSync: new Date().toISOString(),
-      });
-    }
-
-    /** ดึงแบบสอบถามทั้งหมด */
-    async getSurveys() {
-      return await this.getAll("surveys");
-    }
-
-    /** ดึงแบบสอบถามด้วย ID */
-    async getSurvey(id) {
-      return await this.get("surveys", id);
-    }
-
-    /** ลบแบบสอบถาม */
-    async deleteSurvey(id) {
-      return await this.delete("surveys", id);
-    }
-
-    // ========================================
     // Utility Operations (ฟังก์ชันเสริม)
     // ========================================
 
@@ -483,7 +469,6 @@ export default function ({ app }, inject) {
         "syncQueue",
         "patients",
         "images",
-        "surveys",
       ];
 
       // วนลูปดึงข้อมูลจากแต่ละ store
@@ -500,10 +485,7 @@ export default function ({ app }, inject) {
       }
 
       // คำนวณขนาดรวม
-      const totalSize = Object.values(stats).reduce(
-        (sum, stat) => sum + stat.size,
-        0
-      );
+      const totalSize = Object.values(stats).reduce((sum, stat) => sum + stat.size, 0);
       stats.total = {
         count: Object.values(stats).reduce((sum, stat) => sum + stat.count, 0),
         size: totalSize,
@@ -599,9 +581,7 @@ export default function ({ app }, inject) {
     async processSyncQueue() {
       const initialized = await this.ensureInitialized();
       if (!initialized || !this.db) {
-        console.warn(
-          "IndexedDB is not available, sync queue processing skipped"
-        );
+        console.warn("IndexedDB is not available, sync queue processing skipped");
         return;
       }
 
@@ -697,7 +677,6 @@ export default function ({ app }, inject) {
         "settings",
         "syncQueue",
         "images",
-        "surveys",
         "provinces",
         "amphoe",
         "tambon",
@@ -898,10 +877,7 @@ export default function ({ app }, inject) {
                 no: activity.no,
                 error: request.error,
               });
-              console.error(
-                `Failed to add activity ${activity.no}:`,
-                request.error
-              );
+              console.error(`Failed to add activity ${activity.no}:`, request.error);
             };
           } catch (error) {
             errorCount++;
@@ -965,7 +941,7 @@ export default function ({ app }, inject) {
     }
 
     /** ดึงกิจกรรมตามอายุเดือนและครั้งที่เยี่ยม */
-    async getActivityByMonthAgeAndTime(monthAge, timeVisit) {
+    async getActivityByMonthAgeAndTime(monthAge, timeActivity) {
       const initialized = await this.ensureInitialized();
       if (!initialized || !this.db) {
         console.error("IndexedDB not initialized");
@@ -988,7 +964,7 @@ export default function ({ app }, inject) {
             // Convert both to numbers for comparison since API returns strings
             if (
               Number(activity.month_age) === Number(monthAge) &&
-              Number(activity.time) === Number(timeVisit)
+              Number(activity.time) === Number(timeActivity)
             ) {
               matchingActivities.push(activity);
             }
@@ -1183,10 +1159,7 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(
-          ["survey_progress"],
-          "readonly"
-        );
+        const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
         const request = store.getAll();
 
@@ -1251,10 +1224,7 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(
-          ["survey_progress"],
-          "readonly"
-        );
+        const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
         const request = store.getAll();
 
@@ -1285,9 +1255,7 @@ export default function ({ app }, inject) {
             console.warn(
               `⚠️ Found ${duplicates.length} duplicate survey keys. This should not happen after cleanup.`
             );
-            console.warn(
-              `Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`
-            );
+            console.warn(`Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`);
           }
 
           // Sort by time ascending (เรียงตามครั้งที่เยี่ยม)
@@ -1312,10 +1280,7 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(
-          ["survey_progress"],
-          "readonly"
-        );
+        const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
         const request = store.getAll();
 
@@ -1323,9 +1288,7 @@ export default function ({ app }, inject) {
           const surveys = request.result;
           const allSurveys = surveys.filter((s) => s.stid === stid);
           // Sort by timeStart descending (newest first)
-          allSurveys.sort(
-            (a, b) => new Date(b.timeStart) - new Date(a.timeStart)
-          );
+          allSurveys.sort((a, b) => new Date(b.timeStart) - new Date(a.timeStart));
           resolve(allSurveys);
         };
         request.onerror = () => reject(request.error);
@@ -1391,8 +1354,7 @@ export default function ({ app }, inject) {
                   bestSurvey.completed === current.completed &&
                   Object.keys(current.answers || {}).length ===
                     Object.keys(bestSurvey.answers || {}).length &&
-                  new Date(current.lastUpdated || 0) >
-                    new Date(bestSurvey.lastUpdated || 0)); // updated ใหม่กว่า
+                  new Date(current.lastUpdated || 0) > new Date(bestSurvey.lastUpdated || 0)); // updated ใหม่กว่า
 
               if (shouldReplace) {
                 // Merge ข้อมูลที่ดีจาก bestSurvey เข้ากับ current
@@ -1407,8 +1369,7 @@ export default function ({ app }, inject) {
                     ...(bestSurvey.surveyImages || []),
                     ...(current.surveyImages || []),
                   ].filter(
-                    (img, index, self) =>
-                      index === self.findIndex((i) => i.key === img.key) // unique by key
+                    (img, index, self) => index === self.findIndex((i) => i.key === img.key) // unique by key
                   ),
                   surveyImageKeys: Array.from(
                     new Set([
@@ -1447,10 +1408,7 @@ export default function ({ app }, inject) {
                   await this.deleteSurveyProgress(survey.id);
                   removedCount++;
                 } catch (error) {
-                  console.error(
-                    `❌ Failed to remove duplicate ${survey.id}:`,
-                    error
-                  );
+                  console.error(`❌ Failed to remove duplicate ${survey.id}:`, error);
                 }
               }
             }
@@ -1475,10 +1433,7 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(
-          ["survey_progress"],
-          "readonly"
-        );
+        const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
         const request = store.getAll();
 
@@ -1505,10 +1460,7 @@ export default function ({ app }, inject) {
       }
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(
-          ["survey_progress"],
-          "readonly"
-        );
+        const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
         const index = store.index("completed");
         const request = index.getAll(true);

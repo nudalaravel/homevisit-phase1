@@ -92,7 +92,7 @@ async function createApp(ssrContext, config = {}) {
   // here we inject the router and store to all child components,
   // making them available everywhere as `this.$router` and `this.$store`.
   const app = {
-    head: {"title":"Riped V2 Research","meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"hid":"description","name":"description","content":"Research Dashboard Template"},{"name":"theme-color","content":"#3551a4"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"Riped V2"}],"link":[{"rel":"icon","type":"image\u002Fx-icon","href":"\u002Fhomevisit\u002Ffavicon.ico"},{"rel":"stylesheet","href":"\u002Fhomevisit\u002Ffonts\u002Fkanit.css"},{"rel":"apple-touch-icon","href":"\u002Fhomevisit\u002Flogo.png"},{"rel":"manifest","href":"\u002Fhomevisit\u002Fmanifest.json"}],"style":[],"script":[]},
+    head: {"title":"Riped V2 Research","meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"hid":"description","name":"description","content":"Research Dashboard Template"},{"name":"theme-color","content":"#3551a4"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"Riped V2 Research"}],"link":[{"rel":"icon","type":"image\u002Fx-icon","href":"\u002Fhomevisit\u002Ffavicon.ico"},{"rel":"stylesheet","href":"\u002Fhomevisit\u002Ffonts\u002Fkanit.css"},{"rel":"apple-touch-icon","href":"\u002Fhomevisit\u002Flogo.png"},{"rel":"manifest","href":"\u002Fhomevisit\u002Fmanifest.json"}],"style":[],"script":[]},
 
     store,
     router,
