@@ -506,7 +506,6 @@
             ref="fileInput1"
             type="file"
             accept="image/*"
-            capture="environment"
             style="display: none"
             @change="handleFileSelect($event, 0)"
           />
