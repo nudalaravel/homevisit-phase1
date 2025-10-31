@@ -105,19 +105,20 @@ export function getVisitorFullName(visitor) {
 export function prepareVisitorData(visitor, booking, completedSurveys, allSurveys) {
   const fullName = getVisitorFullName(visitor);
   const timeActivity = booking?.time || 1;
+  const timeVisit = booking?.time_visit || 1;
 
   // Check if can edit appointment
-  let canEdit = true;
-  const currentVisitSurvey = allSurveys.find((s) => String(s.time) === String(timeActivity));
+  // Requirement: ห้ามแก้ไขนัดหมาย ถ้ามีการเริ่มทำแบบสำรวจไปแล้ว (ทุกสถานะ)
+  const currentVisitSurvey = allSurveys.find((s) => String(s.time_visit) === String(timeVisit));
 
-  if (currentVisitSurvey) {
-    canEdit = currentVisitSurvey.approve_status === 1;
-  }
+  // แก้ไขได้เฉพาะเมื่อไม่มี survey
+  // มี survey (ไม่ว่า incomplete, completed, synced, approved) → ห้ามแก้ไข
+  const canEdit = !currentVisitSurvey;
 
   // Get previous visit survey for approval check
-  const previousTimeActivity = parseInt(timeActivity) - 1;
+  const previousTimeVisit = parseInt(timeVisit) - 1;
   const previousCompletedSurvey = completedSurveys.find(
-    (s) => String(s.time) === String(previousTimeActivity)
+    (s) => String(s.time_visit) === String(previousTimeVisit)
   );
 
   // ตรวจสอบว่าต้องการสร้างนัดหมายใหม่หรือไม่
@@ -135,9 +136,10 @@ export function prepareVisitorData(visitor, booking, completedSurveys, allSurvey
     appointmentTime: booking?.appointmentTime || null,
     month_age: booking?.month_age || null,
     time: timeActivity,
+    time_visit: timeVisit,
     dataSource: visitor.dataSource || "api",
     lastSyncedAt: visitor.lastSyncedAt || null,
-    needsPreviousVisit: parseInt(timeActivity) >= 2 && !previousCompletedSurvey,
+    needsPreviousVisit: parseInt(timeVisit) >= 2 && !previousCompletedSurvey,
     needsNextAppointment,
     latestSurveySynced: previousCompletedSurvey?.synced || false,
     latestSurveyApproved: previousCompletedSurvey?.approve_status === 1,
@@ -183,6 +185,98 @@ export function generateYearOptions(yearsBack = 2, yearsForward = 2) {
 }
 
 /**
+ * Calculate month age and time activity for next appointment
+ * @param {number} visitorBirthMonth - Birth month (1-12)
+ * @param {number} visitorBirthYear - Birth year (Buddhist era)
+ * @param {number} visitorBirthDay - Birth day (1-31)
+ * @param {Date} selectedDate - Selected appointment date
+ * @param {Object} existingBooking - Existing booking data (optional)
+ * @returns {Object} { monthAge, timeActivity }
+ */
+export function calculateMonthAgeAndTime(
+  visitorBirthMonth,
+  visitorBirthYear,
+  visitorBirthDay,
+  selectedDate,
+  existingBooking = null
+) {
+  // Convert Buddhist year to Christian era
+  const birthYear = parseInt(visitorBirthYear) - 543;
+  const birthMonth = parseInt(visitorBirthMonth);
+  const birthDay = parseInt(visitorBirthDay) || 1; // Default to 1 if not provided
+
+  const selectedYear = selectedDate.getFullYear();
+  const selectedMonth = selectedDate.getMonth() + 1;
+  const selectedDay = selectedDate.getDate();
+
+  // Calculate month age with birth day precision
+  let calculatedMonthAge = (selectedYear - birthYear) * 12 + (selectedMonth - birthMonth);
+
+  // Adjust if selected day is before birth day in the month
+  if (selectedDay < birthDay) {
+    calculatedMonthAge--;
+  }
+
+  // Cap at max age (48 months)
+  if (calculatedMonthAge > MAX_AGE_MONTHS) {
+    calculatedMonthAge = MAX_AGE_MONTHS;
+  }
+
+  // Ensure non-negative
+  if (calculatedMonthAge < 0) {
+    calculatedMonthAge = 0;
+  }
+
+  let monthAge = calculatedMonthAge;
+  let timeActivity = 1;
+
+  // Check 21-day rule using appointmentDate
+  if (existingBooking && existingBooking.appointmentDate) {
+    const lastAppointmentDate = new Date(existingBooking.appointmentDate);
+    const daysSinceLastAppointment = Math.floor(
+      (selectedDate - lastAppointmentDate) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysSinceLastAppointment > DAYS_BETWEEN_VISITS_THRESHOLD) {
+      // More than 21 days: recalculate month age and reset time
+      // ใช้กับทุกกรณี รวมถึงหลังครั้งที่ 4
+      monthAge = calculatedMonthAge;
+      timeActivity = 1;
+
+      if (monthAge > MAX_AGE_MONTHS) {
+        monthAge = MAX_AGE_MONTHS;
+      }
+    } else if (daysSinceLastAppointment >= 0) {
+      // 0-21 days: increment sequence
+
+      // Special case: after 4th visit (creating 5th appointment)
+      if (existingBooking.time === MAX_VISIT_TIME) {
+        // ครบครั้งที่ 4 แล้ว: ภายใน 21 วัน
+        // → เพิ่ม month_age + 1, รีเซ็ต time = 1
+        timeActivity = 1;
+        monthAge = Math.min((existingBooking.month_age || 0) + 1, MAX_AGE_MONTHS);
+      } else {
+        // Normal case: increment time, keep month age
+        monthAge = existingBooking.month_age || calculatedMonthAge;
+        timeActivity = (existingBooking.time || 0) + 1;
+
+        if (timeActivity > MAX_VISIT_TIME) {
+          // Cap at max visit time (4)
+          timeActivity = MAX_VISIT_TIME;
+        }
+      }
+    } else {
+      // Negative days (date in past) - should not happen, but handle safely
+      // ใช้ค่าเดิมจาก booking
+      monthAge = existingBooking.month_age || calculatedMonthAge;
+      timeActivity = existingBooking.time || 1;
+    }
+  }
+
+  return { monthAge, timeActivity };
+}
+
+/**
  * Calculate next appointment data based on completed surveys
  * @param {string} stid - Visitor stid
  * @param {Object} indexedDB - IndexedDB plugin instance
@@ -192,36 +286,37 @@ export async function calculateNextAppointment(stid, indexedDB) {
   try {
     // 1. ดึง completed surveys
     const completedSurveys = await indexedDB.getCompletedSurveysByStid(stid);
-    
+
     if (!completedSurveys || completedSurveys.length === 0) {
-      throw new Error('No completed surveys found');
+      throw new Error("No completed surveys found");
     }
-    
+
     // 2. ดึง visitor เพื่อหาวันเกิด
     const visitor = await indexedDB.getVisitor(stid);
-    
+
     if (!visitor || !visitor.month_birth || !visitor.year_birth) {
-      throw new Error('Visitor birth date not found');
+      throw new Error("Visitor birth date not found");
     }
-    
+
     // 3. คำนวณ time_visit
     const newTimeVisit = completedSurveys.length + 1;
-    
+
     // 4. หา survey ล่าสุดและคำนวณวันนัดหมายถัดไป (+7 วัน)
     const lastSurvey = completedSurveys[completedSurveys.length - 1];
     const lastVisitDate = new Date(lastSurvey.timeEnd || lastSurvey.timeStart);
     const nextDate = new Date(lastVisitDate);
     nextDate.setDate(nextDate.getDate() + 7);
-    
+
     // 5. คำนวณ month_age และ time
     const birthYear = parseInt(visitor.year_birth) - 543;
     const birthMonth = parseInt(visitor.month_birth);
-    const calculatedMonthAge = (nextDate.getFullYear() - birthYear) * 12 + (nextDate.getMonth() + 1 - birthMonth);
-    
+    const calculatedMonthAge =
+      (nextDate.getFullYear() - birthYear) * 12 + (nextDate.getMonth() + 1 - birthMonth);
+
     const currentTime = parseInt(lastSurvey.time) || 1;
     let newTime = currentTime + 1;
     let newMonthAge = lastSurvey.month_age || calculatedMonthAge;
-    
+
     // ตรวจสอบว่าถ้าครั้งที่ 4 เสร็จแล้ว ให้เพิ่ม month_age และ reset time
     if (currentTime === 4) {
       newMonthAge = Math.min((lastSurvey.month_age || 0) + 1, MAX_AGE_MONTHS);
@@ -229,33 +324,33 @@ export async function calculateNextAppointment(stid, indexedDB) {
     } else if (newTime > MAX_VISIT_TIME) {
       newTime = MAX_VISIT_TIME;
     }
-    
+
     // จำกัด month_age ไม่เกิน 48
     if (newMonthAge > MAX_AGE_MONTHS) {
       newMonthAge = MAX_AGE_MONTHS;
     }
-    
+
     // 6. ดึง activities
     const activities = await indexedDB.getActivityByMonthAgeAndTime(newMonthAge, newTime);
-    
+
     // 7. Format วันที่เป็น YYYY-MM-DD
     const year = nextDate.getFullYear();
-    const month = String(nextDate.getMonth() + 1).padStart(2, '0');
-    const day = String(nextDate.getDate()).padStart(2, '0');
+    const month = String(nextDate.getMonth() + 1).padStart(2, "0");
+    const day = String(nextDate.getDate()).padStart(2, "0");
     const appointmentDate = `${year}-${month}-${day}`;
-    
+
     return {
       appointmentDate,
-      appointmentTime: '09:00 น.',
+      appointmentTime: "09:00 น.",
       month_age: newMonthAge,
       time: newTime,
       time_visit: newTimeVisit,
       activities: activities || [],
       lastSurveyTime: lastSurvey.time,
-      lastSurveyMonthAge: lastSurvey.month_age
+      lastSurveyMonthAge: lastSurvey.month_age,
     };
   } catch (error) {
-    console.error('Error calculating next appointment:', error);
+    console.error("Error calculating next appointment:", error);
     throw error;
   }
 }

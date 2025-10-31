@@ -255,12 +255,12 @@ export default function ({ app }, inject) {
             return;
           }
 
-        const transaction = this.db.transaction([storeName], "readonly");
-        const store = transaction.objectStore(storeName);
-        const request = store.getAll();
+          const transaction = this.db.transaction([storeName], "readonly");
+          const store = transaction.objectStore(storeName);
+          const request = store.getAll();
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
         } catch (error) {
           console.error("Error in getAll transaction:", error);
           reject(error);
@@ -291,12 +291,12 @@ export default function ({ app }, inject) {
             return;
           }
 
-        const transaction = this.db.transaction([storeName], "readwrite");
-        const store = transaction.objectStore(storeName);
-        const request = store.put(data); // put = insert หรือ update
+          const transaction = this.db.transaction([storeName], "readwrite");
+          const store = transaction.objectStore(storeName);
+          const request = store.put(data); // put = insert หรือ update
 
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
         } catch (error) {
           console.error("Error in update transaction:", error);
           reject(error);
@@ -628,10 +628,16 @@ export default function ({ app }, inject) {
         throw new Error("ไม่สามารถซิงค์ได้ เนื่องจากไม่มีอินเทอร์เน็ต");
       }
 
-      const { action, data } = item;
+      // รองรับทั้ง 'action' (รูปแบบเก่า) และ 'type' (รูปแบบใหม่)
+      const actionType = item.action || item.type;
+      const { data } = item;
 
       // ตรวจสอบประเภท action และเรียก API ที่เหมาะสม
-      switch (action) {
+      switch (actionType) {
+        case "SUBMIT_SURVEY":
+          // Survey ควรถูก sync ผ่าน pushSurveyResultsToAPI() ไม่ใช่ sync queue
+          // ส่ง success กลับเพื่อให้ลบ item นี้ออกจาก queue
+          return { success: true, deprecated: true };
         case "CREATE_USER":
           return await app.$axios.post("/users", data);
         case "UPDATE_USER":
@@ -651,7 +657,7 @@ export default function ({ app }, inject) {
         case "DELETE_PRODUCT":
           return await app.$axios.delete(`/products/${data.id}`);
         default:
-          throw new Error(`Unknown sync action: ${action}`);
+          throw new Error(`Unknown sync action: ${actionType}`);
       }
     }
 
@@ -676,7 +682,7 @@ export default function ({ app }, inject) {
 
     /**
      * ล้างข้อมูลทั้งหมดใน database
-     * ⚠️ ระวัง: จะลบข้อมูลทั้งหมดและไม่สามารถกู้คืนได้
+     * ระวัง: จะลบข้อมูลทั้งหมดและไม่สามารถกู้คืนได้
      */
     async clearAllData() {
       const initialized = await this.ensureInitialized();
@@ -1163,7 +1169,7 @@ export default function ({ app }, inject) {
     }
 
     /** ดึงความคืบหน้าแบบสอบถามที่ยังไม่สำเร็จ */
-    async getSurveyProgress(stid, time) {
+    async getSurveyProgress(stid, timeVisit) {
       const initialized = await this.ensureInitialized();
       if (!initialized || !this.db) {
         console.warn("IndexedDB is not available, operation skipped");
@@ -1177,11 +1183,11 @@ export default function ({ app }, inject) {
 
         request.onsuccess = () => {
           const surveys = request.result;
-          // Find incomplete survey with matching stid and time
-          const incompleteSurvey = surveys.find(
-            (s) => s.stid === stid && s.time === time && !s.completed
+          // Find survey with matching stid and time_visit (completed or incomplete)
+          const survey = surveys.find(
+            (s) => s.stid === stid && String(s.time_visit) === String(timeVisit)
           );
-          resolve(incompleteSurvey || null);
+          resolve(survey || null);
         };
         request.onerror = () => reject(request.error);
       });
@@ -1198,17 +1204,22 @@ export default function ({ app }, inject) {
     }
 
     /** ทำเครื่องหมายแบบสอบถามว่าเสร็จสิ้น */
-    async markSurveyCompleted(id, timeEnd) {
+    async markSurveyCompleted(id, timeEnd, recEnd = null) {
       const survey = await this.getSurveyProgressById(id);
       if (survey) {
-        return await this.update("survey_progress", {
+        const finalRecEnd =
+          recEnd || survey.recEnd || new Date().toISOString().slice(0, 19).replace("T", " ");
+
+        const result = await this.update("survey_progress", {
           ...survey,
           completed: true,
           timeEnd: timeEnd,
+          recEnd: finalRecEnd, // เวลาที่ระบบบันทึกจริง
           synced: false, // ยังไม่ได้ sync ขึ้น server
           approve_status: 0, // 0 = ยังไม่อนุมัติ, 1 = อนุมัติแล้ว
           lastUpdated: new Date().toISOString(),
         });
+        return result;
       }
       return null;
     }
@@ -1265,7 +1276,7 @@ export default function ({ app }, inject) {
 
           if (duplicates.length > 0) {
             console.warn(
-              `⚠️ Found ${duplicates.length} duplicate survey keys. This should not happen after cleanup.`
+              `Found ${duplicates.length} duplicate survey keys. This should not happen after cleanup.`
             );
             console.warn(`Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`);
           }
@@ -1339,8 +1350,6 @@ export default function ({ app }, inject) {
         // ตรวจสอบแต่ละกลุ่ม
         for (const [key, surveys] of groupedSurveys) {
           if (surveys.length > 1) {
-            console.warn(`⚠️ Found ${surveys.length} duplicates for ${key}`);
-
             // เลือก survey ที่ดีที่สุด
             let bestSurvey = surveys[0];
 
@@ -1501,13 +1510,13 @@ export default function ({ app }, inject) {
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["failed_sync"], "readwrite");
         const store = transaction.objectStore("failed_sync");
-        
+
         const itemToSave = {
           ...item,
           failedAt: item.failedAt || new Date().toISOString(),
           status: "failed",
         };
-        
+
         const request = store.add(itemToSave);
 
         request.onsuccess = () => {
@@ -1592,7 +1601,7 @@ export default function ({ app }, inject) {
         // 1. ดึง failed item
         const failedItems = await this.getFailedSyncItems();
         const item = failedItems.find((i) => i.id === id);
-        
+
         if (!item) {
           console.warn("Failed sync item not found:", id);
           return false;
@@ -1605,7 +1614,7 @@ export default function ({ app }, inject) {
           timestamp: new Date().toISOString(),
           retries: 0,
         };
-        
+
         await this.addToSyncQueue(syncItem.action, syncItem.data);
 
         // 3. ลบออกจาก failed_sync

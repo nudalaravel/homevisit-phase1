@@ -13,7 +13,7 @@ export function useSurveyAnswers() {
     q3_des: '',
     q4: null,
     q5: {},
-    q6: [],
+    q6: null, // เลือกได้แค่ตัวเลือกเดียว
     q6_other: '',
     q7: null,
     q71: [],
@@ -52,7 +52,7 @@ export function useSurveyAnswers() {
     answers.q3_des = ''
     answers.q4 = null
     answers.q5 = {}
-    answers.q6 = []
+    answers.q6 = null
     answers.q6_other = ''
     answers.q7 = null
     answers.q71 = []
@@ -82,7 +82,7 @@ export function useSurveyAnswers() {
     answers.q3_des = ''
     answers.q4 = null
     answers.q5 = {}
-    answers.q6 = []
+    answers.q6 = null
     answers.q6_other = ''
     answers.q7 = null
     answers.q71 = []

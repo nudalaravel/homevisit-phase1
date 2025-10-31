@@ -445,7 +445,6 @@ export default function ({ app, store, $axios }, inject) {
     async syncSurveyResults(username) {
       try {
         if (!navigator.onLine) {
-          console.log("Offline - skipping survey results sync");
           return false;
         }
 
@@ -608,11 +607,11 @@ export default function ({ app, store, $axios }, inject) {
               stid: result.stid,
               time: String(timeValue), // Map จาก time ของ API เป็น time
               time_visit: result.time_visit || null,
-              // ⚠️ ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
+              // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               month_age: localSurvey?.month_age || result.month_age,
               timeStart: result.timeStart,
               timeEnd: result.timeEnd,
-              // ⚠️ ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
+              // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               appointmentDate: localSurvey?.appointmentDate || result.date_visit,
               fullname_visit: fullnameVisit,
               answers: {
@@ -622,15 +621,20 @@ export default function ({ app, store, $axios }, inject) {
                 q2: result.q2 != null ? Number(result.q2) : null,
                 q2_des: result.q2_des || "",
                 // q3 จาก API เป็น string ต้อง convert เป็น array of numbers
-                // ⚠️ Merge กับ local เพื่อเก็บค่าที่ user เลือกไว้ล่าสุด (เช่น 13)
+                // Merge กับ local เพื่อเก็บค่าที่ user เลือกไว้ล่าสุด (เช่น 13)
                 q3: mergeArrays(localSurvey?.answers?.q3, parseArrayFromString(result.q3)),
                 q3_des: localSurvey?.answers?.q3_des || result.q3_des || "",
                 q4: result.q4 != null ? Number(result.q4) : null,
                 // q5 ใช้ activity ID เป็น key (จาก q51_name, q52_name, ...)
                 q5: q5Answers,
-                // q6 จาก API เป็น string ต้อง convert เป็น array of numbers
-                // ⚠️ Merge กับ local เพื่อเก็บค่าที่ user เลือกไว้ล่าสุด (เช่น 13)
-                q6: mergeArrays(localSurvey?.answers?.q6, parseArrayFromString(result.q6)),
+                // q6 เป็น single value (ไม่ใช่ array แล้ว)
+                // ใช้ค่าจาก local ถ้ามี ไม่งั้นใช้ค่าจาก API
+                q6:
+                  localSurvey?.answers?.q6 != null
+                    ? localSurvey.answers.q6
+                    : result.q6 != null
+                    ? Number(result.q6)
+                    : null,
                 q6_des:
                   localSurvey?.answers?.q6_other ||
                   localSurvey?.answers?.q6_des ||
@@ -644,7 +648,7 @@ export default function ({ app, store, $axios }, inject) {
                 // q7 เป็น single value (1 = มี, 0 = ไม่มี)
                 q7: result.q7 != null ? Number(result.q7) : null,
                 // q71 จาก API เป็น string ต้อง convert เป็น array of numbers
-                // ⚠️ Merge กับ local เพื่อเก็บค่าที่ user เลือกไว้ล่าสุด (เช่น 13)
+                // Merge กับ local เพื่อเก็บค่าที่ user เลือกไว้ล่าสุด (เช่น 13)
                 q71: mergeArrays(localSurvey?.answers?.q71, parseArrayFromString(result.q71)),
                 q71_des: localSurvey?.answers?.q71_des || result.q71_des || "",
                 q8: result.q8 != null ? Number(result.q8) : null,
@@ -692,9 +696,9 @@ export default function ({ app, store, $axios }, inject) {
               // ไม่ต้องเซ็ต approve_status จาก API นี้ เพราะ API getchildsample_result.php ไม่มีฟิลด์นี้
               // approve_status จะมาจาก API getchildsample_app.php ใน syncBookings() แทน
               approve_status: localSurvey?.approve_status || 0, // เก็บค่าเดิมจาก local
-              // ⚠️ เก็บ newAppointment จาก local เพราะ user อาจแก้ไขล่าสุด
+              // เก็บ newAppointment จาก local เพราะ user อาจแก้ไขล่าสุด
               newAppointment: localSurvey?.newAppointment || null,
-              // ⚠️ เก็บ currentStep จาก local เพื่อรักษา progress
+              // เก็บ currentStep จาก local เพื่อรักษา progress
               currentStep: localSurvey?.currentStep || 1,
               currentActivityIndex: localSurvey?.currentActivityIndex || 0,
               currentQ5Index: localSurvey?.currentQ5Index || 0,
@@ -807,18 +811,34 @@ export default function ({ app, store, $axios }, inject) {
               }
             }
 
-            // สร้าง recStart (MySQL format: YYYY-MM-DD HH:MM:SS)
-            const now = new Date();
-            const recStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-              2,
-              "0"
-            )}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(
-              2,
-              "0"
-            )}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(
-              2,
-              "0"
-            )}`;
+            // หา survey ที่เกี่ยวข้องกับ booking นี้เพื่อดึง recStart
+            let recStart = null;
+            try {
+              const relatedSurvey = await app.$indexedDB.getSurveyProgress(
+                booking.stid,
+                booking.time_visit || booking.time
+              );
+              if (relatedSurvey && relatedSurvey.timeStart) {
+                recStart = relatedSurvey.timeStart;
+              }
+            } catch (error) {
+              console.warn("Cannot find related survey for booking:", error);
+            }
+
+            // ถ้าไม่มี survey หรือไม่มี timeStart ให้สร้าง recStart ใหม่
+            if (!recStart) {
+              const now = new Date();
+              recStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+                2,
+                "0"
+              )}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(
+                2,
+                "0"
+              )}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(
+                2,
+                "0"
+              )}`;
+            }
 
             // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่ (ใช้ time_visit เป็น unique key)
             const checkResponse = await $axios.$get(
@@ -899,6 +919,7 @@ export default function ({ app, store, $axios }, inject) {
                   "q3_name",
                   "q4_name",
                   "q5_name",
+                  "cnt_app",
                 ],
                 value: [
                   username || "",
@@ -919,6 +940,7 @@ export default function ({ app, store, $axios }, inject) {
                   activityIds[2],
                   activityIds[3],
                   activityIds[4],
+                  "1",
                 ],
                 tb: "homevisitor_app",
               });
@@ -933,14 +955,11 @@ export default function ({ app, store, $axios }, inject) {
             });
 
             successCount++;
-            console.log(`Synced booking for stid: ${booking.stid}`);
           } catch (error) {
             errorCount++;
             console.error(`Failed to sync booking for stid: ${booking.stid}`, error);
           }
         }
-
-        console.log(`Bookings push completed: ${successCount} success, ${errorCount} errors`);
 
         return errorCount === 0;
       } catch (error) {
@@ -990,7 +1009,7 @@ export default function ({ app, store, $axios }, inject) {
      * @param {string} datetimeStr - Datetime string in format "YYYY-MM-DD HH:mm:ss"
      * @returns {string} Time in format "HH.MM น." or empty string
      */
-    formatTimeForAPI(datetimeStr) {
+    formatTimeForAPI(datetimeStr, includeNa = true) {
       if (!datetimeStr) {
         console.warn("formatTimeForAPI: datetimeStr is empty");
         return "";
@@ -1011,10 +1030,48 @@ export default function ({ app, store, $axios }, inject) {
           return "";
         }
 
-        // Format as HH.MM น. (use dot instead of colon based on API spec)
-        return `${hours}.${minutes} น.`;
+        // Format as HH.MM น. for timeStart
+        if (includeNa) {
+          return `${hours}.${minutes} น.`;
+        } else {
+          return `${hours}.${minutes}`;
+        }
       } catch (error) {
         console.error("Failed to format time:", error, datetimeStr);
+        return "";
+      }
+    }
+
+    /**
+     * Format datetime string to HH:MM format for timeEnd (API spec)
+     * @param {string} datetimeStr - Datetime string in format "YYYY-MM-DD HH:mm:ss"
+     * @returns {string} Time in format "HH:MM" or empty string
+     */
+    formatTimeEndForAPI(datetimeStr) {
+      if (!datetimeStr) {
+        console.warn("formatTimeEndForAPI: datetimeStr is empty");
+        return "";
+      }
+
+      try {
+        // Extract time part from datetime string
+        const timePart = datetimeStr.split(" ")[1];
+        if (!timePart) {
+          console.warn("formatTimeEndForAPI: No time part found in", datetimeStr);
+          return "";
+        }
+
+        // Get HH:MM
+        const [hours, minutes] = timePart.split(":");
+        if (!hours || !minutes) {
+          console.warn("formatTimeEndForAPI: Invalid time format", timePart);
+          return "";
+        }
+
+        // Format as HH:MM (use colon, no "น.")
+        return `${hours}:${minutes}`;
+      } catch (error) {
+        console.error("Failed to format timeEnd:", error, datetimeStr);
         return "";
       }
     }
@@ -1056,10 +1113,8 @@ export default function ({ app, store, $axios }, inject) {
 
             // ตรวจสอบว่า visitor มีข้อมูล fname และ lname
             if (!visitor) {
-              console.warn(`⚠️ Visitor data not found for stid: ${survey.stid}`);
             } else {
               if (!visitor.fname && !visitor.lname) {
-                console.warn(`⚠️ Visitor fname and lname are empty for stid: ${survey.stid}`);
               }
             }
 
@@ -1213,36 +1268,21 @@ export default function ({ app, store, $axios }, inject) {
               existingRecord = null;
             }
 
-            // ตรวจสอบและตั้งค่า timeStart ถ้าเป็นค่าว่าง
-            let effectiveTimeStart = survey.timeStart;
-            if (!effectiveTimeStart) {
-              // ถ้าไม่มี timeStart ให้ใช้ appointmentDate + appointmentTime หรือเวลาปัจจุบัน
-              if (survey.appointmentDate) {
-                // ใช้วันที่นัดหมาย + เวลา 09:00:00 เป็นค่า default
-                effectiveTimeStart = `${survey.appointmentDate} 09:00:00`;
-              } else {
-                // ใช้เวลาปัจจุบัน
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, "0");
-                const day = String(now.getDate()).padStart(2, "0");
-                const hours = String(now.getHours()).padStart(2, "0");
-                const minutes = String(now.getMinutes()).padStart(2, "0");
-                const seconds = String(now.getSeconds()).padStart(2, "0");
-                effectiveTimeStart = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-              }
+            // ตรวจสอบและตั้งค่า recStart ถ้าเป็นค่าว่าง (backward compatibility)
+            if (!survey.recStart) {
+              // ถ้าไม่มี recStart (survey เก่า) ให้สร้างใหม่จากเวลาปัจจุบัน
+              const now = new Date();
+              const year = now.getFullYear();
+              const month = String(now.getMonth() + 1).padStart(2, "0");
+              const day = String(now.getDate()).padStart(2, "0");
+              const hours = String(now.getHours()).padStart(2, "0");
+              const minutes = String(now.getMinutes()).padStart(2, "0");
+              const seconds = String(now.getSeconds()).padStart(2, "0");
+              survey.recStart = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
-              // บันทึก timeStart กลับไป survey object และ IndexedDB
-              survey.timeStart = effectiveTimeStart;
+              // บันทึก recStart กลับไป survey object และ IndexedDB
               await app.$indexedDB.saveSurveyProgress(survey);
             }
-
-            console.log("Sync survey timeStart:", {
-              surveyId: survey.id,
-              timeStart: survey.timeStart,
-              effectiveTimeStart,
-              formatted: this.formatTimeForAPI(effectiveTimeStart),
-            });
 
             // แปลงข้อมูลนัดหมายจาก newAppointment เป็น format ที่ API ต้องการ
             let q10_appDate = "";
@@ -1263,16 +1303,11 @@ export default function ({ app, store, $axios }, inject) {
                 q10_appDate = `${christianYear}-${month}-${day}`;
               }
 
-              // appointmentTime อยู่ในรูปแบบ "HH:MM น." อยู่แล้ว
+              // appointmentTime อยู่ในรูปแบบ "HH:MM น." ต้องแปลงเป็น "HH.MM น." สำหรับ API
               if (appointment.appointmentTime) {
-                q10_appTime = appointment.appointmentTime;
+                // แปลง "16:00 น." เป็น "16.00 น."
+                q10_appTime = appointment.appointmentTime.replace(":", ".");
               }
-
-              console.log("Next appointment data:", {
-                appointment,
-                q10_appDate,
-                q10_appTime,
-              });
             } else {
               console.warn("No newAppointment data found for survey", survey.id);
             }
@@ -1281,6 +1316,7 @@ export default function ({ app, store, $axios }, inject) {
               // มีข้อมูลแล้ว - ใช้ PUT
               const putPayload = {
                 variable: [
+                  "recEnd",
                   "timeStart",
                   "q1",
                   "q1_des",
@@ -1324,8 +1360,10 @@ export default function ({ app, store, $axios }, inject) {
                   "pic3",
                 ],
                 value: [
-                  // timeStart: เวลาเริ่มทำแบบทดสอบ (format: HH:mm น.)
-                  this.formatTimeForAPI(effectiveTimeStart) || "",
+                  // recEnd: เวลาที่ระบบแก้ไขล่าสุด (system timestamp) - อัปเดตเมื่อมีการแก้ไข
+                  survey.recEnd || "",
+                  // timeStart: เวลาที่ user กรอกว่าเริ่มทำกิจกรรม (user input - อาจเป็นค่าว่าง)
+                  survey.timeStart ? this.formatTimeForAPI(survey.timeStart) : "",
                   String(survey.answers?.q1 || ""),
                   survey.answers?.q1_des || "",
                   String(survey.answers?.q2 || ""),
@@ -1347,9 +1385,11 @@ export default function ({ app, store, $axios }, inject) {
                   String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
                   String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
                   String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
-                  // q6 เป็น array ต้อง convert เป็น string
+                  // q6 เป็น single value (รองรับข้อมูลเก่าที่เป็น array)
                   Array.isArray(survey.answers?.q6)
-                    ? survey.answers.q6.join(",")
+                    ? survey.answers.q6.length > 0
+                      ? String(survey.answers.q6[0])
+                      : ""
                     : String(survey.answers?.q6 || ""),
                   survey.answers?.q6_other || survey.answers?.q6_des || "",
                   // q7 เป็น single value (1 = มี, 0 = ไม่มี)
@@ -1373,6 +1413,7 @@ export default function ({ app, store, $axios }, inject) {
                   String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
                   q10_appDate,
                   q10_appTime,
+                  // timeEnd: เวลาที่ user กรอกว่าจบกิจกรรม (user input - format YYYY-MM-DD HH:mm:ss)
                   survey.timeEnd || "",
                   survey.note || survey.answers?.notes || "",
                   pic1,
@@ -1385,10 +1426,6 @@ export default function ({ app, store, $axios }, inject) {
               };
 
               await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", putPayload);
-
-              console.log(
-                `Updated existing survey result for stid: ${survey.stid}, time: ${survey.time}`
-              );
             } else {
               // ยังไม่มีข้อมูล - ใช้ POST
               const postPayload = {
@@ -1451,18 +1488,20 @@ export default function ({ app, store, $axios }, inject) {
                   survey.stid,
                   "15",
                   String(survey.time_visit || 1),
-                  effectiveTimeStart || "",
-                  survey.timeEnd || "",
+                  // recStart: เวลาที่ระบบเริ่มบันทึกจริง (system timestamp)
+                  survey.recStart || "",
+                  // recEnd: เวลาที่ระบบจบการบันทึกจริง (system timestamp)
+                  survey.recEnd || "",
                   "1",
                   visitor?.fname || "",
                   visitor?.lname || "",
                   survey.fullname_visit || "",
-                  // date_visit: วันที่ทำแบบทดสอบจริง (extract จาก timeStart)
-                  effectiveTimeStart
-                    ? effectiveTimeStart.split(" ")[0]
-                    : survey.appointmentDate || "",
-                  // timeStart: เวลาเริ่มทำแบบทดสอบ (format: HH:mm น.)
-                  this.formatTimeForAPI(effectiveTimeStart) || "",
+                  // date_visit: วันที่ทำแบบทดสอบจริง (extract จาก recStart)
+                  survey.recStart
+                    ? survey.recStart.split(" ")[0]
+                    : new Date().toISOString().split("T")[0],
+                  // timeStart: เวลาที่ user กรอกว่าเริ่มทำกิจกรรม (user input - อาจเป็นค่าว่าง)
+                  survey.timeStart ? this.formatTimeForAPI(survey.timeStart) : "",
                   String(survey.answers?.q1 || ""),
                   survey.answers?.q1_des || "",
                   String(survey.answers?.q2 || ""),
@@ -1484,9 +1523,11 @@ export default function ({ app, store, $axios }, inject) {
                   String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
                   String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
                   String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
-                  // q6 เป็น array ต้อง convert เป็น string
+                  // q6 เป็น single value (รองรับข้อมูลเก่าที่เป็น array)
                   Array.isArray(survey.answers?.q6)
-                    ? survey.answers.q6.join(",")
+                    ? survey.answers.q6.length > 0
+                      ? String(survey.answers.q6[0])
+                      : ""
                     : String(survey.answers?.q6 || ""),
                   survey.answers?.q6_other || survey.answers?.q6_des || "",
                   // q7 เป็น single value (1 = มี, 0 = ไม่มี)
@@ -1510,6 +1551,7 @@ export default function ({ app, store, $axios }, inject) {
                   String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
                   q10_appDate,
                   q10_appTime,
+                  // timeEnd: เวลาที่ user กรอกว่าจบกิจกรรม (user input - format YYYY-MM-DD HH:mm:ss)
                   survey.timeEnd || "",
                   survey.note || survey.answers?.notes || "",
                   pic1,
@@ -1525,7 +1567,7 @@ export default function ({ app, store, $axios }, inject) {
               );
 
               console.log(
-                `Created new survey result for stid: ${survey.stid}, time: ${survey.time}`
+                `✅ Created new survey result for stid: ${survey.stid}, time: ${survey.time}`
               );
             }
 
@@ -1541,8 +1583,6 @@ export default function ({ app, store, $axios }, inject) {
             errorCount++;
           }
         }
-
-        console.log(`Survey results sync completed: ${successCount} success, ${errorCount} errors`);
 
         return successCount > 0;
       } catch (error) {

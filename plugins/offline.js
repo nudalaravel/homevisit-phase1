@@ -7,9 +7,81 @@ export default function ({ app, store }, inject) {
       this.syncInProgress = false;
       this.lastOnlineCheck = null;
       this.onlineCheckInterval = null;
+      this.backgroundSyncSupported = "serviceWorker" in navigator && "SyncManager" in window;
       this.setupEventListeners();
       this.loadSyncQueue();
       this.startOnlineCheck();
+      this.setupServiceWorkerSync();
+    }
+
+    setupServiceWorkerSync() {
+      if (!this.backgroundSyncSupported) {
+        console.log("[OfflineManager] Background Sync not supported");
+        return;
+      }
+
+      // Listen for sync registration success from service worker
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          if (event.data && event.data.type === "SYNC_COMPLETE") {
+            console.log("[OfflineManager] Background sync completed", event.data);
+            // Reload data after sync
+            if (app.$indexedDB) {
+              app.$indexedDB.loadOfflineData();
+            }
+          }
+        });
+      }
+    }
+
+    async registerBackgroundSync() {
+      if (!this.backgroundSyncSupported) {
+        console.log("[OfflineManager] Background Sync not supported, falling back to manual sync");
+        return this.processSyncQueue();
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.sync.register("riped-sync-queue");
+        console.log("[OfflineManager] Background sync registered");
+        return true;
+      } catch (error) {
+        console.error("[OfflineManager] Failed to register background sync:", error);
+        // Fallback to manual sync
+        return this.processSyncQueue();
+      }
+    }
+
+    async triggerImmediateSync() {
+      if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+        console.log("[OfflineManager] Service worker not available, using manual sync");
+        return this.processSyncQueue();
+      }
+
+      try {
+        // Send message to service worker to trigger sync immediately
+        const messageChannel = new MessageChannel();
+
+        return new Promise((resolve, reject) => {
+          messageChannel.port1.onmessage = (event) => {
+            if (event.data.success) {
+              console.log("[OfflineManager] Immediate sync completed successfully");
+              resolve(true);
+            } else {
+              console.error("[OfflineManager] Immediate sync failed:", event.data.error);
+              reject(new Error(event.data.error));
+            }
+          };
+
+          navigator.serviceWorker.controller.postMessage({ type: "TRIGGER_SYNC" }, [
+            messageChannel.port2,
+          ]);
+        });
+      } catch (error) {
+        console.error("[OfflineManager] Failed to trigger immediate sync:", error);
+        // Fallback to manual sync
+        return this.processSyncQueue();
+      }
     }
 
     setupEventListeners() {
@@ -18,7 +90,12 @@ export default function ({ app, store }, inject) {
         this.isOnline = true;
         store.commit("setOnlineStatus", true);
         this.showOnlineNotification();
-        this.processSyncQueue();
+        // Use background sync if supported, otherwise fallback to manual sync
+        if (this.backgroundSyncSupported) {
+          this.registerBackgroundSync();
+        } else {
+          this.processSyncQueue();
+        }
       });
 
       window.addEventListener("offline", () => {
@@ -30,7 +107,11 @@ export default function ({ app, store }, inject) {
       // Listen for visibility change to sync when tab becomes active
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden && this.isOnline) {
-          this.processSyncQueue();
+          if (this.backgroundSyncSupported) {
+            this.registerBackgroundSync();
+          } else {
+            this.processSyncQueue();
+          }
         }
       });
     }
@@ -78,7 +159,12 @@ export default function ({ app, store }, inject) {
 
         // Try to sync immediately if online
         if (this.isOnline) {
-          this.processSyncQueue();
+          // Use background sync if supported
+          if (this.backgroundSyncSupported) {
+            await this.registerBackgroundSync();
+          } else {
+            this.processSyncQueue();
+          }
         }
       } catch (error) {
         console.error("Failed to add to sync queue:", error);
@@ -138,7 +224,6 @@ export default function ({ app, store }, inject) {
 
                 // ลบออกจาก sync queue
                 this.syncQueue = this.syncQueue.filter((q) => q.id !== item.id);
-                console.warn("Moved item to failed queue after 10 retries:", item);
               }
             }
           }
@@ -267,6 +352,7 @@ export default function ({ app, store }, inject) {
         isOnline: this.isOnline,
         queueLength: this.syncQueue.length,
         syncInProgress: this.syncInProgress,
+        backgroundSyncSupported: this.backgroundSyncSupported,
       };
     }
 
