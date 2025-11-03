@@ -1006,7 +1006,7 @@ export default function ({ app, store, $axios }, inject) {
 
     /**
      * Format datetime string to time format for API (HH.MM น.)
-     * @param {string} datetimeStr - Datetime string in format "YYYY-MM-DD HH:mm:ss"
+     * @param {string} datetimeStr - Datetime string in format "YYYY-MM-DD HH:mm:ss" or "HH:MM น."
      * @returns {string} Time in format "HH.MM น." or empty string
      */
     formatTimeForAPI(datetimeStr, includeNa = true) {
@@ -1016,21 +1016,28 @@ export default function ({ app, store, $axios }, inject) {
       }
 
       try {
-        // Extract time part from datetime string
-        const timePart = datetimeStr.split(" ")[1];
-        if (!timePart) {
-          console.warn("formatTimeForAPI: No time part found in", datetimeStr);
-          return "";
+        let timePart = datetimeStr;
+
+        // ลบ "น." ก่อนเลย (ถ้ามี)
+        timePart = timePart.replace(" น.", "").replace("น.", "").trim();
+
+        // ถ้ายังมี space แสดงว่าเป็น datetime format "YYYY-MM-DD HH:mm:ss"
+        if (timePart.includes(" ")) {
+          const parts = timePart.split(" ");
+          if (parts.length >= 2) {
+            timePart = parts[1]; // เอา HH:mm:ss ส่วน
+          }
         }
 
-        // Get HH:MM
-        const [hours, minutes] = timePart.split(":");
+        // Get HH:MM (แยกด้วย : หรือ .)
+        const separator = timePart.includes(":") ? ":" : ".";
+        const [hours, minutes] = timePart.split(separator);
+
         if (!hours || !minutes) {
           console.warn("formatTimeForAPI: Invalid time format", timePart);
           return "";
         }
 
-        // Format as HH.MM น. for timeStart
         if (includeNa) {
           return `${hours}.${minutes} น.`;
         } else {
@@ -1125,25 +1132,47 @@ export default function ({ app, store, $axios }, inject) {
               survey.fullname_visit = fname && lname ? `${fname} ${lname}` : fname || lname || "";
             }
 
-            // ดึงกิจกรรมเพื่อเอา activity names
-            const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(
+            // ดึงกิจกรรมสำหรับ q9 (กิจกรรมครั้งนี้)
+            const q9Activities = await app.$indexedDB.getActivityByMonthAgeAndTime(
               survey.month_age,
               survey.time
             );
 
-            // สร้าง activity names สำหรับ q5 (q51_name - q55_name)
-            const q5ActivityNames = [];
+            // สร้าง activity names สำหรับ q9 (q91_name - q95_name)
+            const q9ActivityNames = [];
             for (let i = 0; i < 5; i++) {
-              if (activities && activities[i]) {
-                q5ActivityNames.push(activities[i].no || "");
+              if (q9Activities && q9Activities[i]) {
+                q9ActivityNames.push(q9Activities[i].no || "");
               } else {
-                q5ActivityNames.push("");
+                q9ActivityNames.push("");
               }
             }
 
-            // สร้าง activity names สำหรับ q9 (q91_name - q95_name)
-            // ใช้ชุดเดียวกับ q5
-            const q9ActivityNames = [...q5ActivityNames];
+            // สร้าง activity names สำหรับ q5 (q51_name - q55_name)
+            // q5 = กิจกรรมจาก survey ครั้งก่อนหน้า (เก็บไว้ใน survey.q5Activities)
+            const q5ActivityNames = [];
+            const timeVisit = Number(survey.time_visit || survey.time || 1);
+
+            if (timeVisit === 1) {
+              // ครั้งแรก ไม่มี q5
+              for (let i = 0; i < 5; i++) {
+                q5ActivityNames.push("");
+              }
+            } else if (survey.q5Activities && Array.isArray(survey.q5Activities)) {
+              // มี q5Activities ที่เก็บไว้แล้ว
+              for (let i = 0; i < 5; i++) {
+                if (survey.q5Activities[i]) {
+                  q5ActivityNames.push(survey.q5Activities[i].no || "");
+                } else {
+                  q5ActivityNames.push("");
+                }
+              }
+            } else {
+              // fallback: ถ้าไม่มีข้อมูล q5Activities ให้เป็นค่าว่าง
+              for (let i = 0; i < 5; i++) {
+                q5ActivityNames.push("");
+              }
+            }
 
             // Upload images to S3 first, then get URLs
             let pic1 = "";

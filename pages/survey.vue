@@ -170,26 +170,26 @@
     </div>
     <!-- Step 5: ใช้ผู้เยี่ยมบ้านใส่ (Dynamic Activities like Q9) -->
     <div v-if="currentStep === 5 && shouldShowStep5" class="survey-step">
-      <div v-if="activities.length === 0" class="alert alert-info">
+      <div v-if="q5Activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time }}
+        ไม่พบกิจกรรมจากการเยี่ยมบ้านครั้งที่แล้ว
       </div>
 
       <div v-else>
         <!-- Show current activity question for Q5 -->
-        <div v-if="currentQ5Index < activities.length">
+        <div v-if="currentQ5Index < q5Activities.length">
           <h4 class="question-title">
             5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำ
 กิจกรรมร่วมกับเด็ก
           </h4>
           <p class="question-subtitle">
-            กิจกรรมที่ {{ currentQ5Index + 1 }} / {{ activities.length }}
+            กิจกรรมที่ {{ currentQ5Index + 1 }} / {{ q5Activities.length }}
           </p>
           <div class="activity-description">
-            {{ activities[currentQ5Index].title || 'ไม่มีรายละเอียด' }}
+            {{ q5Activities[currentQ5Index].title || 'ไม่มีรายละเอียด' }}
             <i 
               class="fas fa-info-circle activity-info-icon" 
-              @click="showActivityDetailModal(activities[currentQ5Index])"
+              @click="showActivityDetailModal(q5Activities[currentQ5Index])"
               title="ดูรายละเอียด"
             ></i>
           </div>
@@ -197,24 +197,24 @@
           <div class="options-container">
             <button
               class="option-btn"
-              :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 1 }"
-              @click="setQ5Answer(activities[currentQ5Index].no, 1)"
+              :class="{ 'selected': answers.q5[q5Activities[currentQ5Index].no] === 1 }"
+              @click="setQ5Answer(q5Activities[currentQ5Index].no, 1)"
             >
               ทำได้เอง (1)
             </button>
             
             <button
               class="option-btn"
-              :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 2 }"
-              @click="setQ5Answer(activities[currentQ5Index].no, 2)"
+              :class="{ 'selected': answers.q5[q5Activities[currentQ5Index].no] === 2 }"
+              @click="setQ5Answer(q5Activities[currentQ5Index].no, 2)"
             >
               ทำได้โดยได้รับการช่วยเหลือ (2)
             </button>
 
             <button
               class="option-btn"
-              :class="{ 'selected': answers.q5[activities[currentQ5Index].no] === 3 }"
-              @click="setQ5Answer(activities[currentQ5Index].no, 3)"
+              :class="{ 'selected': answers.q5[q5Activities[currentQ5Index].no] === 3 }"
+              @click="setQ5Answer(q5Activities[currentQ5Index].no, 3)"
             >
               ทำไม่ได้เลย (3)
             </button>
@@ -757,7 +757,8 @@ export default {
       saveProgressDebounced: null,
       
       // Activities from database
-      activities: [],
+      activities: [], // สำหรับ q9 (กิจกรรมครั้งนี้)
+      q5Activities: [], // สำหรับ q5 (กิจกรรมครั้งที่แล้ว)
       
       // Flag to indicate if this is a synced survey (use existing activity IDs)
       isSyncedSurvey: false,
@@ -837,9 +838,11 @@ export default {
       return generateDayOptions(daysInMonth)
     },
     
-    // ตรวจสอบว่าควรแสดง step 5 หรือไม่ (ไม่แสดงถ้า time = 1)
     shouldShowStep5() {
-      return this.visitorData && Number(this.visitorData.time) !== 1
+      const timeVisit = Number(this.visitorData?.time_visit ||
+       //this.visitorData?.time || dusable fallback ก่อนว่าจำเป็นต้องใช้ไหม
+        1)
+      return this.visitorData && timeVisit > 1
     },
     
     // ตรวจสอบว่า skip จาก Q1 หรือไม่
@@ -1118,6 +1121,9 @@ export default {
             // พบแบบสอบถามที่ยังไม่เสร็จ
             const visitor = await this.$indexedDB.getVisitor(stid)
             if (visitor) {
+              // ดึง booking เพื่อเอา appointmentTime และ startTime
+              const booking = await this.$indexedDB.getBooking(stid)
+              
               this.visitorData = {
                 stid: stid,
                 name: visitor.cname || visitor.name,
@@ -1126,9 +1132,16 @@ export default {
                 time_visit: existingSurvey.time_visit || time,
                 month_age: existingSurvey.month_age,
                 appointmentDate: existingSurvey.appointmentDate,
-                appointmentTime: existingSurvey.appointmentTime
+                appointmentTime: existingSurvey.appointmentTime || booking?.appointmentTime,
+                startTime: booking?.appointmentTime || existingSurvey.appointmentTime
               }
               await this.loadExistingSurvey(existingSurvey)
+              
+              // ถ้า existingSurvey ยังไม่มี timeStart ให้เอาจาก visitorData
+              if (!this.timeStart && this.visitorData.startTime) {
+                this.timeStart = this.visitorData.startTime
+                await this.saveProgress()
+              }
               
               // อัพเดท URL ให้มี query parameters (ถ้ายังไม่มี)
               if (!this.$route.query.stid || !this.$route.query.time) {
@@ -1151,14 +1164,7 @@ export default {
       }
       
       this.visitorData = JSON.parse(visitorDataStr)
-      
-      console.log('📋 [DEBUG] Received visitorData from localStorage:', {
-        appointmentTime: this.visitorData.appointmentTime,
-        startTime: this.visitorData.startTime,
-        stid: this.visitorData.stid,
-        time: this.visitorData.time,
-        time_visit: this.visitorData.time_visit
-      })
+  
       
       // ตรวจสอบแบบสอบถามที่ยังไม่เสร็จ
       const existingSurvey = await this.$indexedDB.getSurveyProgress(
@@ -1169,6 +1175,13 @@ export default {
       if (existingSurvey) {
         // โหลดแบบสอบถามที่ค้างไว้
         await this.loadExistingSurvey(existingSurvey)
+        
+        // ถ้า existingSurvey ยังไม่มี timeStart ให้เอาจาก visitorData (localStorage)
+        if (!this.timeStart && this.visitorData.startTime) {
+          this.timeStart = this.visitorData.startTime
+          await this.saveProgress()
+        }
+        
         this.$toast.info('พบแบบสอบถามที่ยังไม่เสร็จสิ้น กำลังโหลดความคืบหน้า...')
       } else {
         // สร้างแบบสอบถามใหม่
@@ -1185,92 +1198,47 @@ export default {
     },
     
     async createNewSurvey() {
-      // สร้างรหัสแบบสอบถาม (ใช้ format มาตรฐาน stid_time เพื่อป้องกันข้อมูลซ้ำ)
       this.surveyId = `${this.visitorData.stid}_${this.visitorData.time}`
-      
-      // ตั้งค่าเวลาเริ่มต้นของระบบ (system timestamp)
       this.recStart = new Date().toISOString().slice(0, 19).replace('T', ' ')
-      console.log('🕒 [DEBUG recStart] Set recStart on createNewSurvey:', this.recStart)
       
-      // timeStart (user input): เวลาเริ่มบันทึกที่ user กรอกใน modal ที่หน้า index
       if (this.visitorData.startTime) {
-        // แปลงจาก format "HH:MM น." เป็น "YYYY-MM-DD HH:MM:00"
-        const today = new Date()
-        const dateStr = today.toISOString().slice(0, 10)
-        const timeStr = this.visitorData.startTime.replace(' น.', '')
-        this.timeStart = `${dateStr} ${timeStr}:00`
-        console.log('🕒 [DEBUG timeStart] Set timeStart from startTime:', this.timeStart)
+        this.timeStart = this.visitorData.startTime
       } else {
         this.timeStart = null
-        console.log('🕒 [DEBUG timeStart] No startTime provided, timeStart is null')
       }
       
-      // บันทึกความคืบหน้าเริ่มต้น
       await this.saveProgress()
     },
     
     async loadExistingSurvey(survey) {
       this.surveyId = survey.id
       
-      // System timestamps
       this.recStart = survey.recStart || null
       this.recEnd = survey.recEnd || null
-      
-      // User input times
       this.timeStart = survey.timeStart || null
       this.timeEnd = survey.timeEnd || null
-      
-      console.log('📂 [DEBUG recEnd] loadExistingSurvey:', {
-        recStart: this.recStart,
-        recEnd: this.recEnd,
-        timeStart: this.timeStart,
-        timeEnd: this.timeEnd
-      })
-      
-      // ตรวจสอบว่า survey นี้ sync แล้วหรือยัง
+    
       this.isSyncedSurvey = survey.synced === true
-      
-      // Set flag if editing an incomplete survey (prevent recalculation of month_age/time)
       this.isEditingIncompleteSurvey = !survey.completed
-      
-      // Check if should disable step 12 (appointment editing)
-      // Disable if: editing completed survey AND there's any survey with higher time
-      console.log('🔍 [DEBUG] Checking shouldDisableStep12...')
-      console.log('  - Survey completed:', survey.completed)
-      console.log('  - Current survey time:', survey.time)
-      console.log('  - Current survey stid:', survey.stid)
-      
+
       if (survey.completed) {
-        // Get all surveys for this stid
         const allSurveys = await this.$indexedDB.getAllSurveysByStid(survey.stid)
-        console.log('  - Total surveys found:', allSurveys.length)
         
-        // Find max time_visit from all surveys
         const surveyTimes = allSurveys
           .map(s => Number(s.time_visit || s.time))
           .filter(t => !isNaN(t))
         const maxTime = surveyTimes.length > 0 ? Math.max(...surveyTimes) : 0
         const currentTime = Number(survey.time_visit || survey.time)
         
-        console.log('  - All survey times:', surveyTimes)
-        console.log('  - Max time_visit found:', maxTime)
-        console.log('  - Current time_visit:', currentTime)
-        console.log('  - Has next survey? (maxTime > currentTime):', maxTime > currentTime)
-        
-        // Disable if there's any survey with time_visit > current survey time_visit
         if (maxTime > currentTime) {
-          console.log('🔒 [DEBUG] Found survey with higher time_visit - disabling step 12')
           this.shouldDisableStep12 = true
         } else {
-          console.log('✅ [DEBUG] No survey with higher time_visit - step 12 can be edited')
           this.shouldDisableStep12 = false
         }
       } else {
-        console.log('ℹ️ [DEBUG] Incomplete survey - step 12 is always editable')
         this.shouldDisableStep12 = false
       }
       
-      console.log('📌 [DEBUG] Final shouldDisableStep12 =', this.shouldDisableStep12)
       
       if (survey.completed) {
         this.currentStep = 1
@@ -1278,40 +1246,31 @@ export default {
         this.currentStep = survey.currentStep || 1
       }
       
-      // Merge answers with defaults to ensure new fields exist
       const q7Data = parseQ7Data(
         survey.answers?.q7,
         survey.answers?.q71,
         survey.answers?.q71_des || ''
       )
       
-      // แยกการ merge เพื่อป้องกัน type conflict
       const baseAnswers = { ...this.answers }
       const savedAnswers = survey.answers || {}
       
       this.answers = {
         ...baseAnswers,
-        // Convert to number (handle both string and number from API/IndexedDB)
         q1: savedAnswers.q1 != null ? Number(savedAnswers.q1) : null,
         q2: savedAnswers.q2 != null ? Number(savedAnswers.q2) : null,
         q4: savedAnswers.q4 != null ? Number(savedAnswers.q4) : null,
         q8: savedAnswers.q8 != null ? Number(savedAnswers.q8) : null,
-        // Ensure q3 is array with numbers
         q3: Array.isArray(savedAnswers.q3) ? savedAnswers.q3.map(v => Number(v)) : [],
-        // q6 เป็น single value (รองรับข้อมูลเก่าที่เป็น array)
         q6: savedAnswers.q6 != null ? (Array.isArray(savedAnswers.q6) ? (savedAnswers.q6.length > 0 ? Number(savedAnswers.q6[0]) : null) : Number(savedAnswers.q6)) : null,
-        // New q7 structure with backward compatibility
         q7: q7Data.q7,
         q71: q7Data.q71,
         q71_des: q7Data.q71_des,
-        // Map q6_des to q6_other (IndexedDB structure)
         q6_other: savedAnswers.q6_other || savedAnswers.q6_des || '',
-        // Ensure notes field exists
         notes: savedAnswers.notes || survey.note || '',
         q1_des: savedAnswers.q1_des || '',
         q2_des: savedAnswers.q2_des || '',
         q3_des: savedAnswers.q3_des || '',
-        // Convert q5 and q9 activity answers to numbers
         q5: savedAnswers.q5 ? this.convertActivityAnswersToNumber(savedAnswers.q5) : {},
         q9: savedAnswers.q9 ? this.convertActivityAnswersToNumber(savedAnswers.q9) : {}
       }
@@ -1409,19 +1368,17 @@ export default {
       }
       if (survey.newAppointment) {
         this.newAppointment = survey.newAppointment
-        console.log('📅 [DEBUG] Loaded newAppointment:', this.newAppointment)
+      }
+      
+      if (survey.q5Activities && Array.isArray(survey.q5Activities)) {
+        this.q5Activities = survey.q5Activities
       }
 
-      // แปลง timeEnd กลับเป็น endHour และ endMinute (ไม่ว่า completed หรือไม่)
       if (survey.timeEnd) {
-        const timeEndDate = new Date(survey.timeEnd)
-        this.answers.endHour = String(timeEndDate.getHours()).padStart(2, '0')
-        this.answers.endMinute = String(timeEndDate.getMinutes()).padStart(2, '0')
-        console.log('⏰ [DEBUG] Loaded timeEnd:', {
-          timeEnd: survey.timeEnd,
-          endHour: this.answers.endHour,
-          endMinute: this.answers.endMinute
-        })
+        const timeStr = survey.timeEnd.replace(' น.', '').trim()
+        const [hour, minute] = timeStr.split(':')
+        this.answers.endHour = hour.padStart(2, '0')
+        this.answers.endMinute = minute.padStart(2, '0')
       }
     },
     
@@ -1455,48 +1412,89 @@ export default {
     
     async loadActivities() {
       try {
-        // ดึงกิจกรรมทั้งหมดจาก IndexedDB
         const allActivities = await this.$indexedDB.getActivities()
         
-        // ถ้าเป็น survey ที่ sync แล้ว ให้ใช้ activity IDs จากข้อมูลเดิม
-        if (this.isSyncedSurvey && (this.answers.q5 || this.answers.q9)) {
-          // ดึง activity IDs จาก q5 หรือ q9 (ใช้ q9 ก่อนเพราะมีข้อมูลครบกว่า)
-          const activityIds = Object.keys(this.answers.q9 || this.answers.q5 || {})
+        if (this.isSyncedSurvey) {
+          const savedQ5Values = { ...this.answers.q5 }
+          const savedQ9Values = { ...this.answers.q9 }
           
-          if (activityIds.length > 0) {
-            // บันทึก values เดิมไว้ก่อนโหลด activities
-            const savedQ5Values = { ...this.answers.q5 }
-            const savedQ9Values = { ...this.answers.q9 }
-            
-            // กรองกิจกรรมที่ตรงกับ activity IDs ที่บันทึกไว้
-            const matchingActivities = allActivities.filter(activity => {
-              return activityIds.includes(String(activity.no))
+          if (this.answers.q9 && Object.keys(this.answers.q9).length > 0) {
+            const q9ActivityIds = Object.keys(this.answers.q9)
+            const q9MatchingActivities = allActivities.filter(activity => {
+              return q9ActivityIds.includes(String(activity.no))
             })
-            
-            // เรียงลำดับตาม activity IDs ที่บันทึกไว้
-            matchingActivities.sort((a, b) => {
-              return activityIds.indexOf(String(a.no)) - activityIds.indexOf(String(b.no))
+            q9MatchingActivities.sort((a, b) => {
+              return q9ActivityIds.indexOf(String(a.no)) - q9ActivityIds.indexOf(String(b.no))
             })
-            
-            this.activities = matchingActivities
-            
-            // รักษา values เดิมไว้หลังจากโหลด activities
-            this.$set(this.answers, 'q5', savedQ5Values)
-            this.$set(this.answers, 'q9', savedQ9Values)
-            
-            return
+            this.activities = q9MatchingActivities
           }
+          
+          if (this.answers.q5 && Object.keys(this.answers.q5).length > 0) {
+            const q5ActivityIds = Object.keys(this.answers.q5)
+            const q5MatchingActivities = allActivities.filter(activity => {
+              return q5ActivityIds.includes(String(activity.no))
+            })
+            q5MatchingActivities.sort((a, b) => {
+              return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
+            })
+            this.q5Activities = q5MatchingActivities
+          }
+          
+          this.$set(this.answers, 'q5', savedQ5Values)
+          this.$set(this.answers, 'q9', savedQ9Values)
+          
+          return
         }
         
-        // กรณีปกติ: กรองกิจกรรมที่ตรงกับอายุและครั้งที่เยี่ยม
-        const matchingActivities = allActivities.filter(activity => {
+        const q9Activities = allActivities.filter(activity => {
           return Number(activity.month_age) === Number(this.visitorData.month_age) &&
                  Number(activity.time) === Number(this.visitorData.time)
         })
+        this.activities = q9Activities
         
-        this.activities = matchingActivities
+        if (this.q5Activities.length > 0) {
+          return
+        }
+        
+        const currentTimeVisit = Number(this.visitorData.time_visit 
+        || //this.visitorData.time dusable fallback ก่อนว่าจำเป็นต้องใช้ไหม
+        1)
+        
+        if (currentTimeVisit > 1) {
+          const previousTimeVisit = currentTimeVisit - 1
+          const previousSurvey = await this.$indexedDB.getSurveyProgress(
+            this.visitorData.stid,
+            previousTimeVisit
+          )
+          
+          if (previousSurvey && previousSurvey.answers && previousSurvey.answers.q9) {
+            const q5ActivityIds = Object.keys(previousSurvey.answers.q9)
+            
+            if (q5ActivityIds.length > 0) {
+              const q5MatchingActivities = allActivities.filter(activity => {
+                return q5ActivityIds.includes(String(activity.no))
+              })
+              
+              q5MatchingActivities.sort((a, b) => {
+                return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
+              })
+              
+              this.q5Activities = q5MatchingActivities
+              await this.saveProgress()
+            } else {
+              this.q5Activities = []
+            }
+          } else {
+            this.q5Activities = []
+          }
+        } else {
+          this.q5Activities = []
+        }
+        
       } catch (error) {
+        console.error('loadActivities failed:', error)
         this.activities = []
+        this.q5Activities = []
       }
     },
     
@@ -1595,22 +1593,17 @@ export default {
           currentActivityIndex: this.currentActivityIndex,
           currentQ5Index: this.currentQ5Index,
           answers: answersToSave,
-          note: answersToSave.notes || '', // เก็บ note ที่ top level เพื่อ sync ได้ตรง
+          note: answersToSave.notes || '',
           newAppointment: this.newAppointment,
           surveyImages: this.surveyImages,
           surveyImageKeys: this.surveyImageKeys,
+          q5Activities: this.q5Activities,
           completed: isCompleted,
           synced: shouldResetSync ? false : (existingSurvey?.synced || false),
           approve_status: existingSurvey?.approve_status || 0
         }
         
-        console.log('💾 [DEBUG recEnd] progressData timestamps:', {
-          recStart: progressData.recStart,
-          recEnd: progressData.recEnd,
-          timeStart: progressData.timeStart,
-          timeEnd: progressData.timeEnd
-        })
-        
+  
         await this.$indexedDB.saveSurveyProgress(progressData)
       } catch (error) {
         // จัดการข้อผิดพลาด
@@ -1648,12 +1641,12 @@ export default {
     
     async nextQ5Activity() {
       // ตรวจสอบคำตอบกิจกรรมปัจจุบัน
-      if (!this.answers.q5[this.activities[this.currentQ5Index].no]) {
+      if (!this.answers.q5[this.q5Activities[this.currentQ5Index].no]) {
         this.$toast.warning('กรุณาเลือกคำตอบ')
         return
       }
       
-      if (this.currentQ5Index < this.activities.length - 1) {
+      if (this.currentQ5Index < this.q5Activities.length - 1) {
         this.currentQ5Index++
         await this.saveProgress()
       } else {
@@ -1803,20 +1796,17 @@ export default {
         return
       }
       
-      // บันทึก timeEnd และ recEnd เมื่อออกจาก Step 1 (บันทึกผู้เยี่ยมบ้าน)
-      if (this.currentStep === 1) {
+      // บันทึก timeEnd และ recEnd เมื่อออกจาก Step 10 (บันทึกผู้เยี่ยมบ้าน)
+      if (this.currentStep === 10) {
         const now = new Date()
-        const dateStr = now.toISOString().slice(0, 10)
         
-        // timeEnd: เวลาที่ user กรอก (จาก endHour และ endMinute) - เซ็ตเฉพาะครั้งแรก
+        // timeEnd: เวลาที่ user กรอก (จาก endHour และ endMinute) - Format: "HH:MM น."
         if (!this.timeEnd) {
-          this.timeEnd = `${dateStr} ${this.answers.endHour}:${this.answers.endMinute}:00`
-          console.log('🕒 [DEBUG timeEnd] Set timeEnd when leaving Step 1:', this.timeEnd)
+          this.timeEnd = `${this.answers.endHour}:${this.answers.endMinute} น.`
         }
         
         // recEnd: เวลาที่ระบบบันทึกจริง (อัปเดตทุกครั้งที่มีการบันทึก)
         this.recEnd = now.toISOString().slice(0, 19).replace('T', ' ')
-        console.log('🕒 [DEBUG recEnd] Update recEnd when leaving Step 1:', this.recEnd)
         
         // บันทึกลง IndexedDB ทันที
         await this.saveProgress()
@@ -1846,20 +1836,21 @@ export default {
       this.currentStep++
       
       // บันทึกความคืบหน้าแบบ debounce (ไม่ block UI)
-      // ข้าม debounce save หลังจาก Step 1 เพราะ save แล้วตอนเซ็ต timestamps
-      const skipDebounceSave = this.currentStep === 2 // เพิ่งออกจาก Step 1
+      // ข้าม debounce save หลังจาก Step 10 เพราะ save แล้วตอนเซ็ต timestamps
+      const skipDebounceSave = this.currentStep === 11 // เพิ่งออกจาก Step 10
       if (this.saveProgressDebounced && !skipDebounceSave) {
         this.saveProgressDebounced()
       }
       
-      // ข้าม step 3, 4, 5 ถ้า time = 1 (first visit)
-      if (this.currentStep === 3 && this.visitorData && Number(this.visitorData.time) === 1) {
-        // ล้าง value ของคำถามที่ข้าม (q3, q4, q5)
+      const timeVisit = Number(this.visitorData?.time_visit || //this.visitorData.time dusable fallback ก่อนว่าจำเป็นต้องใช้ไหม
+      1)
+      
+      if (this.currentStep === 3 && this.visitorData && timeVisit === 1) {
         this.answers.q3 = []
         this.answers.q3_des = ''
         this.answers.q4 = null
         this.answers.q5 = {}
-        this.currentStep = 6 // Skip to step 6
+        this.currentStep = 6
       }
       
       // ข้าม step 5 ถ้า time != 1 แต่ q2 === 3
@@ -1910,15 +1901,18 @@ export default {
           await this.saveProgress()
           return
         }
-        if (this.currentStep === 6 && this.visitorData && Number(this.visitorData.time) === 1) {
+        
+        const timeVisit = Number(this.visitorData?.time_visit || //this.visitorData.time dusable fallback ก่อนว่าจำเป็นต้องใช้ไหม
+        1)
+        if (this.currentStep === 6 && this.visitorData && timeVisit === 1) {
           this.currentStep = 2
           await this.saveProgress()
           return
         }
         
         // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 5 ไป 4
-        if (this.currentStep === 5 && this.activities.length > 0) {
-          this.currentQ5Index = this.activities.length - 1
+        if (this.currentStep === 5 && this.q5Activities.length > 0) {
+          this.currentQ5Index = this.q5Activities.length - 1
         }
         
         // จัดการพิเศษเมื่อย้อนกลับจากขั้นตอนที่ 10 ไป 9
@@ -1998,21 +1992,13 @@ export default {
         
         // อัปเดต recEnd = เวลาที่ระบบบันทึกจริง (system timestamp) - อัปเดตเสมอ
         this.recEnd = new Date().toISOString().slice(0, 19).replace('T', ' ')
-        console.log('🕒 [DEBUG recEnd] Set recEnd on submit:', this.recEnd)
         
-        // ตั้งค่า timeEnd = เวลาที่ user กรอกเอง (user input time) - ถ้ายังไม่มี
+        // ตั้งค่า timeEnd = เวลาที่ user กรอกเอง (user input time) - Format: "HH:MM น."
         if (!this.timeEnd) {
-          const today = new Date()
-          const dateStr = today.toISOString().slice(0, 10)
-          this.timeEnd = `${dateStr} ${this.answers.endHour}:${this.answers.endMinute}:00`
-          console.log('🕒 [DEBUG timeEnd] Set timeEnd on submit:', this.timeEnd)
-        } else {
-          console.log('🕒 [DEBUG timeEnd] timeEnd already set, keeping existing value:', this.timeEnd)
+          this.timeEnd = `${this.answers.endHour}:${this.answers.endMinute} น.`
         }
-        
         if (wasCompleted) {
           // แก้ไขแบบสอบถามที่เสร็จแล้ว
-          console.log('💾 [DEBUG recEnd] Saving progress with recEnd:', this.recEnd)
           await this.saveProgress()
           
           // เช็คและอัพเดท booking ครั้งถัดไปถ้ามีการเปลี่ยนแปลงวันนัดใน step12
@@ -2025,7 +2011,6 @@ export default {
           
           // Survey จะถูก sync อัตโนมัติผ่าน pushSurveyResultsToAPI()
         } else {
-          console.log('✅ [DEBUG recEnd] Marking survey completed with recEnd:', this.recEnd)
           await this.$indexedDB.markSurveyCompleted(this.surveyId, this.timeEnd, this.recEnd)
           try {
             await this.createNewAppointment()
@@ -2058,13 +2043,10 @@ export default {
         
         // อัปเดต recEnd
         this.recEnd = new Date().toISOString().slice(0, 19).replace('T', ' ')
-        console.log('💾 [DEBUG] Saving survey without creating new appointment')
         
-        // ตั้งค่า timeEnd ถ้ายังไม่มี
+        // ตั้งค่า timeEnd ถ้ายังไม่มี - Format: "HH:MM น."
         if (!this.timeEnd) {
-          const today = new Date()
-          const dateStr = today.toISOString().slice(0, 10)
-          this.timeEnd = `${dateStr} ${this.answers.endHour}:${this.answers.endMinute}:00`
+          this.timeEnd = `${this.answers.endHour}:${this.answers.endMinute} น.`
         }
         
         // บันทึกความคืบหน้า
@@ -2148,29 +2130,18 @@ export default {
         const currentTimeVisit = this.visitorData.time_visit || this.visitorData.time
         const nextTimeVisit = Number(currentTimeVisit) + 1
         
-        console.log('🔍 [DEBUG] updateNextBookingIfChanged - looking for booking with time_visit:', nextTimeVisit)
         
         // ดึง booking ล่าสุด
         const existingBooking = await this.$indexedDB.getBooking(this.visitorData.stid)
         
         if (!existingBooking) {
-          console.log('ℹ️ [DEBUG] No booking found, skip update')
           return false
         }
-        
-        console.log('📋 [DEBUG] Found booking:', {
-          time_visit: existingBooking.time_visit,
-          appointmentDate: existingBooking.appointmentDate,
-          time: existingBooking.time,
-          month_age: existingBooking.month_age
-        })
+
         
         // เช็คว่า booking ที่มีอยู่ตรงกับ time_visit ถัดไปหรือไม่
         if (existingBooking.time_visit !== nextTimeVisit) {
-          console.log('⚠️ [DEBUG] time_visit mismatch:', {
-            expected: nextTimeVisit,
-            found: existingBooking.time_visit
-          })
+        
           return false
         }
         
@@ -2190,24 +2161,9 @@ export default {
         )
         
         if (!hasChanges) {
-          console.log('ℹ️ [DEBUG] No changes in appointment, skip update')
           return false
         }
-        
-        console.log('🔄 [DEBUG] Booking changes detected, updating...')
-        console.log('  Old:', {
-          date: existingBooking.appointmentDate,
-          time: existingBooking.appointmentTime,
-          month_age: existingBooking.month_age,
-          time: existingBooking.time
-        })
-        console.log('  New:', {
-          date: newAppointmentDate,
-          time: newAppointmentTime,
-          month_age: newMonthAge,
-          time: newTimeActivity
-        })
-        
+    
         // อัพเดท booking
         const updatedBookingData = {
           ...existingBooking,
@@ -2220,10 +2176,8 @@ export default {
         }
         
         await this.$indexedDB.addBooking(updatedBookingData)
-        console.log('✅ [DEBUG] Booking updated successfully')
         return true
       } catch (error) {
-        console.error('❌ [ERROR] Failed to update booking:', error)
         return false
       }
     },
@@ -2311,7 +2265,6 @@ export default {
       await this.updateNextBookingIfChanged()
       
       // บันทึกความคืบหน้า
-      console.log('💾 [DEBUG] onMonthChange - saving newAppointment:', this.newAppointment)
       if (this.saveProgressDebounced) {
         this.saveProgressDebounced()
       }
@@ -2333,7 +2286,6 @@ export default {
       await this.updateNextBookingIfChanged()
       
       // บันทึกความคืบหน้า
-      console.log('💾 [DEBUG] onYearChange - saving newAppointment:', this.newAppointment)
       if (this.saveProgressDebounced) {
         this.saveProgressDebounced()
       }
@@ -2346,7 +2298,6 @@ export default {
       await this.updateNextBookingIfChanged()
       
       // บันทึกความคืบหน้า
-      console.log('💾 [DEBUG] onDayChange - saving newAppointment:', this.newAppointment)
       if (this.saveProgressDebounced) {
         this.saveProgressDebounced()
       }
@@ -2357,23 +2308,14 @@ export default {
       await this.updateNextBookingIfChanged()
       
       // บันทึกความคืบหน้าเมื่อเปลี่ยนเวลา
-      console.log('💾 [DEBUG] onTimeChange - saving appointmentTime:', this.newAppointment.appointmentTime)
       if (this.saveProgressDebounced) {
         this.saveProgressDebounced()
       }
     },
     
     async recalculateMonthAgeAndActivities() {
-      console.log('🔍 [DEBUG] START recalculateMonthAgeAndActivities (survey.vue)')
-      console.log('📋 [DEBUG] Input Data:', {
-        visitorData: this.visitorData,
-        appointmentMonth: this.newAppointment.appointmentMonth,
-        appointmentYear: this.newAppointment.appointmentYear,
-        appointmentDay: this.newAppointment.appointmentDay
-      })
-      
+
       if (!this.visitorData || !this.newAppointment.appointmentMonth || !this.newAppointment.appointmentYear || !this.newAppointment.appointmentDay) {
-        console.log('❌ [DEBUG] Missing required data, returning early')
         return
       }
       
@@ -2382,7 +2324,6 @@ export default {
         const visitor = await this.$indexedDB.getVisitor(this.visitorData.stid)
         
         if (!visitor || !visitor.month_birth || !visitor.year_birth) {
-          console.log('❌ [DEBUG] Visitor missing birth data, returning early')
           return
         }
         
@@ -2392,7 +2333,6 @@ export default {
         const selectedDay = this.newAppointment.appointmentDay
         const selectedDate = new Date(selectedYear, selectedMonth - 1, selectedDay)
         
-        console.log('📅 [DEBUG] Selected date for NEXT appointment:', selectedDate.toISOString().split('T')[0])
         
         // 🔄 ใน step 12 ของ survey.vue: เราคำนวณนัดครั้งถัดไป
         // โดยใช้ survey ปัจจุบัน (visitorData) เป็น existingBooking
@@ -2403,7 +2343,6 @@ export default {
         if (!appointmentDateObj) {
           // ถ้าไม่มี appointmentDate ใช้ recStart แทน
           appointmentDateObj = this.recStart ? new Date(this.recStart.split(' ')[0]) : new Date()
-          console.log('⚠️ [DEBUG] No appointmentDate, using fallback:', appointmentDateObj.toISOString().split('T')[0])
         } else if (typeof appointmentDateObj === 'string') {
           appointmentDateObj = new Date(appointmentDateObj)
         }
@@ -2414,15 +2353,10 @@ export default {
           time: Number(this.visitorData.time)
         }
         
-        console.log('📝 [DEBUG] Using current survey as existingBooking:', {
-          time: existingBooking.time,
-          month_age: existingBooking.month_age,
-          appointmentDate: existingBooking.appointmentDate.toISOString().split('T')[0]
-        })
+     
         
         // คำนวณวันห่างจากนัดครั้งปัจจุบัน
         const daysSince = Math.floor((selectedDate - existingBooking.appointmentDate) / (1000 * 60 * 60 * 24))
-        console.log('📊 [DEBUG] Days since current appointment:', daysSince)
         
         // Calculate using helper function
         const { monthAge, timeActivity } = calculateMonthAgeAndTime(
@@ -2433,23 +2367,11 @@ export default {
           existingBooking
         )
         
-        console.log('✅ [DEBUG] Calculated for NEXT appointment:')
-        console.log('  - monthAge:', monthAge)
-        console.log('  - timeActivity:', timeActivity)
-        console.log('  - Logic used:', daysSince > 21 ? 'RESET (>21 days)' : daysSince >= 0 ? 'INCREMENT (≤21 days)' : 'N/A')
-        
         // อัพเดทค่าที่คำนวณได้
         this.newAppointment.appointmentMonthAge = monthAge
         this.newAppointment.monthAge = monthAge
         this.newAppointment.timeActivity = timeActivity
-        
-        console.log('💾 [DEBUG] Updated newAppointment:', {
-          appointmentMonthAge: this.newAppointment.appointmentMonthAge,
-          monthAge: this.newAppointment.monthAge,
-          timeActivity: this.newAppointment.timeActivity,
-          date: `${selectedDay}/${selectedMonth}/${this.newAppointment.appointmentYear}`
-        })
-        
+ 
         // ดึงกิจกรรมใหม่
         const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(
           monthAge,
@@ -2457,10 +2379,8 @@ export default {
         )
         this.newAppointment.activities = activities || []
         
-        console.log('📋 [DEBUG] Retrieved', activities?.length || 0, 'activities for month_age:', monthAge, 'time:', timeActivity)
-        console.log('✅ [DEBUG] END recalculateMonthAgeAndActivities - Success')
       } catch (error) {
-        console.error('❌ [DEBUG] ERROR in recalculateMonthAgeAndActivities:', error)
+        console.error('ERROR in recalculateMonthAgeAndActivities:', error)
       }
     },
     

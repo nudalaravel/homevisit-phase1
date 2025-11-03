@@ -1906,7 +1906,6 @@ export default {
           startTime: this.visitForm.startTime || '16:00 น.' // เวลาเริ่มบันทึกที่ user กรอก
         }
     
-        
         localStorage.setItem('surveyPatient', JSON.stringify(surveyData))
         
         // Navigate to survey page
