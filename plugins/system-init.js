@@ -8,6 +8,13 @@ export default function ({ app, store, $axios }, inject) {
       this.isInitialized = false;
       this.activitiesUpdateInterval = null;
       this.ACTIVITIES_UPDATE_INTERVAL = 60 * 60 * 1000; // 1 ชั่วโมง
+      // Cache สำหรับ location data (optimization: ลด redundant API calls)
+      this.locationDataCache = {
+        provinces: null,
+        amphoes: null,
+        tambons: null,
+        initialized: false
+      };
     }
 
     /**
@@ -71,20 +78,37 @@ export default function ({ app, store, $axios }, inject) {
      */
     async initializeLocationData() {
       try {
+        // ตรวจสอบ cache ก่อน (optimization: ลด redundant IndexedDB checks)
+        if (this.locationDataCache.initialized) {
+          return;
+        }
+
         // ตรวจสอบว่ามีข้อมูลแล้วหรือไม่
         const provinces = await app.$indexedDB.getProvinces();
 
         if (provinces && provinces.length > 0) {
+          // Mark cache as initialized
+          this.locationDataCache.initialized = true;
           return;
         }
 
         // ถ้าไม่มีข้อมูล หรือข้อมูลเสีย ให้ลบและดึงใหม่
         await app.$indexedDB.clearAllLocationData();
 
-        // ดึงข้อมูลจังหวัด
-        const provincesData = await this.fetchLocationData(
-          "/api/parenting2025_census/get/homevisit/getprovince.php"
-        );
+        // ดึงข้อมูล location ทั้ง 3 ชนิดแบบ parallel (optimization: API calls เป็น independent)
+        const [provincesData, amphoesData, tambonsData] = await Promise.all([
+          this.fetchLocationData(
+            "/api/parenting2025_census/get/homevisit/getprovince.php"
+          ),
+          this.fetchLocationData(
+            "/api/parenting2025_census/get/homevisit/getamphoe.php"
+          ),
+          this.fetchLocationData(
+            "/api/parenting2025_census/get/homevisit/gettambon.php"
+          ),
+        ]);
+
+        // Process และบันทึกข้อมูล (logic เดิม)
         if (provincesData && provincesData.length > 0) {
           // Map field names to match IndexedDB schema
           const mappedProvinces = provincesData.map((p) => ({
@@ -94,10 +118,6 @@ export default function ({ app, store, $axios }, inject) {
           await app.$indexedDB.addProvinces(mappedProvinces);
         }
 
-        // ดึงข้อมูลอำเภอ
-        const amphoesData = await this.fetchLocationData(
-          "/api/parenting2025_census/get/homevisit/getamphoe.php"
-        );
         if (amphoesData && amphoesData.length > 0) {
           // Map field names to match IndexedDB schema
           const mappedAmphoes = amphoesData.map((a) => ({
@@ -108,10 +128,6 @@ export default function ({ app, store, $axios }, inject) {
           await app.$indexedDB.addAmphoes(mappedAmphoes);
         }
 
-        // ดึงข้อมูลตำบล
-        const tambonsData = await this.fetchLocationData(
-          "/api/parenting2025_census/get/homevisit/gettambon.php"
-        );
         if (tambonsData && tambonsData.length > 0) {
           // Map field names to match IndexedDB schema
           const mappedTambons = tambonsData.map((t) => ({
@@ -121,6 +137,9 @@ export default function ({ app, store, $axios }, inject) {
           }));
           await app.$indexedDB.addTambons(mappedTambons);
         }
+
+        // Mark cache as initialized after successful fetch
+        this.locationDataCache.initialized = true;
       } catch (error) {
         throw error;
       }

@@ -1249,49 +1249,82 @@ export default function ({ app }, inject) {
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
-        const request = store.getAll();
+        
+        // ใช้ index stid เพื่อ query เร็วกว่า getAll() + filter
+        let index;
+        try {
+          index = store.index("stid");
+        } catch (error) {
+          // ถ้า index ไม่มี (database เก่า) ให้ fallback ไปใช้ getAll() + filter
+          const request = store.getAll();
+          request.onsuccess = () => {
+            const surveys = request.result;
+            const completedSurveys = surveys.filter((s) => {
+              const isMatchingStid = String(s.stid) === String(stid);
+              const isCompleted = s.completed === true;
+              return isMatchingStid && isCompleted;
+            });
+            this._processCompletedSurveys(completedSurveys, resolve);
+          };
+          request.onerror = () => reject(request.error);
+          return;
+        }
 
-        request.onsuccess = () => {
-          const surveys = request.result;
+        // ใช้ cursor เพื่อ query เฉพาะ stid ที่ต้องการ
+        const stidString = String(stid);
+        const request = index.openCursor(IDBKeyRange.only(stidString));
 
-          // Filter เฉพาะ surveys ของ stid นี้ที่เสร็จแล้ว
-          const completedSurveys = surveys.filter((s) => {
-            const isMatchingStid = String(s.stid) === String(stid);
-            const isCompleted = s.completed === true;
-            return isMatchingStid && isCompleted;
-          });
+        const completedSurveys = [];
 
-          // ตรวจสอบว่ามี surveys ซ้ำหรือไม่
-          const uniqueKeys = new Set();
-          const duplicates = [];
-
-          completedSurveys.forEach((s) => {
-            const key = `${s.stid}_${s.time}`;
-            if (uniqueKeys.has(key)) {
-              duplicates.push(key);
-            } else {
-              uniqueKeys.add(key);
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            const survey = cursor.value;
+            // Filter เฉพาะ surveys ที่เสร็จแล้ว (logic เดิม)
+            if (survey.completed === true) {
+              completedSurveys.push(survey);
             }
-          });
-
-          if (duplicates.length > 0) {
-            console.warn(
-              `Found ${duplicates.length} duplicate survey keys. This should not happen after cleanup.`
-            );
-            console.warn(`Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`);
+            cursor.continue();
+          } else {
+            // จบการวนลูป cursor แล้ว
+            this._processCompletedSurveys(completedSurveys, resolve);
           }
-
-          // Sort by time ascending (เรียงตามครั้งที่เยี่ยม)
-          completedSurveys.sort((a, b) => {
-            const timeA = parseInt(a.time) || 0;
-            const timeB = parseInt(b.time) || 0;
-            return timeA - timeB;
-          });
-
-          resolve(completedSurveys);
         };
+
         request.onerror = () => reject(request.error);
       });
+    }
+
+    /** Helper method สำหรับประมวลผล completed surveys (logic เดิม) */
+    _processCompletedSurveys(completedSurveys, resolve) {
+      // ตรวจสอบว่ามี surveys ซ้ำหรือไม่
+      const uniqueKeys = new Set();
+      const duplicates = [];
+
+      completedSurveys.forEach((s) => {
+        const key = `${s.stid}_${s.time}`;
+        if (uniqueKeys.has(key)) {
+          duplicates.push(key);
+        } else {
+          uniqueKeys.add(key);
+        }
+      });
+
+      if (duplicates.length > 0) {
+        console.warn(
+          `Found ${duplicates.length} duplicate survey keys. This should not happen after cleanup.`
+        );
+        console.warn(`Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`);
+      }
+
+      // Sort by time ascending (เรียงตามครั้งที่เยี่ยม)
+      completedSurveys.sort((a, b) => {
+        const timeA = parseInt(a.time) || 0;
+        const timeB = parseInt(b.time) || 0;
+        return timeA - timeB;
+      });
+
+      resolve(completedSurveys);
     }
 
     /** ดึงแบบสอบถามทั้งหมด (รวม completed และไม่ completed) ตาม stid */
@@ -1305,15 +1338,43 @@ export default function ({ app }, inject) {
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
-        const request = store.getAll();
+        
+        // ใช้ index stid เพื่อ query เร็วกว่า getAll() + filter
+        let index;
+        try {
+          index = store.index("stid");
+        } catch (error) {
+          // ถ้า index ไม่มี (database เก่า) ให้ fallback ไปใช้ getAll() + filter
+          const request = store.getAll();
+          request.onsuccess = () => {
+            const surveys = request.result;
+            const allSurveys = surveys.filter((s) => s.stid === stid);
+            // Sort by timeStart descending (newest first)
+            allSurveys.sort((a, b) => new Date(b.timeStart) - new Date(a.timeStart));
+            resolve(allSurveys);
+          };
+          request.onerror = () => reject(request.error);
+          return;
+        }
 
-        request.onsuccess = () => {
-          const surveys = request.result;
-          const allSurveys = surveys.filter((s) => s.stid === stid);
-          // Sort by timeStart descending (newest first)
-          allSurveys.sort((a, b) => new Date(b.timeStart) - new Date(a.timeStart));
-          resolve(allSurveys);
+        // ใช้ cursor เพื่อ query เฉพาะ stid ที่ต้องการ
+        const stidValue = stid; // ใช้ค่าเดิม (ไม่แปลงเป็น string เพื่อให้ตรงกับ logic เดิม)
+        const request = index.openCursor(IDBKeyRange.only(stidValue));
+
+        const allSurveys = [];
+
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            allSurveys.push(cursor.value);
+            cursor.continue();
+          } else {
+            // จบการวนลูป cursor แล้ว - Sort by timeStart descending (newest first) - logic เดิม
+            allSurveys.sort((a, b) => new Date(b.timeStart) - new Date(a.timeStart));
+            resolve(allSurveys);
+          }
         };
+
         request.onerror = () => reject(request.error);
       });
     }

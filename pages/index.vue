@@ -375,7 +375,7 @@
               <div class="visit-time-text">{{ visit.time }}</div>
               <div class="visit-status-badges">
                 <span v-if="!visit.synced" class="badge badge-warning">
-                 รอ Sync
+                 รอส่งข้อมูล
                 </span>
                 <span v-else-if="!visit.approved" class="badge badge-secondary">
                   รออนุมัติ
@@ -669,11 +669,9 @@ export default {
     }
   },
   watch: {
-    visitors: {
-      handler() {
-        this.updateVisitorsCount()
-      },
-      deep: true
+    // Watch only visitors.length instead of deep watch (optimization: ลด unnecessary re-renders)
+    'visitors.length'() {
+      this.updateVisitorsCount()
     },
     '$store.state.isOnline'(newValue, oldValue) {
       // เมื่อ online status เปลี่ยนจาก offline เป็น online
@@ -833,11 +831,11 @@ export default {
         // ซิงค์การนัดหมาย
         await this.$systemInit.syncBookings(username)
         
-        // ส่งการนัดหมายที่ยังไม่ซิงค์
-        await this.$systemInit.pushBookingsToAPI()
-        
-        // ส่งผลการทำแบบทดสอบที่ยังไม่ซิงค์
-        await this.$systemInit.pushSurveyResultsToAPI()
+        // ส่งข้อมูลที่ยังไม่ซิงค์แบบ parallel (optimization: push operations เป็น independent)
+        await Promise.all([
+          this.$systemInit.pushBookingsToAPI(),
+          this.$systemInit.pushSurveyResultsToAPI()
+        ])
         
         // ซิงค์ผลการบันทึกเยี่ยมบ้าน
         await this.$systemInit.syncSurveyResults(username)
@@ -893,6 +891,24 @@ export default {
           bookingsMap.set(booking.stid, booking)
         })
         
+        // ดึง surveys ทั้งหมดครั้งเดียวแล้วจัดกลุ่มตาม stid (optimization: ลด database queries)
+        const allSurveysData = await this.$indexedDB.getAll("survey_progress")
+        const surveysByStidMap = new Map()
+        
+        // จัดกลุ่ม surveys ตาม stid (logic เดิม: s.stid === stid)
+        allSurveysData.forEach(survey => {
+          const stid = survey.stid
+          if (!surveysByStidMap.has(stid)) {
+            surveysByStidMap.set(stid, [])
+          }
+          surveysByStidMap.get(stid).push(survey)
+        })
+        
+        // Sort แต่ละกลุ่มตาม timeStart descending (newest first) - logic เดิมจาก getAllSurveysByStid
+        surveysByStidMap.forEach((surveys, stid) => {
+          surveys.sort((a, b) => new Date(b.timeStart) - new Date(a.timeStart))
+        })
+        
         // จัดเตรียมข้อมูลผู้รับบริการสำหรับแสดงผลและรวมกับการนัดหมาย
         const visitorPromises = visitors.map(async visitor => {
           // สร้างชื่อเต็มจากฟิลด์ที่มี
@@ -906,8 +922,8 @@ export default {
           // ดึงข้อมูลการนัดหมายของผู้รับบริการคนนี้
           const booking = bookingsMap.get(visitor.stid)
           
-          // ดึงแบบสอบถามทั้งหมด (รวม completed และไม่ completed)
-          const allSurveys = await this.$indexedDB.getAllSurveysByStid(visitor.stid)
+          // ดึงแบบสอบถามทั้งหมด (รวม completed และไม่ completed) จาก grouped data
+          const allSurveys = surveysByStidMap.get(visitor.stid) || []
           
           // คำนวณว่าสามารถแก้ไขนัดหมายได้หรือไม่
           const timeVisit = booking?.time_visit || 1
@@ -1042,6 +1058,30 @@ export default {
         )
         monthAge = result.monthAge
         timeActivity = result.timeActivity
+      }
+      
+      // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือ month_age <= 0
+      // ใช้ selectedDate ที่คำนวณไว้แล้วข้างบน
+      const birthYear = parseInt(this.appointmentForm.visitorBirthYear) - 543
+      const birthMonth = parseInt(this.appointmentForm.visitorBirthMonth)
+      const birthDate = new Date(birthYear, birthMonth - 1, visitorBirthDay)
+      
+      // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือไม่
+      if (selectedDate < birthDate) {
+        this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากวันนัดหมายมาก่อนวันเกิด')
+        this.appointmentForm.appointmentMonthAge = null
+        this.appointmentForm.timeActivity = null
+        this.appointmentForm.activities = []
+        return
+      }
+      
+      // ตรวจสอบว่า month_age <= 0 หรือไม่
+      if (monthAge <= 0) {
+        this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
+        this.appointmentForm.appointmentMonthAge = null
+        this.appointmentForm.timeActivity = null
+        this.appointmentForm.activities = []
+        return
       }
       
       // อัพเดทอายุเดือนและครั้งที่เยี่ยม
@@ -1396,6 +1436,26 @@ export default {
           timeActivity = result.timeActivity
         }
         
+        // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือ month_age <= 0
+        const selectedYear = year - 543
+        const selectedDate = new Date(selectedYear, month - 1, day)
+        const birthYear = parseInt(visitor.year_birth) - 543
+        const birthMonth = parseInt(visitor.month_birth)
+        const birthDay = parseInt(visitor.day_birth) || 1
+        const birthDate = new Date(birthYear, birthMonth - 1, birthDay)
+        
+        // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือไม่
+        if (selectedDate < birthDate) {
+          this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากวันนัดหมายมาก่อนวันเกิด')
+          return
+        }
+        
+        // ตรวจสอบว่า month_age <= 0 หรือไม่
+        if (monthAge <= 0) {
+          this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
+          return
+        }
+        
         // ดึงข้อมูลกิจกรรมทั้งหมดจาก IndexedDB
         const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeActivity)
         
@@ -1431,16 +1491,33 @@ export default {
         const visitor = this.visitors.find(v => v.id === this.appointmentForm.id)
         if (!visitor) return
 
-        this.loading = true
-        this.loadingMessage = 'กำลังบันทึกนัดหมาย...'
+        // ดึงข้อมูล visitor จาก IndexedDB เพื่อตรวจสอบวันเกิด
+        const visitorData = await this.$indexedDB.getVisitor(visitor.stid)
+        
+        if (!visitorData || !visitorData.month_birth || !visitorData.year_birth) {
+          this.$toast.error('ไม่พบข้อมูลวันเกิดของผู้รับบริการ')
+          return
+        }
         
         // แปลงปีพุทธศักราชเป็นคริสต์ศักราช
         const christianYear = this.appointmentForm.appointmentYear - 543
         const appointmentDate = `${christianYear}-${String(this.appointmentForm.appointmentMonth).padStart(2, '0')}-${String(this.appointmentForm.appointmentDay).padStart(2, '0')}`
         const appointmentTime = this.appointmentForm.appointmentTime
         
-        // ดึงข้อมูล visitor จาก IndexedDB เพื่อเอา fname, lname
-        const visitorData = await this.$indexedDB.getVisitor(visitor.stid)
+        // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือไม่
+        const selectedDate = new Date(christianYear, this.appointmentForm.appointmentMonth - 1, this.appointmentForm.appointmentDay)
+        const birthYear = parseInt(visitorData.year_birth) - 543
+        const birthMonth = parseInt(visitorData.month_birth)
+        const birthDay = parseInt(visitorData.day_birth) || 1
+        const birthDate = new Date(birthYear, birthMonth - 1, birthDay)
+        
+        if (selectedDate < birthDate) {
+          this.$toast.error('ไม่สามารถบันทึกนัดหมายได้ เนื่องจากวันนัดหมายมาก่อนวันเกิด')
+          return
+        }
+
+        this.loading = true
+        this.loadingMessage = 'กำลังบันทึกนัดหมาย...'
         
         const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(visitor.stid)
         const timeVisit = completedSurveys.length + 1 // จำนวนครั้งที่ completed แล้ว + 1
@@ -1522,8 +1599,21 @@ export default {
             finalMonthAge = monthAge
             finalTime = timeActivity
             
+            // ตรวจสอบว่า month_age <= 0 หรือไม่
+            if (finalMonthAge <= 0) {
+              this.loading = false
+              this.$toast.error('ไม่สามารถบันทึกนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
+              return
+            }
 
           }
+        }
+        
+        // ตรวจสอบอีกครั้งก่อนบันทึก (กรณีที่ไม่มี previousSurvey)
+        if (finalMonthAge <= 0) {
+          this.loading = false
+          this.$toast.error('ไม่สามารถบันทึกนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
+          return
         }
         
         // อัพเดทการแสดงผล

@@ -1,0 +1,107 @@
+# Riped V2 - Nuxt.js 2 PWA Project Structure & Rules
+
+## Tech Stack
+- Nuxt.js 2.17.3
+- Vue 2 (Composition API style in newer components)
+- Bootstrap Vue 2
+- IndexedDB (offline-first)
+- Express API
+- SweetAlert2, Chart.js
+
+## Project Structure
+- `/pages` - Nuxt pages (index, login, survey)
+- `/components` - Reusable Vue components
+- `/composables` - Vue composition functions
+- `/plugins` - Nuxt plugins (system-init, auth, offline, indexeddb)
+- `/utils` - Pure utility functions (helpers, validators, constants)
+- `/store` - Vuex store
+- `/middleware` - Route middleware
+- `/api` - Backend Express API
+- Documentation files: BACKGROUND_SYNC_FEATURE.md, OFFLINE_IMPROVEMENTS.md
+
+## Critical Patterns
+
+### 1. Offline-First Architecture
+- Always check online/offline state before API calls
+- Store data in IndexedDB via `plugins/indexeddb.js`
+- Use background sync for failed requests
+- Handle offline scenarios gracefully
+
+### 2. System Initialization
+- `plugins/system-init.js` is THE central initialization point (1647 lines)
+- Contains province/amphoe/tambon data
+- Survey configuration and logic
+- Never modify system-init without understanding full context
+
+### 3. Survey Flow
+- Main page: `pages/survey.vue` (3217 lines)
+- Components: `components/survey/*`
+- Composables: `useSurveyAnswers`, `useSurveyNavigation`, `useImageUpload`
+- Data structure: survey.answers.q1, q2, etc.
+
+## Development Rules
+
+### When Modifying Code:
+1. **Check Dependencies First**
+   - Search for usage across the project before changing
+   - Check both direct imports and global $nuxt usage
+   
+2. **Maintain Offline Support**
+   - Test online AND offline scenarios
+   - Update IndexedDB schema if data structure changes
+   - Handle sync failures appropriately
+
+3. **Follow Existing Patterns**
+   - Use existing composables for similar functionality
+   - Follow naming conventions (use camelCase for variables)
+   - Match indentation style (2 spaces)
+
+4. **Update Related Files**
+   - If changing data structure → update validators, helpers, constants
+   - If changing API → update both frontend and backend
+   - If changing survey logic → update survey components AND system-init
+
+5. **Documentation**
+   - Update relevant .md files for significant changes
+   - Add inline comments for complex logic
+   - Update API spec if endpoints change
+
+### Testing Checklist:
+- [ ] Works online
+- [ ] Works offline
+- [ ] Data syncs properly when back online
+- [ ] No console errors
+- [ ] IndexedDB operations succeed
+- [ ] Responsive on mobile
+- [ ] Thai language displays correctly
+
+## Code Style
+- Use async/await over promises
+- Prefer composables over mixins
+- Use optional chaining: `survey.answers?.q1`
+- Use template literals for strings
+- Destructure props and imports
+
+## Common Pitfalls to AVOID:
+- ❌ Don't break offline functionality
+- ❌ Don't modify system-init.js without full context
+- ❌ Don't skip validation on user inputs
+- ❌ Don't assume network is available
+- ❌ Don't forget to handle Thai language edge cases
+- ❌ Don't remove error handling from existing code
+
+## When Asked to Add Features:
+1. First analyze impact on offline functionality
+2. Check if similar patterns exist in codebase
+3. List all files that need changes
+4. Ask for clarification if requirements unclear
+5. Implement with proper error handling
+6. Test both online and offline modes
+
+## Priority Order for Changes:
+1. Maintain data integrity
+2. Preserve offline functionality  
+3. Keep user experience smooth
+4. Optimize performance
+5. Add new features
+
