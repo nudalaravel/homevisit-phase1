@@ -767,6 +767,11 @@ export default {
         
         // หน่วงเวลา 2 วินาที ป้องกันการเรียกซ้ำจากหลายเหตุการณ์
         this.syncQueueTimeout = setTimeout(async () => {
+          // ตรวจสอบสถานะ offline ก่อน sync
+          if (!this.$store.state.isOnline) {
+            return
+          }
+          
           // ซิงค์ข้อมูลผู้รับบริการจากคิว
           await this.processSyncQueue()
           
@@ -1705,7 +1710,7 @@ export default {
         }
         
         // เรียก API เพื่อบันทึกนัดหมาย
-        if (navigator.onLine) {
+        if (this.$store.state.isOnline) {
           try {
             const username = this.$offlineAuth?.getUser?.()?.username
             
@@ -2121,7 +2126,9 @@ export default {
             // Check if it's new object format { base64, url, key }
             if (typeof img === 'object' && img !== null) {
               // ⚠️ Offline Mode: ใช้ base64 เมื่อ offline เพื่อให้แสดงได้
-              const imageData = (!navigator.onLine && img.base64) ? img.base64 : (img.url || img.base64)
+              // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+              const isOffline = !this.$store.state.isOnline
+              const imageData = (isOffline && img.base64) ? img.base64 : (img.url || img.base64)
               currentImages.push(imageData)
               currentImageKeys.push(survey.surveyImageKeys?.[i] || null)
             } else if (typeof img === 'string') {

@@ -1,4 +1,4 @@
-export default function ({ app }, inject) {
+export default function ({ app, store }, inject) {
   /**
    * IndexedDB Manager สำหรับจัดการข้อมูลออฟไลน์
    * ใช้เก็บข้อมูลในเครื่องผู้ใช้เพื่อรองรับการทำงานแบบออฟไลน์
@@ -542,7 +542,9 @@ export default function ({ app }, inject) {
      * ใช้เมื่อออนไลน์เพื่อดึงข้อมูลล่าสุดจาก server
      */
     async syncFromAPI() {
-      if (!navigator.onLine) {
+      // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+      const isOnline = store?.state?.isOnline ?? navigator.onLine;
+      if (!isOnline) {
         throw new Error("ไม่สามารถซิงค์ได้ เนื่องจากไม่มีอินเทอร์เน็ต");
       }
 
@@ -624,7 +626,8 @@ export default function ({ app }, inject) {
      * @param {Object} item - รายการที่ต้องการซิงค์
      */
     async syncItemToAPI(item) {
-      if (!navigator.onLine) {
+      const isOnline = store?.state?.isOnline ?? navigator.onLine;
+      if (!isOnline) {
         throw new Error("ไม่สามารถซิงค์ได้ เนื่องจากไม่มีอินเทอร์เน็ต");
       }
 
@@ -1249,7 +1252,7 @@ export default function ({ app }, inject) {
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
-        
+
         // ใช้ index stid เพื่อ query เร็วกว่า getAll() + filter
         let index;
         try {
@@ -1338,7 +1341,7 @@ export default function ({ app }, inject) {
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
-        
+
         // ใช้ index stid เพื่อ query เร็วกว่า getAll() + filter
         let index;
         try {

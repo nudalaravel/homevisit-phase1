@@ -13,7 +13,7 @@ export default function ({ app, store, $axios }, inject) {
         provinces: null,
         amphoes: null,
         tambons: null,
-        initialized: false
+        initialized: false,
       };
     }
 
@@ -92,20 +92,21 @@ export default function ({ app, store, $axios }, inject) {
           return;
         }
 
-        // ถ้าไม่มีข้อมูล หรือข้อมูลเสีย ให้ลบและดึงใหม่
+        // ถ้าไม่มีข้อมูลใน IndexedDB และ offline ให้ข้ามการดึงข้อมูล
+        // (ข้อมูลจะถูกดึงเมื่อ online ครั้งถัดไป)
+        if (!store.state.isOnline) {
+          this.locationDataCache.initialized = true;
+          return;
+        }
+
+        // ถ้าไม่มีข้อมูล หรือข้อมูลเสีย ให้ลบและดึงใหม่ (เมื่อ online)
         await app.$indexedDB.clearAllLocationData();
 
         // ดึงข้อมูล location ทั้ง 3 ชนิดแบบ parallel (optimization: API calls เป็น independent)
         const [provincesData, amphoesData, tambonsData] = await Promise.all([
-          this.fetchLocationData(
-            "/api/parenting2025_census/get/homevisit/getprovince.php"
-          ),
-          this.fetchLocationData(
-            "/api/parenting2025_census/get/homevisit/getamphoe.php"
-          ),
-          this.fetchLocationData(
-            "/api/parenting2025_census/get/homevisit/gettambon.php"
-          ),
+          this.fetchLocationData("/api/parenting2025_census/get/homevisit/getprovince.php"),
+          this.fetchLocationData("/api/parenting2025_census/get/homevisit/getamphoe.php"),
+          this.fetchLocationData("/api/parenting2025_census/get/homevisit/gettambon.php"),
         ]);
 
         // Process และบันทึกข้อมูล (logic เดิม)
@@ -141,6 +142,12 @@ export default function ({ app, store, $axios }, inject) {
         // Mark cache as initialized after successful fetch
         this.locationDataCache.initialized = true;
       } catch (error) {
+        // ถ้า offline และเกิด error ให้ข้าม (ไม่ throw error)
+        if (!store.state.isOnline) {
+          console.warn("Offline mode: Location data initialization skipped due to error:", error);
+          this.locationDataCache.initialized = true;
+          return;
+        }
         throw error;
       }
     }
@@ -150,12 +157,23 @@ export default function ({ app, store, $axios }, inject) {
      */
     async fetchLocationData(url) {
       try {
+        // ตรวจสอบสถานะ offline ก่อนเรียก API
+        if (!store.state.isOnline) {
+          console.warn("Offline mode: Cannot fetch location data from API");
+          return [];
+        }
+
         const response = await $axios.$get(url);
         if (response && response.results) {
           return response.results;
         }
         return [];
       } catch (error) {
+        // ถ้า offline ให้ return array ว่าง (ไม่ throw error)
+        if (!store.state.isOnline) {
+          console.warn("Offline mode: Location data fetch failed:", error);
+          return [];
+        }
         return [];
       }
     }
@@ -173,10 +191,26 @@ export default function ({ app, store, $axios }, inject) {
           return;
         }
 
-        // ดึงข้อมูลใหม่จาก API
+        // ตรวจสอบว่ามี activities ใน IndexedDB หรือไม่
+        const existingActivities = await app.$indexedDB.getActivities();
+
+        // ถ้า offline และมีข้อมูลอยู่แล้ว ให้ใช้ข้อมูลเดิม (ไม่ต้องอัพเดท)
+        if (!store.state.isOnline && existingActivities && existingActivities.length > 0) {
+          console.log("Offline mode: Using existing activities data");
+          return;
+        }
+
+        // ถ้า offline และไม่มีข้อมูล ให้ข้ามการดึงข้อมูล
+        if (!store.state.isOnline) {
+          console.warn("Offline mode: Cannot fetch activities. No cached data available.");
+          return;
+        }
+
+        // ดึงข้อมูลใหม่จาก API (เมื่อ online)
         await this.updateActivitiesFromAPI();
       } catch (error) {
         // Handle error silently
+        console.warn("initializeActivities error:", error);
       }
     }
 
@@ -193,6 +227,12 @@ export default function ({ app, store, $axios }, inject) {
      */
     async updateActivitiesFromAPI() {
       try {
+        // ตรวจสอบสถานะ offline ก่อนเรียก API
+        if (!store.state.isOnline) {
+          console.warn("Offline mode: Cannot update activities from API");
+          return false;
+        }
+
         const response = await $axios.$get(
           "/api/parenting2025_census/get/homevisit/getobjective.php"
         );
@@ -206,9 +246,13 @@ export default function ({ app, store, $axios }, inject) {
 
           // บันทึกเวลาที่อัพเดท
           await app.$indexedDB.setSetting("activities_last_update", Date.now());
+          return true;
         }
+        return false;
       } catch (error) {
         // Handle error silently
+        console.warn("updateActivitiesFromAPI error:", error);
+        return false;
       }
     }
 
@@ -221,9 +265,12 @@ export default function ({ app, store, $axios }, inject) {
         clearInterval(this.activitiesUpdateInterval);
       }
 
-      // ตั้ง interval ใหม่
+      // ตั้ง interval ใหม่ (ตรวจสอบสถานะ offline ก่อนอัพเดท)
       this.activitiesUpdateInterval = setInterval(() => {
-        this.updateActivitiesFromAPI();
+        // ตรวจสอบสถานะ offline ก่อนเรียก API
+        if (store.state.isOnline) {
+          this.updateActivitiesFromAPI();
+        }
       }, this.ACTIVITIES_UPDATE_INTERVAL);
     }
 
@@ -232,7 +279,8 @@ export default function ({ app, store, $axios }, inject) {
      */
     async syncVisitors(username) {
       try {
-        if (!navigator.onLine) {
+        // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+        if (!store.state.isOnline) {
           return false;
         }
 
@@ -335,7 +383,8 @@ export default function ({ app, store, $axios }, inject) {
      */
     async syncBookings(username) {
       try {
-        if (!navigator.onLine) {
+        // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+        if (!store.state.isOnline) {
           return false;
         }
 
@@ -463,7 +512,8 @@ export default function ({ app, store, $axios }, inject) {
      */
     async syncSurveyResults(username) {
       try {
-        if (!navigator.onLine) {
+        // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+        if (!store.state.isOnline) {
           return false;
         }
 
@@ -784,7 +834,8 @@ export default function ({ app, store, $axios }, inject) {
      */
     async pushBookingsToAPI() {
       try {
-        if (!navigator.onLine) {
+        // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+        if (!store.state.isOnline) {
           return false;
         }
 
@@ -1107,7 +1158,8 @@ export default function ({ app, store, $axios }, inject) {
      */
     async pushSurveyResultsToAPI() {
       try {
-        if (!navigator.onLine) {
+        // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+        if (!store.state.isOnline) {
           return false;
         }
 

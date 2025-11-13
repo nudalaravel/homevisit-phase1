@@ -932,7 +932,9 @@ export default {
     },
     
     normalizeImageUrl(url) {
-      return normalizeImageUrlHelper(url, !navigator.onLine)
+      // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
+      const isOffline = !this.$store.state.isOnline
+      return normalizeImageUrlHelper(url, isOffline)
     },
     
     async loadPatientsCount() {
@@ -958,6 +960,21 @@ export default {
       try {
         this.loading = true
         this.loadingMessage = 'กำลังโหลดข้อมูล...'
+        
+        // ตรวจสอบว่า IndexedDB พร้อมใช้งานหรือไม่
+        if (!this.$indexedDB) {
+          this.$toast.error('ระบบฐานข้อมูลยังไม่พร้อม กรุณารีเฟรชหน้าเว็บ')
+          this.loading = false
+          return
+        }
+        
+        // ตรวจสอบว่า IndexedDB ถูก initialize แล้วหรือยัง
+        const dbReady = await this.$indexedDB.ensureInitialized()
+        if (!dbReady) {
+          this.$toast.error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณารีเฟรชหน้าเว็บ')
+          this.loading = false
+          return
+        }
         
         // โหลดจำนวนผู้รับบริการและอัพเดทข้อมูลในระบบ
         await this.loadPatientsCount()
@@ -990,8 +1007,14 @@ export default {
         
         this.loading = false
       } catch (error) {
+        console.error('initializeSurvey error:', error)
         this.loading = false
-        this.$toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล')
+        // แสดงข้อความที่เหมาะสมตามสถานะ offline/online
+        if (!this.$store.state.isOnline) {
+          this.$toast.warning('กำลังทำงานในโหมดออฟไลน์ ข้อมูลจะถูกบันทึกในเครื่อง')
+        } else {
+          this.$toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล')
+        }
       }
     },
     
@@ -1382,11 +1405,20 @@ export default {
     },
     
     async fetchSurveyData() {
+      // ฟังก์ชันนี้ไม่ได้ถูกเรียกใช้แล้ว (deprecated)
+      // ข้อมูล survey จะถูกโหลดจาก IndexedDB แทน
+      // ถ้าต้องการ sync จาก API ควรใช้ $systemInit.syncSurveyResults() แทน
       try {
+        // ตรวจสอบสถานะ offline ก่อนเรียก API
+        if (!this.$store.state.isOnline) {
+          console.warn('Offline mode: Cannot fetch survey data from API')
+          return
+        }
+        
         const username = this.$offlineAuth?.getUser?.()?.username
         if (!username) {
-        return
-      }
+          return
+        }
       
         const response = await this.$axios.$get(
           '/api/parenting2025_census/get/homevisit/getchildsample_result.php',
@@ -1406,12 +1438,44 @@ export default {
         }
       } catch (error) {
         // ดำเนินการต่อ ข้อมูลจะถูกบันทึกในเครื่อง
+        console.warn('fetchSurveyData error:', error)
       }
     },
     
     async loadActivities() {
       try {
+        // ตรวจสอบว่า IndexedDB พร้อมใช้งานหรือไม่
+        if (!this.$indexedDB) {
+          console.warn('IndexedDB not available, skipping loadActivities')
+          this.activities = []
+          this.q5Activities = []
+          return
+        }
+        
+        // ตรวจสอบว่า IndexedDB ถูก initialize แล้วหรือยัง
+        const dbReady = await this.$indexedDB.ensureInitialized()
+        if (!dbReady) {
+          console.warn('IndexedDB not initialized, skipping loadActivities')
+          this.activities = []
+          this.q5Activities = []
+          return
+        }
+        
         const allActivities = await this.$indexedDB.getActivities()
+        
+        // ตรวจสอบว่ามี activities ใน IndexedDB หรือไม่
+        if (!allActivities || allActivities.length === 0) {
+          console.warn('No activities found in IndexedDB')
+          // แสดงข้อความแจ้งเตือนเมื่อ offline และไม่มี activities
+          if (!this.$store.state.isOnline) {
+            this.$toast.warning('ไม่พบข้อมูลกิจกรรมในเครื่อง กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูล')
+          } else {
+            this.$toast.warning('ไม่พบข้อมูลกิจกรรม กรุณารีเฟรชหน้าเว็บ')
+          }
+          this.activities = []
+          this.q5Activities = []
+          return
+        }
         
         if (this.isSyncedSurvey) {
           const savedQ5Values = { ...this.answers.q5 }
@@ -1445,6 +1509,14 @@ export default {
           return
         }
         
+        // ตรวจสอบว่า visitorData มีข้อมูลครบถ้วนหรือไม่
+        if (!this.visitorData || !this.visitorData.month_age || !this.visitorData.time) {
+          console.warn('Missing visitorData for activity filtering')
+          this.activities = []
+          this.q5Activities = []
+          return
+        }
+        
         const q9Activities = allActivities.filter(activity => {
           return Number(activity.month_age) === Number(this.visitorData.month_age) &&
                  Number(activity.time) === Number(this.visitorData.time)
@@ -1461,29 +1533,34 @@ export default {
         
         if (currentTimeVisit > 1) {
           const previousTimeVisit = currentTimeVisit - 1
-          const previousSurvey = await this.$indexedDB.getSurveyProgress(
-            this.visitorData.stid,
-            previousTimeVisit
-          )
-          
-          if (previousSurvey && previousSurvey.answers && previousSurvey.answers.q9) {
-            const q5ActivityIds = Object.keys(previousSurvey.answers.q9)
+          try {
+            const previousSurvey = await this.$indexedDB.getSurveyProgress(
+              this.visitorData.stid,
+              previousTimeVisit
+            )
             
-            if (q5ActivityIds.length > 0) {
-              const q5MatchingActivities = allActivities.filter(activity => {
-                return q5ActivityIds.includes(String(activity.no))
-              })
+            if (previousSurvey && previousSurvey.answers && previousSurvey.answers.q9) {
+              const q5ActivityIds = Object.keys(previousSurvey.answers.q9)
               
-              q5MatchingActivities.sort((a, b) => {
-                return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
-              })
-              
-              this.q5Activities = q5MatchingActivities
-              await this.saveProgress()
+              if (q5ActivityIds.length > 0) {
+                const q5MatchingActivities = allActivities.filter(activity => {
+                  return q5ActivityIds.includes(String(activity.no))
+                })
+                
+                q5MatchingActivities.sort((a, b) => {
+                  return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
+                })
+                
+                this.q5Activities = q5MatchingActivities
+                await this.saveProgress()
+              } else {
+                this.q5Activities = []
+              }
             } else {
               this.q5Activities = []
             }
-          } else {
+          } catch (error) {
+            console.error('Failed to load previous survey for q5 activities:', error)
             this.q5Activities = []
           }
         } else {
@@ -1494,6 +1571,12 @@ export default {
         console.error('loadActivities failed:', error)
         this.activities = []
         this.q5Activities = []
+        // แสดงข้อความแจ้งเตือนที่เหมาะสม
+        if (!this.$store.state.isOnline) {
+          this.$toast.warning('ไม่สามารถโหลดข้อมูลกิจกรรมได้ในโหมดออฟไลน์')
+        } else {
+          this.$toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูลกิจกรรม')
+        }
       }
     },
     
