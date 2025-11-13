@@ -458,14 +458,20 @@ export default function ({ app, store, $axios }, inject) {
 
           const localBooking = localBookingsMap.get(apiBooking.stid);
 
+          // Helper function: ตรวจสอบว่าค่าจาก API ถูกต้องหรือไม่ (ไม่ใช่ null, undefined, empty string)
+          const isValidValue = (value) => {
+            return value !== null && value !== undefined && value !== "";
+          };
+
           if (!localBooking) {
             // ข้อมูลใหม่จาก API
             await app.$indexedDB.addBooking({
               stid: apiBooking.stid,
               appointmentDate: apiBooking.date_app_curr || null,
               appointmentTime: apiBooking.time_app_curr || null,
-              month_age: apiBooking.month_age || null,
-              time: apiBooking.time || null,
+              // ใช้ค่าจาก API ถ้ามี ถ้าไม่มีให้เป็น null
+              month_age: isValidValue(apiBooking.month_age) ? apiBooking.month_age : null,
+              time: isValidValue(apiBooking.time) ? apiBooking.time : null,
               time_visit: apiBooking.time_visit || null,
               cnt_app: apiBooking.cnt_app || 1,
               dataSource: "api",
@@ -478,14 +484,18 @@ export default function ({ app, store, $axios }, inject) {
             skippedCount++;
           } else {
             // ข้อมูลจาก API ปกติ - อัพเดททั้งหมด
+            // ⚠️ สำคัญ: ถ้า API ไม่ส่ง month_age หรือ time มา ให้ใช้ค่าจาก local booking เดิม
             await app.$indexedDB.updateBooking({
               stid: apiBooking.stid,
-              appointmentDate: apiBooking.date_app_curr || null,
-              appointmentTime: apiBooking.time_app_curr || null,
-              month_age: apiBooking.month_age || null,
-              time: apiBooking.time || null,
-              time_visit: apiBooking.time_visit || null,
-              cnt_app: apiBooking.cnt_app || 1,
+              appointmentDate: apiBooking.date_app_curr || localBooking.appointmentDate || null,
+              appointmentTime: apiBooking.time_app_curr || localBooking.appointmentTime || null,
+              // ใช้ค่าจาก API ถ้ามี ถ้าไม่มีให้ใช้ค่าจาก local booking เดิม
+              month_age: isValidValue(apiBooking.month_age)
+                ? apiBooking.month_age
+                : localBooking.month_age || null,
+              time: isValidValue(apiBooking.time) ? apiBooking.time : localBooking.time || null,
+              time_visit: apiBooking.time_visit || localBooking.time_visit || null,
+              cnt_app: apiBooking.cnt_app || localBooking.cnt_app || 1,
               dataSource: "api",
               lastSyncedAt: new Date().toISOString(),
             });

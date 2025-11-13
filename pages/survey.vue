@@ -502,22 +502,14 @@
             </button>
           </div>
 
-          <input
-            ref="fileInput1"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="handleFileSelect($event, 0)"
-          />
-
           <b-button
             variant="warning"
             size="lg"
             class="upload-btn"
-            @click="$refs.fileInput1.click()"
+            @click="openCameraModal(0)"
           >
             <i class="fas fa-camera"></i>
-            {{ displayImage1 ? 'เลือกรูปใหม่' : 'อัพโหลดรูปภาพที่ 1' }}
+            {{ displayImage1 ? 'เลือกรูปใหม่' : 'ถ่ายรูปภาพที่ 1' }}
           </b-button>
         </div>
 
@@ -547,22 +539,14 @@
             </button>
           </div>
 
-          <input
-            ref="fileInput2"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="handleFileSelect($event, 1)"
-          />
-
           <b-button
             variant="warning"
             size="lg"
             class="upload-btn"
-            @click="$refs.fileInput2.click()"
+            @click="openCameraModal(1)"
           >
             <i class="fas fa-camera"></i>
-            {{ displayImage2 ? 'เลือกรูปใหม่' : 'อัพโหลดรูปภาพที่ 2' }}
+            {{ displayImage2 ? 'เลือกรูปใหม่' : 'ถ่ายรูปภาพที่ 2' }}
           </b-button>
         </div>
 
@@ -706,6 +690,79 @@
         </div>
       </div>
     </b-modal>
+
+    <!-- Camera Modal -->
+    <b-modal
+      v-model="cameraModalVisible"
+      :title="`ถ่ายรูปภาพที่ ${currentImageIndex + 1}`"
+      size="lg"
+      hide-footer
+      @hide="closeCameraModal"
+      class="camera-modal"
+    >
+      <div class="camera-container">
+        <!-- Video Preview -->
+        <div v-if="!capturedImage" class="camera-preview">
+          <video
+            ref="videoElement"
+            autoplay
+            playsinline
+            class="camera-video"
+          ></video>
+          <div v-if="!videoStream" class="camera-loading">
+            <b-spinner variant="primary"></b-spinner>
+            <p>กำลังเปิดกล้อง...</p>
+          </div>
+        </div>
+        
+        <!-- Captured Image Preview -->
+        <div v-else class="captured-preview">
+          <img :src="capturedImage" alt="ภาพที่ถ่าย" class="captured-image" />
+        </div>
+
+        <!-- Camera Controls -->
+        <div class="camera-controls">
+          <template v-if="!capturedImage">
+            <b-button
+              variant="danger"
+              size="lg"
+              @click="closeCameraModal"
+              class="control-btn"
+            >
+              <i class="fas fa-times"></i> ยกเลิก
+            </b-button>
+            <b-button
+              variant="warning"
+              size="lg"
+              @click="capturePhoto"
+              :disabled="!videoStream"
+              class="control-btn capture-btn"
+            >
+              <i class="fas fa-camera"></i> ถ่ายภาพ
+            </b-button>
+          </template>
+          
+          <template v-else>
+            <b-button
+              variant="secondary"
+              size="lg"
+              @click="retakePhoto"
+              class="control-btn"
+            >
+              <i class="fas fa-redo"></i> ถ่ายใหม่
+            </b-button>
+            <b-button
+              variant="success"
+              size="lg"
+              @click="usePhoto"
+              class="control-btn"
+            >
+              <i class="fas fa-check"></i> ใช้รูปนี้
+            </b-button>
+          </template>
+        </div>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -776,6 +833,13 @@ export default {
       // Activity detail modal
       activityDetailModalVisible: false,
       selectedActivity: null,
+      
+      // Camera modal
+      cameraModalVisible: false,
+      currentImageIndex: 0, // เก็บ index ของรูปที่กำลังถ่าย (0 หรือ 1)
+      videoStream: null,
+      capturedImage: null, // เก็บ base64 ของภาพที่ถ่าย
+      videoElement: null,
       
       // Answers object
       answers: {
@@ -1846,11 +1910,181 @@ export default {
       
       this.$set(this.surveyImages, index, null)
       this.$set(this.surveyImageKeys, index, null)
+    },
+    
+    // Camera modal methods
+    async openCameraModal(index) {
+      this.currentImageIndex = index
+      this.capturedImage = null
+      this.cameraModalVisible = true
       
-      // รีเซ็ตช่องเลือกไฟล์
-      const refName = `fileInput${index + 1}`
-      if (this.$refs[refName]) {
-        this.$refs[refName].value = ''
+      // รอให้ modal แสดงก่อน
+      await this.$nextTick()
+      
+      try {
+        // ตรวจสอบว่า browser รองรับ getUserMedia หรือไม่
+        let stream = null
+        
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          // Modern API
+          const constraints = {
+            video: {
+              facingMode: 'environment', // ใช้กล้องหลัง (สำหรับมือถือ)
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          }
+          stream = await navigator.mediaDevices.getUserMedia(constraints)
+        } else if (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia) {
+          // Legacy API (fallback) - ใช้ constraints แบบเก่า
+          const getUserMedia = navigator.getUserMedia || 
+                              navigator.webkitGetUserMedia || 
+                              navigator.mozGetUserMedia || 
+                              navigator.msGetUserMedia
+          
+          stream = await new Promise((resolve, reject) => {
+            // Legacy API ใช้ constraints แบบ boolean หรือ object ง่ายๆ
+            getUserMedia.call(
+              navigator,
+              { video: true }, // Legacy API ไม่รองรับ facingMode และ constraints ซับซ้อน
+              resolve,
+              reject
+            )
+          })
+        } else {
+          throw new Error('Browser does not support camera access')
+        }
+        
+        if (!stream) {
+          throw new Error('Failed to get camera stream')
+        }
+        
+        this.videoStream = stream
+        
+        // รอให้ video element พร้อม
+        await this.$nextTick()
+        
+        const videoElement = this.$refs.videoElement
+        if (videoElement) {
+          // ใช้ srcObject สำหรับ video stream (รองรับทั้ง modern และ legacy browser ที่มี getUserMedia)
+          if ('srcObject' in videoElement) {
+            videoElement.srcObject = stream
+          } else {
+            // Fallback: สำหรับ browser เก่าที่ไม่มี srcObject (หายากมาก)
+            console.warn('srcObject not supported, video may not display')
+            // Browser ที่ไม่มี srcObject มักจะไม่มี getUserMedia ด้วย
+          }
+          this.videoElement = videoElement
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error)
+        let errorMessage = 'ไม่สามารถเข้าถึงกล้องได้'
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้อง'
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+          errorMessage = 'ไม่พบกล้องในอุปกรณ์'
+        } else if (error.name === 'NotSupportedError' || error.name === 'ConstraintNotSatisfiedError') {
+          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
+        } else if (error.message && error.message.includes('not support')) {
+          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
+        }
+        
+        this.$toast.error(errorMessage)
+        this.cameraModalVisible = false
+      }
+    },
+    
+    closeCameraModal() {
+      // หยุด video stream
+      if (this.videoStream) {
+        if (this.videoStream.getTracks) {
+          this.videoStream.getTracks().forEach(track => track.stop())
+        } else if (this.videoStream.stop) {
+          // Legacy API
+          this.videoStream.stop()
+        }
+        this.videoStream = null
+      }
+      
+      if (this.videoElement) {
+        if ('srcObject' in this.videoElement) {
+          this.videoElement.srcObject = null
+        } else if (this.videoElement.src) {
+          // Legacy: clear src
+          this.videoElement.src = ''
+        }
+        this.videoElement = null
+      }
+      
+      this.capturedImage = null
+      this.cameraModalVisible = false
+    },
+    
+    capturePhoto() {
+      const videoElement = this.$refs.videoElement
+      if (!videoElement || !videoElement.videoWidth) return
+      
+      try {
+        // สร้าง canvas เพื่อจับภาพจาก video
+        const canvas = document.createElement('canvas')
+        const video = videoElement
+        
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        
+        // แปลงเป็น base64
+        const imageData = canvas.toDataURL('image/jpeg', 0.9)
+        this.capturedImage = imageData
+      } catch (error) {
+        console.error('Error capturing photo:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการถ่ายภาพ')
+      }
+    },
+    
+    retakePhoto() {
+      this.capturedImage = null
+    },
+    
+    async usePhoto() {
+      if (!this.capturedImage) return
+      
+      this.processing = true
+      
+      try {
+        // แปลง base64 เป็น Blob
+        const response = await fetch(this.capturedImage)
+        const blob = await response.blob()
+        
+        // สร้าง File object จาก Blob
+        const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })
+        
+        // ใช้ convertToWebP เพื่อแปลงเป็น WebP และปรับขนาด
+        const webpBase64 = await convertToWebP(file, 1000, 1000, 0.90)
+        
+        // บันทึกรูปภาพ
+        const index = this.currentImageIndex
+        this.$set(this.surveyImages, index, {
+          base64: webpBase64,
+          url: null,
+          key: `pic${index + 1}`
+        })
+        
+        // บันทึกลง IndexedDB
+        await this.saveImageToIndexedDB(webpBase64, index)
+        
+        this.$toast.success(`บันทึกรูปภาพที่ ${index + 1} สำเร็จ`)
+        
+        // ปิด modal
+        this.closeCameraModal()
+      } catch (error) {
+        console.error('Error processing photo:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
+      } finally {
+        this.processing = false
       }
     },
     
@@ -1894,24 +2128,34 @@ export default {
         await this.saveProgress()
       }
       
-      // Skip logic: จาก step 1 ถ้า q1 === 3 ไปที่ step 10
+      // Skip logic: จาก step 1 ถ้า q1 === 3 แสดงแจ้งเตือนและลบ survey
       if (this.currentStep === 1 && this.skippedFromQ1) {
-        // ล้าง value ของคำถามที่ข้าม (q2-q9)
-        this.answers.q2 = null
-        this.answers.q2_des = ''
-        this.answers.q3 = []
-        this.answers.q3_des = ''
-        this.answers.q4 = null
-        this.answers.q5 = {}
-        this.answers.q6 = null
-        this.answers.q6_other = ''
-        this.answers.q7 = null
-        this.answers.q71 = []
-        this.answers.q71_des = ''
-        this.answers.q8 = null
-        this.answers.q9 = {}
-        this.currentStep = 10
-        await this.saveProgress()
+        // แสดงแจ้งเตือน
+        await this.$swal.fire({
+          title: 'แจ้งเตือน',
+          text: 'กรุณานัดหมายใหม่อีกรอบ',
+          icon: 'warning',
+          confirmButtonText: 'ตกลง',
+          confirmButtonColor: '#3551a4',
+          allowOutsideClick: false,
+          allowEscapeKey: false
+        })
+        
+        // ลบ survey จาก IndexedDB ถ้ามี
+        if (this.surveyId && this.$indexedDB) {
+          try {
+            await this.$indexedDB.deleteSurveyProgress(this.surveyId)
+          } catch (error) {
+            console.error('Error deleting survey:', error)
+          }
+        }
+        
+        // ลบข้อมูล localStorage
+        localStorage.removeItem('surveyPatient')
+        localStorage.removeItem('surveyEdit')
+        
+        // เด้งกลับหน้าแรก
+        this.$router.push('/')
         return
       }
       
@@ -3293,6 +3537,151 @@ export default {
 @media (max-width: 480px) {
   .options-container.three-columns {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Camera Modal Styles */
+::v-deep .camera-modal .modal-content {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+::v-deep .camera-modal .modal-header {
+  background: linear-gradient(135deg, #3551a4, #2c4088);
+  color: white;
+  border-bottom: none;
+  padding: 1.5rem 2rem;
+}
+
+::v-deep .camera-modal .modal-title {
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+::v-deep .camera-modal .modal-body {
+  padding: 0;
+}
+
+.camera-container {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+
+.camera-preview {
+  position: relative;
+  width: 100%;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.camera-video {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.camera-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: white;
+  z-index: 10;
+}
+
+.camera-loading p {
+  margin-top: 1rem;
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.captured-preview {
+  width: 100%;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  padding: 1rem;
+}
+
+.captured-image {
+  max-width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-top: 2px solid #dee2e6;
+}
+
+.control-btn {
+  min-width: 160px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  padding: 1rem 2rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.control-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.control-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.capture-btn {
+  background: linear-gradient(135deg, #ffc107, #ff9800);
+  border: none;
+  color: white;
+  font-size: 1.4rem;
+  min-width: 200px;
+}
+
+.capture-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+}
+
+@media (max-width: 768px) {
+  .camera-preview,
+  .captured-preview {
+    min-height: 300px;
+  }
+  
+  .camera-controls {
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+  
+  .control-btn {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .capture-btn {
+    min-width: auto;
   }
 }
 </style>
