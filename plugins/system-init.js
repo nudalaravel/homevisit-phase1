@@ -1214,18 +1214,33 @@ export default function ({ app, store, $axios }, inject) {
             }
 
             // ดึงกิจกรรมสำหรับ q9 (กิจกรรมครั้งนี้)
-            const q9Activities = await app.$indexedDB.getActivityByMonthAgeAndTime(
-              survey.month_age,
-              survey.time
-            );
+            // แต่ถ้ามี q9 ใน answers แล้ว ให้ใช้ activity IDs จาก q9 แทน (รองรับกรณี skip)
+            let q9ActivityNames = [];
 
-            // สร้าง activity names สำหรับ q9 (q91_name - q95_name)
-            const q9ActivityNames = [];
-            for (let i = 0; i < 5; i++) {
-              if (q9Activities && q9Activities[i]) {
-                q9ActivityNames.push(q9Activities[i].no || "");
-              } else {
-                q9ActivityNames.push("");
+            if (survey.answers?.q9 && Object.keys(survey.answers.q9).length > 0) {
+              // ใช้ activity IDs จาก q9 (รองรับกรณี skip ที่เก็บ activity IDs ไว้แม้ว่าจะเป็น null)
+              const q9ActivityIds = Object.keys(survey.answers.q9).filter((id) => id && id !== "");
+              // เติมให้ครบ 5 ตัว
+              for (let i = 0; i < 5; i++) {
+                if (q9ActivityIds[i]) {
+                  q9ActivityNames.push(q9ActivityIds[i]);
+                } else {
+                  q9ActivityNames.push("");
+                }
+              }
+            } else {
+              // fallback: ดึงจาก database
+              const q9Activities = await app.$indexedDB.getActivityByMonthAgeAndTime(
+                survey.month_age,
+                survey.time
+              );
+
+              for (let i = 0; i < 5; i++) {
+                if (q9Activities && q9Activities[i]) {
+                  q9ActivityNames.push(q9Activities[i].no || "");
+                } else {
+                  q9ActivityNames.push("");
+                }
               }
             }
 
@@ -1489,12 +1504,14 @@ export default function ({ app, store, $axios }, inject) {
                   q5ActivityNames[2],
                   q5ActivityNames[3],
                   q5ActivityNames[4],
-                  // q5 ใช้ activity ID เป็น key
-                  String(survey.answers?.q5?.[q5ActivityNames[0]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[1]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
+                  // q5 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // ถ้า q5ActivityNames[i] เป็น empty string ให้ส่ง empty string
+                  // ถ้า q5ActivityNames[i] มีค่าแต่ q5[activityId] เป็น null ให้ส่ง empty string
+                  q5ActivityNames[0] ? String(survey.answers?.q5?.[q5ActivityNames[0]] ?? "") : "",
+                  q5ActivityNames[1] ? String(survey.answers?.q5?.[q5ActivityNames[1]] ?? "") : "",
+                  q5ActivityNames[2] ? String(survey.answers?.q5?.[q5ActivityNames[2]] ?? "") : "",
+                  q5ActivityNames[3] ? String(survey.answers?.q5?.[q5ActivityNames[3]] ?? "") : "",
+                  q5ActivityNames[4] ? String(survey.answers?.q5?.[q5ActivityNames[4]] ?? "") : "",
                   // q6 เป็น single value (รองรับข้อมูลเก่าที่เป็น array)
                   Array.isArray(survey.answers?.q6)
                     ? survey.answers.q6.length > 0
@@ -1515,12 +1532,14 @@ export default function ({ app, store, $axios }, inject) {
                   q9ActivityNames[2],
                   q9ActivityNames[3],
                   q9ActivityNames[4],
-                  // q9 ใช้ activity ID เป็น key
-                  String(survey.answers?.q9?.[q9ActivityNames[0]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[1]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[2]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[3]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
+                  // q9 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // ถ้า q9ActivityNames[i] เป็น empty string ให้ส่ง empty string
+                  // ถ้า q9ActivityNames[i] มีค่าแต่ q9[activityId] เป็น null ให้ส่ง empty string
+                  q9ActivityNames[0] ? String(survey.answers?.q9?.[q9ActivityNames[0]] ?? "") : "",
+                  q9ActivityNames[1] ? String(survey.answers?.q9?.[q9ActivityNames[1]] ?? "") : "",
+                  q9ActivityNames[2] ? String(survey.answers?.q9?.[q9ActivityNames[2]] ?? "") : "",
+                  q9ActivityNames[3] ? String(survey.answers?.q9?.[q9ActivityNames[3]] ?? "") : "",
+                  q9ActivityNames[4] ? String(survey.answers?.q9?.[q9ActivityNames[4]] ?? "") : "",
                   q10_appDate,
                   q10_appTime,
                   // timeEnd: เวลาที่ user กรอกว่าจบกิจกรรม (user input - format YYYY-MM-DD HH:mm:ss)
@@ -1627,12 +1646,14 @@ export default function ({ app, store, $axios }, inject) {
                   q5ActivityNames[2],
                   q5ActivityNames[3],
                   q5ActivityNames[4],
-                  // q5 ใช้ activity ID เป็น key
-                  String(survey.answers?.q5?.[q5ActivityNames[0]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[1]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[2]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[3]] || ""),
-                  String(survey.answers?.q5?.[q5ActivityNames[4]] || ""),
+                  // q5 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // ถ้า q5ActivityNames[i] เป็น empty string ให้ส่ง empty string
+                  // ถ้า q5ActivityNames[i] มีค่าแต่ q5[activityId] เป็น null ให้ส่ง empty string
+                  q5ActivityNames[0] ? String(survey.answers?.q5?.[q5ActivityNames[0]] ?? "") : "",
+                  q5ActivityNames[1] ? String(survey.answers?.q5?.[q5ActivityNames[1]] ?? "") : "",
+                  q5ActivityNames[2] ? String(survey.answers?.q5?.[q5ActivityNames[2]] ?? "") : "",
+                  q5ActivityNames[3] ? String(survey.answers?.q5?.[q5ActivityNames[3]] ?? "") : "",
+                  q5ActivityNames[4] ? String(survey.answers?.q5?.[q5ActivityNames[4]] ?? "") : "",
                   // q6 เป็น single value (รองรับข้อมูลเก่าที่เป็น array)
                   Array.isArray(survey.answers?.q6)
                     ? survey.answers.q6.length > 0
@@ -1653,12 +1674,14 @@ export default function ({ app, store, $axios }, inject) {
                   q9ActivityNames[2],
                   q9ActivityNames[3],
                   q9ActivityNames[4],
-                  // q9 ใช้ activity ID เป็น key
-                  String(survey.answers?.q9?.[q9ActivityNames[0]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[1]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[2]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[3]] || ""),
-                  String(survey.answers?.q9?.[q9ActivityNames[4]] || ""),
+                  // q9 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // ถ้า q9ActivityNames[i] เป็น empty string ให้ส่ง empty string
+                  // ถ้า q9ActivityNames[i] มีค่าแต่ q9[activityId] เป็น null ให้ส่ง empty string
+                  q9ActivityNames[0] ? String(survey.answers?.q9?.[q9ActivityNames[0]] ?? "") : "",
+                  q9ActivityNames[1] ? String(survey.answers?.q9?.[q9ActivityNames[1]] ?? "") : "",
+                  q9ActivityNames[2] ? String(survey.answers?.q9?.[q9ActivityNames[2]] ?? "") : "",
+                  q9ActivityNames[3] ? String(survey.answers?.q9?.[q9ActivityNames[3]] ?? "") : "",
+                  q9ActivityNames[4] ? String(survey.answers?.q9?.[q9ActivityNames[4]] ?? "") : "",
                   q10_appDate,
                   q10_appTime,
                   // timeEnd: เวลาที่ user กรอกว่าจบกิจกรรม (user input - format YYYY-MM-DD HH:mm:ss)

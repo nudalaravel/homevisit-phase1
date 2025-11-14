@@ -172,7 +172,7 @@
     <div v-if="currentStep === 5 && shouldShowStep5" class="survey-step">
       <div v-if="q5Activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        ไม่พบกิจกรรมจากการเยี่ยมบ้านครั้งที่แล้ว
+        [ระบบเกิดข้อผิดพลาด] ไม่พบกิจกรรมจากการเยี่ยมบ้านครั้งที่แล้ว
       </div>
 
       <div v-else>
@@ -376,7 +376,7 @@
     <div v-if="currentStep === 9" class="survey-step">
       <div v-if="activities.length === 0" class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time }}
+        [ระบบเกิดข้อผิดพลาด] ไม่พบกิจกรรมสำหรับเดือนที่ {{ visitorData.month_age }} ครั้งที่ {{ visitorData.time }}
       </div>
 
       <div v-else>
@@ -694,73 +694,108 @@
     <!-- Camera Modal -->
     <b-modal
       v-model="cameraModalVisible"
-      :title="`ถ่ายรูปภาพที่ ${currentImageIndex + 1}`"
+      :title="`${useFileInput ? 'อัพโหลด' : 'ถ่าย'}รูปภาพที่ ${currentImageIndex + 1}`"
       size="lg"
       hide-footer
       @hide="closeCameraModal"
       class="camera-modal"
     >
       <div class="camera-container">
-        <!-- Video Preview -->
-        <div v-if="!capturedImage" class="camera-preview">
-          <video
-            ref="videoElement"
-            autoplay
-            playsinline
-            class="camera-video"
-          ></video>
-          <div v-if="!videoStream" class="camera-loading">
-            <b-spinner variant="primary"></b-spinner>
-            <p>กำลังเปิดกล้อง...</p>
-          </div>
-        </div>
-        
-        <!-- Captured Image Preview -->
-        <div v-else class="captured-preview">
-          <img :src="capturedImage" alt="ภาพที่ถ่าย" class="captured-image" />
-        </div>
-
-        <!-- Camera Controls -->
-        <div class="camera-controls">
-          <template v-if="!capturedImage">
+        <!-- File Input Fallback -->
+        <div v-if="useFileInput" class="file-input-fallback">
+          <div class="file-input-container">
+            <i class="fas fa-image fa-4x mb-3 text-muted"></i>
+            <p class="mb-4">เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง</p>
+            <p class="text-muted mb-4">กรุณาเลือกรูปภาพจากอุปกรณ์ของคุณ</p>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              @change="handleFileInput"
+              style="display: none"
+            />
+            <b-button
+              variant="primary"
+              size="lg"
+              @click="$refs.fileInput.click()"
+              class="control-btn"
+            >
+              <i class="fas fa-folder-open"></i> เลือกรูปภาพ
+            </b-button>
             <b-button
               variant="danger"
               size="lg"
               @click="closeCameraModal"
-              class="control-btn"
+              class="control-btn mt-2"
             >
               <i class="fas fa-times"></i> ยกเลิก
             </b-button>
-            <b-button
-              variant="warning"
-              size="lg"
-              @click="capturePhoto"
-              :disabled="!videoStream"
-              class="control-btn capture-btn"
-            >
-              <i class="fas fa-camera"></i> ถ่ายภาพ
-            </b-button>
-          </template>
-          
-          <template v-else>
-            <b-button
-              variant="secondary"
-              size="lg"
-              @click="retakePhoto"
-              class="control-btn"
-            >
-              <i class="fas fa-redo"></i> ถ่ายใหม่
-            </b-button>
-            <b-button
-              variant="success"
-              size="lg"
-              @click="usePhoto"
-              class="control-btn"
-            >
-              <i class="fas fa-check"></i> ใช้รูปนี้
-            </b-button>
-          </template>
+          </div>
         </div>
+        
+        <!-- Camera Mode -->
+        <template v-else>
+          <!-- Video Preview -->
+          <div v-if="!capturedImage" class="camera-preview">
+            <video
+              ref="videoElement"
+              autoplay
+              playsinline
+              class="camera-video"
+            ></video>
+            <div v-if="!videoStream" class="camera-loading">
+              <b-spinner variant="primary"></b-spinner>
+              <p>กำลังเปิดกล้อง...</p>
+            </div>
+          </div>
+          
+          <!-- Captured Image Preview -->
+          <div v-else class="captured-preview">
+            <img :src="capturedImage" alt="ภาพที่ถ่าย" class="captured-image" />
+          </div>
+
+          <!-- Camera Controls -->
+          <div class="camera-controls">
+            <template v-if="!capturedImage">
+              <b-button
+                variant="danger"
+                size="lg"
+                @click="closeCameraModal"
+                class="control-btn"
+              >
+                <i class="fas fa-times"></i> ยกเลิก
+              </b-button>
+              <b-button
+                variant="warning"
+                size="lg"
+                @click="capturePhoto"
+                :disabled="!videoStream"
+                class="control-btn capture-btn"
+              >
+                <i class="fas fa-camera"></i> ถ่ายภาพ
+              </b-button>
+            </template>
+            
+            <template v-else>
+              <b-button
+                variant="secondary"
+                size="lg"
+                @click="retakePhoto"
+                class="control-btn"
+              >
+                <i class="fas fa-redo"></i> ถ่ายใหม่
+              </b-button>
+              <b-button
+                variant="success"
+                size="lg"
+                @click="usePhoto"
+                class="control-btn"
+              >
+                <i class="fas fa-check"></i> ใช้รูปนี้
+              </b-button>
+            </template>
+          </div>
+        </template>
       </div>
     </b-modal>
   </div>
@@ -840,6 +875,7 @@ export default {
       videoStream: null,
       capturedImage: null, // เก็บ base64 ของภาพที่ถ่าย
       videoElement: null,
+      useFileInput: false, // fallback mode เมื่อ browser ไม่รองรับกล้อง
       
       // Answers object
       answers: {
@@ -1457,7 +1493,14 @@ export default {
       }
       
       if (survey.q5Activities && Array.isArray(survey.q5Activities)) {
-        this.q5Activities = survey.q5Activities
+        // โหลด q5Activities จาก survey ที่บันทึกไว้
+        // แต่ถ้าเป็น empty array ให้ปล่อยไว้เพื่อให้ loadActivities() โหลดใหม่จาก previous survey
+        if (survey.q5Activities.length > 0) {
+          this.q5Activities = survey.q5Activities
+        } else {
+          // ถ้าเป็น empty array ให้เป็น empty array เพื่อให้ loadActivities() โหลดใหม่
+          this.q5Activities = []
+        }
       }
 
       if (survey.timeEnd) {
@@ -1587,9 +1630,14 @@ export default {
         })
         this.activities = q9Activities
         
+        // ถ้ามี q5Activities อยู่แล้ว (โหลดจาก loadExistingSurvey) และไม่ใช่ empty array ให้ข้าม
+        // แต่ถ้าเป็น empty array ให้ลองโหลดใหม่จาก previous survey
         if (this.q5Activities.length > 0) {
           return
         }
+        
+        // ถ้า q5Activities เป็น empty array และ currentTimeVisit > 1 ให้ลองโหลดใหม่
+        // (กรณีนี้เกิดเมื่อ survey ที่บันทึกไว้มี q5Activities เป็น empty array)
         
         const currentTimeVisit = Number(this.visitorData.time_visit 
         || //this.visitorData.time dusable fallback ก่อนว่าจำเป็นต้องใช้ไหม
@@ -1598,30 +1646,140 @@ export default {
         if (currentTimeVisit > 1) {
           const previousTimeVisit = currentTimeVisit - 1
           try {
-            const previousSurvey = await this.$indexedDB.getSurveyProgress(
-              this.visitorData.stid,
-              previousTimeVisit
+            // ลองหา previous survey จาก completed surveys ก่อน
+            const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
+            let previousSurvey = completedSurveys.find(s => 
+              Number(s.time_visit || s.time) === previousTimeVisit && s.completed
             )
             
-            if (previousSurvey && previousSurvey.answers && previousSurvey.answers.q9) {
-              const q5ActivityIds = Object.keys(previousSurvey.answers.q9)
+            // ถ้าไม่พบใน completed surveys ให้ลองหาใน survey progress (รวมทั้งที่ยังไม่ completed)
+            if (!previousSurvey) {
+              previousSurvey = await this.$indexedDB.getSurveyProgress(
+                this.visitorData.stid,
+                previousTimeVisit
+              )
+            }
+            
+            // ถ้าไม่พบอีก ให้ลองหาโดยใช้ stid และ time_visit โดยตรง
+            if (!previousSurvey) {
+              const allSurveys = await this.$indexedDB.getAllSurveysByStid(this.visitorData.stid)
+              previousSurvey = allSurveys.find(s => 
+                Number(s.time_visit || s.time) === previousTimeVisit
+              )
+            }
+            
+            if (previousSurvey) {
+              // ลำดับความสำคัญในการโหลด q5Activities:
+              // 1. ใช้ q9 จาก previous survey (ถ้ามี)
+              // 2. ใช้ q5Activities ที่บันทึกไว้ใน previous survey (ถ้ามี)
+              // 3. ใช้ activities จาก previous survey (ถ้ามี)
               
-              if (q5ActivityIds.length > 0) {
-                const q5MatchingActivities = allActivities.filter(activity => {
-                  return q5ActivityIds.includes(String(activity.no))
-                })
+              if (previousSurvey.answers && previousSurvey.answers.q9 && Object.keys(previousSurvey.answers.q9).length > 0) {
+                // วิธีที่ 1: ใช้ q9 จาก previous survey
+                const q9Answers = previousSurvey.answers.q9
+                const q5ActivityIds = Object.keys(q9Answers).filter(id => id && id !== '')
                 
-                q5MatchingActivities.sort((a, b) => {
-                  return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
-                })
-                
-                this.q5Activities = q5MatchingActivities
+                if (q5ActivityIds.length > 0) {
+                  const q5MatchingActivities = allActivities.filter(activity => {
+                    return q5ActivityIds.includes(String(activity.no))
+                  })
+                  
+                  q5MatchingActivities.sort((a, b) => {
+                    return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
+                  })
+                  
+                  this.q5Activities = q5MatchingActivities
+                  await this.saveProgress()
+                }
+              }
+              
+              // ถ้ายังไม่มี q5Activities ให้ลองใช้ q5Activities ที่บันทึกไว้
+              if (this.q5Activities.length === 0 && previousSurvey.q5Activities && Array.isArray(previousSurvey.q5Activities) && previousSurvey.q5Activities.length > 0) {
+                this.q5Activities = previousSurvey.q5Activities
                 await this.saveProgress()
-              } else {
+              }
+              
+              // ถ้ายังไม่มี q5Activities ให้ลองใช้ activities จาก previous survey (ถ้ามี)
+              if (this.q5Activities.length === 0 && previousSurvey.activities && Array.isArray(previousSurvey.activities) && previousSurvey.activities.length > 0) {
+                this.q5Activities = previousSurvey.activities
+                await this.saveProgress()
+              }
+              
+              // ถ้ายังไม่มี q5Activities ให้ลองหา survey ครั้งก่อนหน้านั้นอีก (fallback chain)
+              if (this.q5Activities.length === 0 && previousTimeVisit > 1) {
+                // ลองหา survey ครั้งก่อนหน้า previous survey (เช่น ถ้า currentTimeVisit = 3, previousTimeVisit = 2, ให้ลองหา time_visit = 1)
+                const earlierTimeVisit = previousTimeVisit - 1
+                try {
+                  const earlierSurveys = await this.$indexedDB.getAllSurveysByStid(this.visitorData.stid)
+                  const earlierSurvey = earlierSurveys.find(s => 
+                    Number(s.time_visit || s.time) === earlierTimeVisit
+                  )
+                  
+                  if (earlierSurvey && earlierSurvey.answers && earlierSurvey.answers.q9 && Object.keys(earlierSurvey.answers.q9).length > 0) {
+                    const q9Answers = earlierSurvey.answers.q9
+                    const q5ActivityIds = Object.keys(q9Answers).filter(id => id && id !== '')
+                    
+                    if (q5ActivityIds.length > 0) {
+                      const q5MatchingActivities = allActivities.filter(activity => {
+                        return q5ActivityIds.includes(String(activity.no))
+                      })
+                      
+                      q5MatchingActivities.sort((a, b) => {
+                        return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
+                      })
+                      
+                      this.q5Activities = q5MatchingActivities
+                      await this.saveProgress()
+                      console.log(`Loaded q5Activities from earlier survey (time_visit ${earlierTimeVisit}) for current survey (time_visit ${currentTimeVisit})`)
+                    }
+                  }
+                } catch (error) {
+                  console.warn('Failed to load from earlier survey:', error)
+                }
+              }
+              
+              // ถ้ายังไม่มี q5Activities ให้เป็น empty array
+              if (this.q5Activities.length === 0) {
                 this.q5Activities = []
+                console.warn(`No q5Activities found for time_visit ${currentTimeVisit}. Previous survey (time_visit ${previousTimeVisit}) may not have q9 or q5Activities.`)
               }
             } else {
-              this.q5Activities = []
+              // ไม่พบ previous survey - ลองหา survey ครั้งก่อนหน้านั้นอีก
+              if (previousTimeVisit > 1) {
+                const earlierTimeVisit = previousTimeVisit - 1
+                try {
+                  const allSurveys = await this.$indexedDB.getAllSurveysByStid(this.visitorData.stid)
+                  const earlierSurvey = allSurveys.find(s => 
+                    Number(s.time_visit || s.time) === earlierTimeVisit
+                  )
+                  
+                  if (earlierSurvey && earlierSurvey.answers && earlierSurvey.answers.q9 && Object.keys(earlierSurvey.answers.q9).length > 0) {
+                    const q9Answers = earlierSurvey.answers.q9
+                    const q5ActivityIds = Object.keys(q9Answers).filter(id => id && id !== '')
+                    
+                    if (q5ActivityIds.length > 0) {
+                      const q5MatchingActivities = allActivities.filter(activity => {
+                        return q5ActivityIds.includes(String(activity.no))
+                      })
+                      
+                      q5MatchingActivities.sort((a, b) => {
+                        return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
+                      })
+                      
+                      this.q5Activities = q5MatchingActivities
+                      await this.saveProgress()
+                      console.log(`Loaded q5Activities from earlier survey (time_visit ${earlierTimeVisit}) for current survey (time_visit ${currentTimeVisit})`)
+                    }
+                  }
+                } catch (error) {
+                  console.warn('Failed to load from earlier survey:', error)
+                }
+              }
+              
+              if (this.q5Activities.length === 0) {
+                this.q5Activities = []
+                console.warn(`Previous survey (time_visit ${previousTimeVisit}) not found for stid ${this.visitorData.stid}`)
+              }
             }
           } catch (error) {
             console.error('Failed to load previous survey for q5 activities:', error)
@@ -1990,8 +2148,14 @@ export default {
           errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
         }
         
-        this.$toast.error(errorMessage)
-        this.cameraModalVisible = false
+        // ถ้า browser ไม่รองรับ ให้ใช้ file input fallback
+        if (error.message && error.message.includes('not support')) {
+          this.useFileInput = true
+          this.$toast.warning('เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง ใช้การอัพโหลดไฟล์แทน')
+        } else {
+          this.$toast.error(errorMessage)
+          this.cameraModalVisible = false
+        }
       }
     },
     
@@ -2018,7 +2182,58 @@ export default {
       }
       
       this.capturedImage = null
+      this.useFileInput = false
       this.cameraModalVisible = false
+    },
+    
+    // Handle file input fallback
+    async handleFileInput(event) {
+      const file = event.target.files?.[0]
+      if (!file) return
+      
+      // ตรวจสอบประเภทไฟล์
+      if (!file.type.startsWith('image/')) {
+        this.$toast.error('กรุณาเลือกไฟล์รูปภาพเท่านั้น')
+        return
+      }
+      
+      // ตรวจสอบขนาดไฟล์ สูงสุด 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        this.$toast.error('ไฟล์รูปภาพมีขนาดใหญ่เกินไป (สูงสุด 10MB)')
+        return
+      }
+      
+      this.processing = true
+      
+      try {
+        // แปลงเป็น WebP และปรับขนาด
+        const webpBase64 = await convertToWebP(file, 1000, 1000, 0.90)
+        
+        // บันทึกรูปภาพ
+        const index = this.currentImageIndex
+        this.$set(this.surveyImages, index, {
+          base64: webpBase64,
+          url: null,
+          key: `pic${index + 1}`
+        })
+        
+        // บันทึกลง IndexedDB
+        await this.saveImageToIndexedDB(webpBase64, index)
+        
+        this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
+        
+        // ปิด modal
+        this.closeCameraModal()
+      } catch (error) {
+        console.error('Error processing file:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
+      } finally {
+        this.processing = false
+        // Reset file input
+        if (this.$refs.fileInput) {
+          this.$refs.fileInput.value = ''
+        }
+      }
     },
     
     capturePhoto() {
@@ -2181,17 +2396,55 @@ export default {
       
       // ข้าม step 5 ถ้า time != 1 แต่ q2 === 3
       if (this.currentStep === 5 && (!this.shouldShowStep5 || this.skippedFromQ2)) {
-        // ล้าง value ของ q5 เมื่อข้าม step 5
-        if (this.skippedFromQ2) {
+        // เมื่อข้าม step 5 ให้เก็บ activity IDs ไว้ใน q5 แม้ว่าจะไม่มีคำตอบ
+        // เพื่อใช้ในการสร้างนัดหมายครั้งถัดไป
+        if (this.skippedFromQ2 && this.q5Activities && this.q5Activities.length > 0) {
+          const q5WithIds = {}
+          this.q5Activities.forEach(activity => {
+            if (activity && activity.no) {
+              q5WithIds[activity.no] = null // ใช้ null เพื่อบ่งชี้ว่าไม่ได้ตอบ
+            }
+          })
+          this.answers.q5 = q5WithIds
+        } else if (this.skippedFromQ2) {
+          // ถ้ายังไม่มี q5Activities ให้เป็น empty object
           this.answers.q5 = {}
         }
+        // บันทึกความคืบหน้าเพื่อให้ q5 ถูกบันทึก
+        await this.saveProgress()
         this.currentStep++
       }
       
       // ข้าม step 9 ถ้า q2 === 3
       if (this.currentStep === 9 && this.skippedFromQ2) {
-        // ล้าง value ของ q9 เมื่อข้าม step 9
-        this.answers.q9 = {}
+        // เมื่อข้าม step 9 ให้เก็บ activity IDs ไว้ใน q9 แม้ว่าจะไม่มีคำตอบ
+        // เพื่อใช้ในการสร้างนัดหมายครั้งถัดไป
+        if (this.activities && this.activities.length > 0) {
+          const q9WithIds = {}
+          this.activities.forEach(activity => {
+            if (activity && activity.no) {
+              q9WithIds[activity.no] = null // ใช้ null เพื่อบ่งชี้ว่าไม่ได้ตอบ
+            }
+          })
+          this.answers.q9 = q9WithIds
+          // บันทึก q5Activities เพื่อใช้ในครั้งถัดไป (แม้ว่าจะ skip)
+          // q5Activities ควรถูกโหลดมาจาก previous survey แล้ว (จาก loadActivities)
+          // แต่ถ้ายังไม่มี (กรณีผิดปกติ) ให้ใช้ activities ปัจจุบันเป็น fallback
+          // หมายเหตุ: activities ปัจจุบันคือ activities สำหรับ step 9 (ครั้งนี้)
+          // ซึ่งจะกลายเป็น q5Activities สำหรับครั้งถัดไป
+          if (!this.q5Activities || this.q5Activities.length === 0) {
+            // ถ้ายังไม่มี q5Activities ให้ใช้ activities ปัจจุบันเป็น fallback
+            // (กรณีนี้ควรจะไม่เกิดขึ้นเพราะ q5Activities ควรถูกโหลดมาจาก previous survey แล้ว)
+            // แต่ถ้าเกิดขึ้นจริง activities ปัจจุบันจะกลายเป็น q5Activities สำหรับครั้งถัดไป
+            this.q5Activities = [...this.activities]
+            console.warn('q5Activities was empty when skipping step 9, using current activities as fallback')
+          }
+        } else {
+          // ถ้ายังไม่มี activities ให้เป็น empty object
+          this.answers.q9 = {}
+        }
+        // บันทึกความคืบหน้าเพื่อให้ q9 และ q5Activities ถูกบันทึก
+        await this.saveProgress()
         this.currentStep++
       }
       
@@ -3566,6 +3819,29 @@ export default {
   display: flex;
   flex-direction: column;
   background: #000;
+}
+
+.file-input-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+}
+
+.file-input-container {
+  text-align: center;
+  max-width: 400px;
+}
+
+.file-input-container i {
+  color: #6c757d;
+}
+
+.file-input-container p {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
 }
 
 .camera-preview {

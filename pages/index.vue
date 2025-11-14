@@ -501,73 +501,108 @@
     <!-- Camera Modal -->
     <b-modal
       v-model="cameraModalVisible"
-      :title="`ถ่ายรูปภาพที่ ${currentImageIndex + 1}`"
+      :title="`${useFileInput ? 'อัพโหลด' : 'ถ่าย'}รูปภาพที่ ${currentImageIndex + 1}`"
       size="lg"
       hide-footer
       @hide="closeCameraModal"
       class="camera-modal"
     >
       <div class="camera-container">
-        <!-- Video Preview -->
-        <div v-if="!capturedImage" class="camera-preview">
-          <video
-            ref="videoElement"
-            autoplay
-            playsinline
-            class="camera-video"
-          ></video>
-          <div v-if="!videoStream" class="camera-loading">
-            <b-spinner variant="primary"></b-spinner>
-            <p>กำลังเปิดกล้อง...</p>
-          </div>
-        </div>
-        
-        <!-- Captured Image Preview -->
-        <div v-else class="captured-preview">
-          <img :src="capturedImage" alt="ภาพที่ถ่าย" class="captured-image" />
-        </div>
-
-        <!-- Camera Controls -->
-        <div class="camera-controls">
-          <template v-if="!capturedImage">
+        <!-- File Input Fallback -->
+        <div v-if="useFileInput" class="file-input-fallback">
+          <div class="file-input-container">
+            <i class="fas fa-image fa-4x mb-3 text-muted"></i>
+            <p class="mb-4">เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง</p>
+            <p class="text-muted mb-4">กรุณาเลือกรูปภาพจากอุปกรณ์ของคุณ</p>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              @change="handleFileInput"
+              style="display: none"
+            />
+            <b-button
+              variant="primary"
+              size="lg"
+              @click="$refs.fileInput.click()"
+              class="control-btn"
+            >
+              <i class="fas fa-folder-open"></i> เลือกรูปภาพ
+            </b-button>
             <b-button
               variant="danger"
               size="lg"
               @click="closeCameraModal"
-              class="control-btn"
+              class="control-btn mt-2"
             >
               <i class="fas fa-times"></i> ยกเลิก
             </b-button>
-            <b-button
-              variant="warning"
-              size="lg"
-              @click="capturePhoto"
-              :disabled="!videoStream"
-              class="control-btn capture-btn"
-            >
-              <i class="fas fa-camera"></i> ถ่ายภาพ
-            </b-button>
-          </template>
-          
-          <template v-else>
-            <b-button
-              variant="secondary"
-              size="lg"
-              @click="retakePhoto"
-              class="control-btn"
-            >
-              <i class="fas fa-redo"></i> ถ่ายใหม่
-            </b-button>
-            <b-button
-              variant="success"
-              size="lg"
-              @click="usePhoto"
-              class="control-btn"
-            >
-              <i class="fas fa-check"></i> ใช้รูปนี้
-            </b-button>
-          </template>
+          </div>
         </div>
+        
+        <!-- Camera Mode -->
+        <template v-else>
+          <!-- Video Preview -->
+          <div v-if="!capturedImage" class="camera-preview">
+            <video
+              ref="videoElement"
+              autoplay
+              playsinline
+              class="camera-video"
+            ></video>
+            <div v-if="!videoStream" class="camera-loading">
+              <b-spinner variant="primary"></b-spinner>
+              <p>กำลังเปิดกล้อง...</p>
+            </div>
+          </div>
+          
+          <!-- Captured Image Preview -->
+          <div v-else class="captured-preview">
+            <img :src="capturedImage" alt="ภาพที่ถ่าย" class="captured-image" />
+          </div>
+
+          <!-- Camera Controls -->
+          <div class="camera-controls">
+            <template v-if="!capturedImage">
+              <b-button
+                variant="danger"
+                size="lg"
+                @click="closeCameraModal"
+                class="control-btn"
+              >
+                <i class="fas fa-times"></i> ยกเลิก
+              </b-button>
+              <b-button
+                variant="warning"
+                size="lg"
+                @click="capturePhoto"
+                :disabled="!videoStream"
+                class="control-btn capture-btn"
+              >
+                <i class="fas fa-camera"></i> ถ่ายภาพ
+              </b-button>
+            </template>
+            
+            <template v-else>
+              <b-button
+                variant="secondary"
+                size="lg"
+                @click="retakePhoto"
+                class="control-btn"
+              >
+                <i class="fas fa-redo"></i> ถ่ายใหม่
+              </b-button>
+              <b-button
+                variant="success"
+                size="lg"
+                @click="usePhoto"
+                class="control-btn"
+              >
+                <i class="fas fa-check"></i> ใช้รูปนี้
+              </b-button>
+            </template>
+          </div>
+        </template>
       </div>
     </b-modal>
 
@@ -672,6 +707,7 @@ export default {
       videoStream: null,
       capturedImage: null, // เก็บ base64 ของภาพที่ถ่าย
       videoElement: null,
+      useFileInput: false, // fallback mode เมื่อ browser ไม่รองรับกล้อง
       addForm: {
         name: '',
         nickname: '',
@@ -2357,8 +2393,14 @@ export default {
           errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
         }
         
-        this.$toast.error(errorMessage)
-        this.cameraModalVisible = false
+        // ถ้า browser ไม่รองรับ ให้ใช้ file input fallback
+        if (error.message && error.message.includes('not support')) {
+          this.useFileInput = true
+          this.$toast.warning('เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง ใช้การอัพโหลดไฟล์แทน')
+        } else {
+          this.$toast.error(errorMessage)
+          this.cameraModalVisible = false
+        }
       }
     },
     
@@ -2385,7 +2427,56 @@ export default {
       }
       
       this.capturedImage = null
+      this.useFileInput = false
       this.cameraModalVisible = false
+    },
+    
+    // Handle file input fallback
+    async handleFileInput(event) {
+      const file = event.target.files?.[0]
+      if (!file) return
+      
+      // ตรวจสอบประเภทไฟล์
+      if (!file.type.startsWith('image/')) {
+        this.$toast.error('กรุณาเลือกไฟล์รูปภาพเท่านั้น')
+        return
+      }
+      
+      // ตรวจสอบขนาดไฟล์ สูงสุด 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        this.$toast.error('ไฟล์รูปภาพมีขนาดใหญ่เกินไป (สูงสุด 10MB)')
+        return
+      }
+      
+      this.loading = true
+      this.loadingMessage = 'กำลังประมวลผลรูปภาพ...'
+      
+      try {
+        // ใช้ convertToWebP เพื่อแปลงเป็น WebP และปรับขนาด
+        const webpImage = await convertToWebP(file, 1000, 1000, 0.90)
+        
+        // บันทึกรูปภาพ
+        const index = this.currentImageIndex
+        this.$set(this.editPhotoForm.newImages, index, webpImage)
+        this.$set(this.editPhotoForm.newImagePreviews, index, webpImage)
+        
+        // Update current image preview immediately
+        this.$set(this.editPhotoForm.currentImages, index, webpImage)
+        
+        this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
+        
+        // ปิด modal
+        this.closeCameraModal()
+      } catch (error) {
+        console.error('Error processing file:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
+      } finally {
+        this.loading = false
+        // Reset file input
+        if (this.$refs.fileInput) {
+          this.$refs.fileInput.value = ''
+        }
+      }
     },
     
     capturePhoto() {
@@ -4076,6 +4167,29 @@ export default {
   display: flex;
   flex-direction: column;
   background: #000;
+}
+
+.file-input-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+}
+
+.file-input-container {
+  text-align: center;
+  max-width: 400px;
+}
+
+.file-input-container i {
+  color: #6c757d;
+}
+
+.file-input-container p {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
 }
 
 .camera-preview {

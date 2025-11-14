@@ -1,0 +1,26 @@
+# PHP Proxy API - Apache Configuration
+# สำหรับใช้กับ Apache web server
+
+    RewriteEngine On
+    
+    # Skip if file exists
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+    
+    # Skip if directory exists
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    
+    # Redirect all /api/* requests to proxy.php with PATH_INFO
+    RewriteRule ^api/(.*)$ proxy.php/$1 [QSA,L]
+    
+    # Handle /api without trailing path
+    RewriteRule ^api$ proxy.php/ [QSA,L]
+
+
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept"
+    Header set Access-Control-Allow-Credentials "true"
+
+
