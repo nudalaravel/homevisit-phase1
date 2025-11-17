@@ -39,6 +39,9 @@ export default function ({ app, store, $axios }, inject) {
         // 4. ตั้งค่า auto-update สำหรับกิจกรรม
         this.setupActivitiesAutoUpdate();
 
+        // 5. Precache หน้า survey ใน background เพื่อให้ใช้งาน offline ได้ทันที
+        this.precacheSurveyPage();
+
         this.isInitialized = true;
 
         return true;
@@ -254,6 +257,81 @@ export default function ({ app, store, $axios }, inject) {
         console.warn("updateActivitiesFromAPI error:", error);
         return false;
       }
+    }
+
+    /**
+     * Precache หน้า survey ใน background เพื่อให้ใช้งาน offline ได้ทันที
+     * วิธีนี้จะ fetch หน้า survey ผ่าน router เพื่อให้ service worker cache อัตโนมัติ
+     */
+    async precacheSurveyPage() {
+      // ใช้ setTimeout เพื่อไม่ให้บล็อกการ init
+      setTimeout(async () => {
+        try {
+          // ตรวจสอบว่า service worker พร้อมหรือไม่
+          if (!("serviceWorker" in navigator)) {
+            return;
+          }
+
+          // รอให้ service worker พร้อม
+          let swReady = false;
+          if (navigator.serviceWorker.controller) {
+            swReady = true;
+          } else {
+            try {
+              await navigator.serviceWorker.ready;
+              swReady = true;
+            } catch (error) {
+              console.log("Service worker not ready for survey precache");
+              return;
+            }
+          }
+
+          if (!swReady) return;
+
+          // ใช้ router base จาก app หรือ window.location
+          const routerBase =
+            app.router?.base ||
+            window.location.pathname.split("/").slice(0, -1).join("/") + "/" ||
+            "/homevisit/";
+
+          // Fetch หน้า survey โดยใช้ router เพื่อให้ service worker cache
+          // เนื่องจากใช้ hash mode routing ต้องใช้ router.push เพื่อให้ Vue router จัดการ
+          // แต่เราต้องการให้ service worker cache ดังนั้นจะ fetch base URL แล้วใช้ router
+          try {
+            // วิธีที่ 1: Fetch base URL เพื่อให้ service worker cache
+            await fetch(routerBase, {
+              method: "GET",
+              cache: "default",
+              mode: "same-origin",
+            });
+
+            // วิธีที่ 2: ใช้ router.push เพื่อให้ Vue router โหลดหน้า survey
+            // แต่ไม่แสดงผล (silent navigation)
+            if (app.router) {
+              // สร้าง iframe ซ่อนไว้เพื่อโหลดหน้า survey
+              const iframe = document.createElement("iframe");
+              iframe.style.display = "none";
+              iframe.style.width = "0";
+              iframe.style.height = "0";
+              iframe.src = `${routerBase}#/survey`;
+              document.body.appendChild(iframe);
+
+              // ลบ iframe หลังจากโหลดเสร็จ (รอ 3 วินาที)
+              setTimeout(() => {
+                if (iframe.parentNode) {
+                  iframe.parentNode.removeChild(iframe);
+                }
+              }, 3000);
+            }
+          } catch (error) {
+            // Ignore errors - ไม่ critical
+            console.log("Survey page precache attempt:", error.message);
+          }
+        } catch (error) {
+          // Ignore errors - ไม่ critical
+          console.log("Survey page precache failed:", error.message);
+        }
+      }, 2000); // รอ 2 วินาทีหลัง init เสร็จเพื่อให้ service worker พร้อม
     }
 
     /**

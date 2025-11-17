@@ -456,7 +456,7 @@
             <div class="upload-new-section">
               <b-button variant="warning" @click="openCameraModal(0)">
                 <i class="fas fa-camera"></i>
-                ถ่ายรูปที่ 1
+                แก้ไขรูปที่ 1
               </b-button>
             </div>
           </div>
@@ -479,7 +479,7 @@
             <div class="upload-new-section">
               <b-button variant="warning" @click="openCameraModal(1)">
                 <i class="fas fa-camera"></i>
-                ถ่ายรูปที่ 2
+                แก้ไขรูปที่ 2
               </b-button>
             </div>
           </div>
@@ -560,6 +560,7 @@
               ref="videoElement"
               autoplay
               playsinline
+              muted
               class="camera-video"
             ></video>
             <div v-if="!videoStream" class="camera-loading">
@@ -721,6 +722,7 @@ export default {
       videoElement: null,
       useFileInput: false, // fallback mode เมื่อ browser ไม่รองรับกล้อง
       uploadMode: null, // 'select' | 'camera' | null - โหมดการอัพโหลดที่ผู้ใช้เลือก
+      cameraStarting: false, // flag เพื่อป้องกันการเรียก startCamera() ซ้ำ
       addForm: {
         name: '',
         nickname: '',
@@ -2096,25 +2098,54 @@ export default {
     },
     async goToSurvey(patient) {
       try {
-        // Get booking data for month_age and time
+        // ใช้ข้อมูลจาก patient object เป็นหลัก (มี time, time_visit, month_age อยู่แล้ว)
+        // และดึง booking เป็น fallback สำหรับ appointmentDate และ appointmentTime
         const booking = await this.$indexedDB.getBooking(patient.stid)
 
         console.log('booking', booking)
         
-        if (!booking || !booking.month_age || !booking.time) {
+        // ตรวจสอบว่ามีข้อมูลที่จำเป็นหรือไม่
+        // ใช้ข้อมูลจาก patient object เป็นหลัก (ถูกต้องกว่า booking)
+        const month_age = patient.month_age
+        const time = patient.time
+        const time_visit = patient.time_visit
+        
+        if (!month_age || !time) {
           this.$toast.error('ไม่พบข้อมูลการนัดหมาย กรุณากำหนดนัดหมายก่อน')
           return
         }
         
-        // Store complete survey data including booking info
+        // ลองดึง survey_progress ที่ยังไม่ completed สำหรับ time_visit นี้ (ถ้ามี)
+        // เพื่อให้ได้ข้อมูลที่ถูกต้องที่สุด
+        let existingSurvey = null
+        if (time_visit) {
+          try {
+            existingSurvey = await this.$indexedDB.getSurveyProgress(patient.stid, time_visit)
+          } catch (error) {
+            // Silent fail - ใช้ข้อมูลจาก patient แทน
+          }
+        }
+        
+        // ใช้ข้อมูลจาก existingSurvey ถ้ามี (ถูกต้องที่สุด)
+        // ถ้าไม่มี ให้ใช้ข้อมูลจาก patient object
+        // และใช้ booking เป็น fallback สำหรับ appointmentDate และ appointmentTime
+        const finalMonthAge = existingSurvey?.month_age || month_age
+        const finalTime = existingSurvey?.time || time
+        const finalTimeVisit = existingSurvey?.time_visit || time_visit
+        const finalAppointmentDate = existingSurvey?.appointmentDate || patient.appointmentDate || booking?.appointmentDate
+        const finalAppointmentTime = this.visitForm.appointmentTime || existingSurvey?.appointmentTime || patient.appointmentTime || booking?.appointmentTime || '16:00 น.'
+        const finalStartTime = this.visitForm.startTime || '16:00 น.' // เวลาเริ่มบันทึกที่ user กรอก
+        
+        // Store complete survey data
         // แยก appointmentTime (เวลานัดหมาย) กับ startTime (เวลาเริ่มบันทึก)
         const surveyData = {
           ...patient,
-          month_age: booking.month_age,
-          time: booking.time,
-          appointmentDate: booking.appointmentDate,
-          appointmentTime: this.visitForm.appointmentTime || booking.appointmentTime || '16:00 น.',
-          startTime: this.visitForm.startTime || '16:00 น.' // เวลาเริ่มบันทึกที่ user กรอก
+          month_age: finalMonthAge,
+          time: finalTime,
+          time_visit: finalTimeVisit,
+          appointmentDate: finalAppointmentDate,
+          appointmentTime: finalAppointmentTime,
+          startTime: finalStartTime
         }
     
         localStorage.setItem('surveyPatient', JSON.stringify(surveyData))
@@ -2122,6 +2153,7 @@ export default {
         // Navigate to survey page
         this.$router.push('/survey')
       } catch (error) {
+        console.error('Error in goToSurvey:', error)
         this.$toast.error('เกิดข้อผิดพลาดในการเตรียมข้อมูล')
       }
     },
@@ -2358,19 +2390,59 @@ export default {
 
     resetUploadMode() {
       this.uploadMode = null
-      // หยุด video stream ถ้ามี
-      if (this.videoStream) {
-        if (this.videoStream.getTracks) {
-          this.videoStream.getTracks().forEach(track => track.stop())
-        } else if (this.videoStream.stop) {
-          this.videoStream.stop()
-        }
-        this.videoStream = null
-      }
+      this.stopCameraStream()
       this.capturedImage = null
     },
 
+    // Method สำหรับปิด camera stream (ใช้ซ้ำได้)
+    stopCameraStream() {
+      // หยุด video stream ถ้ามี
+      if (this.videoStream) {
+        try {
+          if (this.videoStream.getTracks) {
+            this.videoStream.getTracks().forEach(track => {
+              track.stop()
+              track.enabled = false
+            })
+          } else if (this.videoStream.stop) {
+            this.videoStream.stop()
+          }
+        } catch (error) {
+          console.warn('Error stopping video stream:', error)
+        }
+        this.videoStream = null
+      }
+      
+      // ล้าง video element
+      if (this.videoElement) {
+        try {
+          if ('srcObject' in this.videoElement) {
+            this.videoElement.srcObject = null
+          } else if (this.videoElement.src) {
+            this.videoElement.src = ''
+          }
+          this.videoElement.pause()
+        } catch (error) {
+          console.warn('Error clearing video element:', error)
+        }
+        this.videoElement = null
+      }
+      
+      // รอสักครู่เพื่อให้ stream ปิดสมบูรณ์ (สำคัญสำหรับ Chrome Android)
+      return new Promise(resolve => setTimeout(resolve, 100))
+    },
+
     async startCamera() {
+      // ป้องกันการเรียกซ้ำ
+      if (this.cameraStarting) {
+        return
+      }
+      
+      // ปิด stream เก่าก่อนเปิดใหม่ (ป้องกัน NotReadableError)
+      await this.stopCameraStream()
+      
+      this.cameraStarting = true
+      
       // รอให้ modal แสดงก่อน
       await this.$nextTick()
       
@@ -2379,15 +2451,57 @@ export default {
         let stream = null
         
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          // Modern API
-          const constraints = {
-            video: {
-              facingMode: 'environment', // ใช้กล้องหลัง (สำหรับมือถือ)
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
+          // Modern API - ลอง constraints หลายแบบเพื่อความเข้ากันได้
+          const constraintsList = [
+            // 1. ลอง constraints ที่ต้องการสูงสุดก่อน
+            {
+              video: {
+                facingMode: 'environment',
+                width: { ideal: 1920, min: 640 },
+                height: { ideal: 1080, min: 480 }
+              }
+            },
+            // 2. ลอง constraints ที่ยืดหยุ่นกว่า
+            {
+              video: {
+                facingMode: 'environment',
+                width: { min: 640 },
+                height: { min: 480 }
+              }
+            },
+            // 3. ลองแค่ facingMode
+            {
+              video: {
+                facingMode: 'environment'
+              }
+            },
+            // 4. ลองแค่ video: true (fallback สุดท้าย)
+            {
+              video: true
+            }
+          ]
+          
+          // ลอง constraints แต่ละแบบจนกว่าจะสำเร็จ
+          let lastError = null
+          for (const constraints of constraintsList) {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia(constraints)
+              if (stream) break
+            } catch (err) {
+              lastError = err
+              // ถ้าเป็น NotReadableError หรือ NotAllowedError ให้หยุดทันที
+              if (err.name === 'NotReadableError' || err.name === 'NotAllowedError' || 
+                  err.name === 'NotFoundError' || err.name === 'PermissionDeniedError') {
+                throw err
+              }
+              // ถ้าเป็น constraint error ให้ลองแบบถัดไป
+              continue
             }
           }
-          stream = await navigator.mediaDevices.getUserMedia(constraints)
+          
+          if (!stream && lastError) {
+            throw lastError
+          }
         } else if (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia) {
           // Legacy API (fallback) - ใช้ constraints แบบเก่า
           const getUserMedia = navigator.getUserMedia || 
@@ -2422,6 +2536,13 @@ export default {
           // ใช้ srcObject สำหรับ video stream (รองรับทั้ง modern และ legacy browser ที่มี getUserMedia)
           if ('srcObject' in videoElement) {
             videoElement.srcObject = stream
+            // เรียก play() เพื่อให้วิดีโอเล่น (สำคัญสำหรับบางเบราว์เซอร์)
+            try {
+              await videoElement.play()
+            } catch (playError) {
+              console.warn('Video play() failed:', playError)
+              // ไม่ critical - autoplay อาจจะทำงานอยู่แล้ว
+            }
           } else {
             // Fallback: สำหรับ browser เก่าที่ไม่มี srcObject (หายากมาก)
             console.warn('srcObject not supported, video may not display')
@@ -2429,19 +2550,89 @@ export default {
           }
           this.videoElement = videoElement
         }
+        
+        this.cameraStarting = false
       } catch (error) {
-        console.error('Error accessing camera:', error)
+        this.cameraStarting = false
+        // Log error details สำหรับ debug (โดยเฉพาะ Chrome Android)
+        console.error('Error accessing camera:', {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          constraint: error.constraint,
+          fullError: error
+        })
+        
         let errorMessage = 'ไม่สามารถเข้าถึงกล้องได้'
         
-        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้องในเบราว์เซอร์'
-        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-          errorMessage = 'ไม่พบกล้องในอุปกรณ์'
-        } else if (error.name === 'NotSupportedError' || error.name === 'ConstraintNotSatisfiedError' || error.name === 'OverconstrainedError') {
-          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้องหรือ constraints ที่กำหนด'
-        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        // ตรวจสอบ error name และ message (รองรับทั้ง standard และ Chrome Android)
+        const errorName = (error.name || '').toLowerCase()
+        const errorMsg = (error.message || '').toLowerCase()
+        const errorCode = error.code || ''
+        
+        // ตรวจสอบ NotReadableError (กล้องถูกใช้งาน) - รองรับหลายรูปแบบ
+        if (errorName === 'notreadableerror' || 
+            errorName === 'trackstarterror' ||
+            errorCode === 'NotReadableError' ||
+            errorMsg.includes('not readable') ||
+            errorMsg.includes('could not start') ||
+            errorMsg.includes('device in use') ||
+            errorMsg.includes('busy') ||
+            errorMsg.includes('already in use') ||
+            errorMsg.includes('could not start video source') ||
+            errorMsg.includes('failed to start') ||
+            errorMsg.includes('cannot start') ||
+            errorMsg.includes('unable to start')) {
+          // ลองปิด stream อีกครั้งและ retry (อาจมี stream เก่าค้างอยู่)
+          await this.stopCameraStream()
+          // รอสักครู่แล้วลองอีกครั้ง
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          try {
+            // ลองเปิดกล้องอีกครั้งด้วย constraints ง่ายๆ
+            const retryStream = await navigator.mediaDevices.getUserMedia({ video: true })
+            if (retryStream) {
+              this.videoStream = retryStream
+              await this.$nextTick()
+              const videoElement = this.$refs.videoElement
+              if (videoElement && 'srcObject' in videoElement) {
+                videoElement.srcObject = retryStream
+                try {
+                  await videoElement.play()
+                } catch (playError) {
+                  console.warn('Video play() failed on retry:', playError)
+                }
+                this.videoElement = videoElement
+                this.cameraStarting = false
+                return // สำเร็จแล้ว ไม่ต้องแสดง error
+              }
+            }
+          } catch (retryError) {
+            console.log('Retry failed:', retryError)
+            // ถ้า retry ไม่สำเร็จ ให้แสดง error message
+          }
+          
           errorMessage = 'กล้องถูกใช้งานโดยแอปพลิเคชันอื่น กรุณาปิดแอปอื่นแล้วลองอีกครั้ง'
-        } else if (error.message && error.message.includes('not support')) {
+        } else if (errorName === 'notallowederror' || errorName === 'permissiondeniederror' || 
+                   errorCode === 'NotAllowedError' ||
+                   errorMsg.includes('permission') || errorMsg.includes('denied')) {
+          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้องในเบราว์เซอร์'
+        } else if (errorName === 'notfounderror' || errorName === 'devicesnotfounderror' ||
+                   errorCode === 'NotFoundError' ||
+                   errorMsg.includes('not found') || errorMsg.includes('no device')) {
+          errorMessage = 'ไม่พบกล้องในอุปกรณ์'
+        } else if (errorName === 'notsupportederror' || errorName === 'constraintnotsatisfiederror' || 
+                   errorName === 'overconstrainederror' ||
+                   errorCode === 'NotSupportedError' ||
+                   errorMsg.includes('not supported') || errorMsg.includes('constraint')) {
+          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้องหรือ constraints ที่กำหนด'
+        } else if (errorName === 'aborterror' || errorCode === 'AbortError' || errorMsg.includes('abort')) {
+          errorMessage = 'การเข้าถึงกล้องถูกยกเลิก'
+        } else if (errorName === 'securityerror' || errorCode === 'SecurityError' ||
+                   errorMsg.includes('security') || errorMsg.includes('https') || 
+                   errorMsg.includes('secure context')) {
+          errorMessage = 'ไม่สามารถเข้าถึงกล้องได้เนื่องจากปัญหาด้านความปลอดภัย (ต้องใช้ HTTPS)'
+        } else if (errorMsg.includes('not support') || errorMsg.includes('not available')) {
           errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
         }
         
@@ -4074,6 +4265,18 @@ export default {
   margin-bottom: 1rem;
 }
 
+.upload-new-section {
+  margin-top: 1rem;
+}
+
+.upload-new-section .btn {
+  width: 100%;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  font-weight: 500;
+  min-height: 50px;
+}
+
 .image-preview-large {
   position: relative;
   width: 100%;
@@ -4085,9 +4288,10 @@ export default {
 }
 
 .image-preview-large img {
-  width: 100%;
-  height: auto;
+  width: auto;
+  height: 200px;
   display: block;
+  object-fit: contain;
 }
 
 .btn-remove-current,
@@ -4198,8 +4402,9 @@ export default {
     gap: 2.5rem;
   }
   
-  .image-section .image-preview-large {
-    height: 250px;
+  .image-section .image-preview-large img {
+    height: 200px;
+    width: auto;
   }
 }
 
@@ -4375,9 +4580,7 @@ export default {
 
 .captured-image {
   width: auto;
-  max-width: 100%;
-  max-height: calc(100vh - 300px);
-  height: auto;
+  height: 200px;
   object-fit: contain;
   border-radius: 0.5rem;
 }
@@ -4434,9 +4637,13 @@ export default {
     min-height: 250px;
   }
 
-  .camera-video,
-  .captured-image {
+  .camera-video {
     max-height: calc(100vh - 250px);
+  }
+  
+  .captured-image {
+    height: 200px;
+    width: auto;
   }
   
   .camera-controls {
