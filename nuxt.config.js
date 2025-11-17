@@ -126,6 +126,7 @@ export default {
   router: {
     // ⚠️ PRODUCTION: ถ้า deploy ใน subfolder ให้ uncomment และแก้ path
     base: process.env.ROUTER_BASE || "/homevisit/",
+    mode: "hash", // ใช้ hash mode แทน history mode
     middleware: [],
   },
   // serverMiddleware: ["~/api"], // Disabled - API runs separately

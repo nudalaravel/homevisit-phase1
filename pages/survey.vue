@@ -694,39 +694,51 @@
     <!-- Camera Modal -->
     <b-modal
       v-model="cameraModalVisible"
-      :title="`${useFileInput ? 'อัพโหลด' : 'ถ่าย'}รูปภาพที่ ${currentImageIndex + 1}`"
+      :title="`อัพโหลดรูปภาพที่ ${currentImageIndex + 1}`"
       size="lg"
       hide-footer
       @hide="closeCameraModal"
       class="camera-modal"
     >
       <div class="camera-container">
-        <!-- File Input Fallback -->
-        <div v-if="useFileInput" class="file-input-fallback">
-          <div class="file-input-container">
-            <i class="fas fa-image fa-4x mb-3 text-muted"></i>
-            <p class="mb-4">เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง</p>
-            <p class="text-muted mb-4">กรุณาเลือกรูปภาพจากอุปกรณ์ของคุณ</p>
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              @change="handleFileInput"
-              style="display: none"
-            />
+        <!-- Hidden file input -->
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          @change="handleFileInput"
+          style="display: none"
+        />
+
+        <!-- Choice Mode: เลือกวิธีการอัพโหลด -->
+        <div v-if="!uploadMode && !useFileInput" class="upload-choice-container">
+          <div class="upload-choice-content">
+            <h5 class="mb-4">เลือกวิธีการอัพโหลดรูปภาพ</h5>
+            <div class="upload-choice-buttons">
+              <b-button
+                variant="primary"
+                size="lg"
+                @click="handleSelectFile"
+                class="choice-btn"
+              >
+                <i class="fas fa-folder-open fa-2x mb-2"></i>
+                <span>เลือกรูป</span>
+              </b-button>
+              <b-button
+                variant="warning"
+                size="lg"
+                @click="selectUploadMode('camera')"
+                class="choice-btn"
+              >
+                <i class="fas fa-camera fa-2x mb-2"></i>
+                <span>ถ่ายภาพ</span>
+              </b-button>
+            </div>
             <b-button
-              variant="primary"
-              size="lg"
-              @click="$refs.fileInput.click()"
-              class="control-btn"
-            >
-              <i class="fas fa-folder-open"></i> เลือกรูปภาพ
-            </b-button>
-            <b-button
-              variant="danger"
+              variant="secondary"
               size="lg"
               @click="closeCameraModal"
-              class="control-btn mt-2"
+              class="choice-btn-cancel mt-3"
             >
               <i class="fas fa-times"></i> ยกเลิก
             </b-button>
@@ -734,7 +746,7 @@
         </div>
         
         <!-- Camera Mode -->
-        <template v-else>
+        <template v-else-if="uploadMode === 'camera'">
           <!-- Video Preview -->
           <div v-if="!capturedImage" class="camera-preview">
             <video
@@ -876,6 +888,7 @@ export default {
       capturedImage: null, // เก็บ base64 ของภาพที่ถ่าย
       videoElement: null,
       useFileInput: false, // fallback mode เมื่อ browser ไม่รองรับกล้อง
+      uploadMode: null, // 'select' | 'camera' | null - โหมดการอัพโหลดที่ผู้ใช้เลือก
       
       // Answers object
       answers: {
@@ -1146,13 +1159,20 @@ export default {
         }
       }
       
+      // คำนวณ time_visit ถ้าไม่มี (ไม่ใช้ time เป็น fallback)
+      let timeVisit = survey.time_visit
+      if (!timeVisit) {
+        const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(editData.stid)
+        timeVisit = completedSurveys.length + 1
+      }
+      
       // ตั้งค่าข้อมูลผู้รับบริการ
       this.visitorData = {
         stid: editData.stid,
         name: editData.name,
         nickname: editData.nickname,
         time: editData.time,
-        time_visit: survey.time_visit || editData.time,
+        time_visit: timeVisit,
         month_age: monthAge,
         appointmentDate: survey.appointmentDate,
         appointmentTime: survey.appointmentTime
@@ -1208,13 +1228,20 @@ export default {
         }
       }
       
+      // คำนวณ time_visit ถ้าไม่มี (ไม่ใช้ time เป็น fallback)
+      let timeVisit = survey.time_visit
+      if (!timeVisit) {
+        const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(survey.stid)
+        timeVisit = completedSurveys.length + 1
+      }
+      
       // ตั้งค่าข้อมูลผู้รับบริการ
       this.visitorData = {
         stid: survey.stid,
         name: visitor.cname || visitor.name,
         nickname: visitor.cnickname || visitor.nickname,
         time: survey.time,
-        time_visit: survey.time_visit || survey.time,
+        time_visit: timeVisit,
         month_age: monthAge,
         appointmentDate: survey.appointmentDate,
         appointmentTime: survey.appointmentTime
@@ -1246,12 +1273,19 @@ export default {
               // ดึง booking เพื่อเอา appointmentTime และ startTime
               const booking = await this.$indexedDB.getBooking(stid)
               
+              // คำนวณ time_visit ถ้าไม่มี (ไม่ใช้ time เป็น fallback)
+              let timeVisit = existingSurvey.time_visit
+              if (!timeVisit) {
+                const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(stid)
+                timeVisit = completedSurveys.length + 1
+              }
+              
               this.visitorData = {
                 stid: stid,
                 name: visitor.cname || visitor.name,
                 nickname: visitor.cnickname || visitor.nickname,
                 time: existingSurvey.time || time,
-                time_visit: existingSurvey.time_visit || time,
+                time_visit: timeVisit,
                 month_age: existingSurvey.month_age,
                 appointmentDate: existingSurvey.appointmentDate,
                 appointmentTime: existingSurvey.appointmentTime || booking?.appointmentTime,
@@ -1347,10 +1381,10 @@ export default {
         const allSurveys = await this.$indexedDB.getAllSurveysByStid(survey.stid)
         
         const surveyTimes = allSurveys
-          .map(s => Number(s.time_visit || s.time))
-          .filter(t => !isNaN(t))
+          .map(s => Number(s.time_visit))
+          .filter(t => !isNaN(t) && t > 0)
         const maxTime = surveyTimes.length > 0 ? Math.max(...surveyTimes) : 0
-        const currentTime = Number(survey.time_visit || survey.time)
+        const currentTime = Number(survey.time_visit || 0)
         
         if (maxTime > currentTime) {
           this.shouldDisableStep12 = true
@@ -1396,6 +1430,47 @@ export default {
         q5: savedAnswers.q5 ? this.convertActivityAnswersToNumber(savedAnswers.q5) : {},
         q9: savedAnswers.q9 ? this.convertActivityAnswersToNumber(savedAnswers.q9) : {}
       }
+      
+      // ถ้า q5 เป็น {} และ time_visit > 1 ให้โหลด q5 จาก previous survey
+      // (กรณีที่ survey ถูกสร้างใหม่แต่ยังไม่ได้ทำ step 5 หรือ skip step 5)
+      if ((!this.answers.q5 || Object.keys(this.answers.q5).length === 0) && survey.time_visit) {
+        const currentTimeVisit = Number(survey.time_visit)
+        if (currentTimeVisit > 1) {
+          const previousTimeVisit = currentTimeVisit - 1
+          try {
+            // หา previous survey เพื่อใช้ q9 เป็น q5
+            const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(survey.stid)
+            let previousSurvey = completedSurveys.find(s => 
+              Number(s.time_visit) === previousTimeVisit && s.completed
+            )
+            
+            if (!previousSurvey) {
+              previousSurvey = await this.$indexedDB.getSurveyProgress(
+                survey.stid,
+                previousTimeVisit
+              )
+            }
+            
+            if (!previousSurvey) {
+              const allSurveys = await this.$indexedDB.getAllSurveysByStid(survey.stid)
+              previousSurvey = allSurveys.find(s => 
+                Number(s.time_visit) === previousTimeVisit
+              )
+            }
+            
+            if (previousSurvey && previousSurvey.answers && previousSurvey.answers.q9 && Object.keys(previousSurvey.answers.q9).length > 0) {
+              // ใช้ q9 จาก previous survey เป็น q5 เสมอ (ไม่สน q2)
+              const q9Answers = previousSurvey.answers.q9
+              // คัดลอก q9 จาก previous survey เป็น q5 (แม้ค่าเป็น null ก็ตาม)
+              this.answers.q5 = { ...q9Answers }
+              await this.saveProgress()
+            }
+          } catch (error) {
+            console.warn('Failed to load q5 from previous survey in loadExistingSurvey:', error)
+          }
+        }
+      }
+      
       if (survey.completed) {
         this.currentActivityIndex = 0
         this.currentQ5Index = 0
@@ -1646,10 +1721,11 @@ export default {
         if (currentTimeVisit > 1) {
           const previousTimeVisit = currentTimeVisit - 1
           try {
-            // ลองหา previous survey จาก completed surveys ก่อน
+            // หา previous survey (time_visit - 1) เพื่อใช้ q9 เป็น q5
+            // q5 = q9 ของ survey ก่อนหน้าเสมอ (ไม่สน q2)
             const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
             let previousSurvey = completedSurveys.find(s => 
-              Number(s.time_visit || s.time) === previousTimeVisit && s.completed
+              Number(s.time_visit) === previousTimeVisit && s.completed
             )
             
             // ถ้าไม่พบใน completed surveys ให้ลองหาใน survey progress (รวมทั้งที่ยังไม่ completed)
@@ -1664,19 +1740,15 @@ export default {
             if (!previousSurvey) {
               const allSurveys = await this.$indexedDB.getAllSurveysByStid(this.visitorData.stid)
               previousSurvey = allSurveys.find(s => 
-                Number(s.time_visit || s.time) === previousTimeVisit
+                Number(s.time_visit) === previousTimeVisit
               )
             }
             
             if (previousSurvey) {
-              // ลำดับความสำคัญในการโหลด q5Activities:
-              // 1. ใช้ q9 จาก previous survey (ถ้ามี)
-              // 2. ใช้ q5Activities ที่บันทึกไว้ใน previous survey (ถ้ามี)
-              // 3. ใช้ activities จาก previous survey (ถ้ามี)
-              
+              // ใช้ q9 จาก previous survey เป็น q5 เสมอ (ไม่สน q2)
               if (previousSurvey.answers && previousSurvey.answers.q9 && Object.keys(previousSurvey.answers.q9).length > 0) {
-                // วิธีที่ 1: ใช้ q9 จาก previous survey
                 const q9Answers = previousSurvey.answers.q9
+                // ดึง activity IDs จาก keys ของ q9 object (แม้จะเป็น null values ก็ตาม)
                 const q5ActivityIds = Object.keys(q9Answers).filter(id => id && id !== '')
                 
                 if (q5ActivityIds.length > 0) {
@@ -1690,96 +1762,18 @@ export default {
                   
                   this.q5Activities = q5MatchingActivities
                   await this.saveProgress()
+                } else {
+                  this.q5Activities = []
                 }
-              }
-              
-              // ถ้ายังไม่มี q5Activities ให้ลองใช้ q5Activities ที่บันทึกไว้
-              if (this.q5Activities.length === 0 && previousSurvey.q5Activities && Array.isArray(previousSurvey.q5Activities) && previousSurvey.q5Activities.length > 0) {
-                this.q5Activities = previousSurvey.q5Activities
-                await this.saveProgress()
-              }
-              
-              // ถ้ายังไม่มี q5Activities ให้ลองใช้ activities จาก previous survey (ถ้ามี)
-              if (this.q5Activities.length === 0 && previousSurvey.activities && Array.isArray(previousSurvey.activities) && previousSurvey.activities.length > 0) {
-                this.q5Activities = previousSurvey.activities
-                await this.saveProgress()
-              }
-              
-              // ถ้ายังไม่มี q5Activities ให้ลองหา survey ครั้งก่อนหน้านั้นอีก (fallback chain)
-              if (this.q5Activities.length === 0 && previousTimeVisit > 1) {
-                // ลองหา survey ครั้งก่อนหน้า previous survey (เช่น ถ้า currentTimeVisit = 3, previousTimeVisit = 2, ให้ลองหา time_visit = 1)
-                const earlierTimeVisit = previousTimeVisit - 1
-                try {
-                  const earlierSurveys = await this.$indexedDB.getAllSurveysByStid(this.visitorData.stid)
-                  const earlierSurvey = earlierSurveys.find(s => 
-                    Number(s.time_visit || s.time) === earlierTimeVisit
-                  )
-                  
-                  if (earlierSurvey && earlierSurvey.answers && earlierSurvey.answers.q9 && Object.keys(earlierSurvey.answers.q9).length > 0) {
-                    const q9Answers = earlierSurvey.answers.q9
-                    const q5ActivityIds = Object.keys(q9Answers).filter(id => id && id !== '')
-                    
-                    if (q5ActivityIds.length > 0) {
-                      const q5MatchingActivities = allActivities.filter(activity => {
-                        return q5ActivityIds.includes(String(activity.no))
-                      })
-                      
-                      q5MatchingActivities.sort((a, b) => {
-                        return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
-                      })
-                      
-                      this.q5Activities = q5MatchingActivities
-                      await this.saveProgress()
-                      console.log(`Loaded q5Activities from earlier survey (time_visit ${earlierTimeVisit}) for current survey (time_visit ${currentTimeVisit})`)
-                    }
-                  }
-                } catch (error) {
-                  console.warn('Failed to load from earlier survey:', error)
-                }
-              }
-              
-              // ถ้ายังไม่มี q5Activities ให้เป็น empty array
-              if (this.q5Activities.length === 0) {
+              } else {
+                // ถ้า previous survey ไม่มี q9 ให้เป็น empty array
                 this.q5Activities = []
-                console.warn(`No q5Activities found for time_visit ${currentTimeVisit}. Previous survey (time_visit ${previousTimeVisit}) may not have q9 or q5Activities.`)
+                console.warn(`Previous survey (time_visit ${previousTimeVisit}) does not have q9 for stid ${this.visitorData.stid}`)
               }
             } else {
-              // ไม่พบ previous survey - ลองหา survey ครั้งก่อนหน้านั้นอีก
-              if (previousTimeVisit > 1) {
-                const earlierTimeVisit = previousTimeVisit - 1
-                try {
-                  const allSurveys = await this.$indexedDB.getAllSurveysByStid(this.visitorData.stid)
-                  const earlierSurvey = allSurveys.find(s => 
-                    Number(s.time_visit || s.time) === earlierTimeVisit
-                  )
-                  
-                  if (earlierSurvey && earlierSurvey.answers && earlierSurvey.answers.q9 && Object.keys(earlierSurvey.answers.q9).length > 0) {
-                    const q9Answers = earlierSurvey.answers.q9
-                    const q5ActivityIds = Object.keys(q9Answers).filter(id => id && id !== '')
-                    
-                    if (q5ActivityIds.length > 0) {
-                      const q5MatchingActivities = allActivities.filter(activity => {
-                        return q5ActivityIds.includes(String(activity.no))
-                      })
-                      
-                      q5MatchingActivities.sort((a, b) => {
-                        return q5ActivityIds.indexOf(String(a.no)) - q5ActivityIds.indexOf(String(b.no))
-                      })
-                      
-                      this.q5Activities = q5MatchingActivities
-                      await this.saveProgress()
-                      console.log(`Loaded q5Activities from earlier survey (time_visit ${earlierTimeVisit}) for current survey (time_visit ${currentTimeVisit})`)
-                    }
-                  }
-                } catch (error) {
-                  console.warn('Failed to load from earlier survey:', error)
-                }
-              }
-              
-              if (this.q5Activities.length === 0) {
-                this.q5Activities = []
-                console.warn(`Previous survey (time_visit ${previousTimeVisit}) not found for stid ${this.visitorData.stid}`)
-              }
+              // ไม่พบ previous survey
+              this.q5Activities = []
+              console.warn(`Previous survey (time_visit ${previousTimeVisit}) not found for stid ${this.visitorData.stid}`)
             }
           } catch (error) {
             console.error('Failed to load previous survey for q5 activities:', error)
@@ -1869,12 +1863,27 @@ export default {
         // ถ้ามีการเปลี่ยนแปลงและเคย synced แล้ว ให้ set synced = false
         const shouldResetSync = wasSynced && hasChanges && isCompleted
         
+        // คำนวณ time_visit (ไม่ใช้ time เป็น fallback)
         let timeVisit
         if (existingSurvey && existingSurvey.time_visit) {
           timeVisit = existingSurvey.time_visit
         } else {
           const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(this.visitorData.stid)
           timeVisit = completedSurveys.length + 1
+        }
+        
+        // Validation: ตรวจสอบว่า time_visit ถูกต้อง
+        if (!timeVisit || timeVisit < 1) {
+          console.error(`⚠️ Invalid time_visit calculated: ${timeVisit} for stid: ${this.visitorData.stid}`)
+          // Fallback: ใช้ 1 ถ้าไม่สามารถคำนวณได้
+          timeVisit = 1
+        }
+        
+        // Warning: ถ้า time_visit ตรงกับ time และ time_visit > 4 อาจเป็นปัญหา
+        if (timeVisit === Number(this.visitorData.time) && timeVisit > 4) {
+          console.warn(
+            `⚠️ Warning: time_visit (${timeVisit}) equals time (${this.visitorData.time}) but time_visit > 4. This may indicate incorrect calculation.`
+          )
         }
         
         const progressData = {
@@ -2071,11 +2080,48 @@ export default {
     },
     
     // Camera modal methods
-    async openCameraModal(index) {
+    openCameraModal(index) {
       this.currentImageIndex = index
       this.capturedImage = null
+      this.uploadMode = null
+      this.useFileInput = false
+      this.videoStream = null
       this.cameraModalVisible = true
+    },
+
+    selectUploadMode(mode) {
+      this.uploadMode = mode
       
+      if (mode === 'camera') {
+        // เริ่มเปิดกล้องเมื่อผู้ใช้เลือกถ่ายภาพ
+        this.startCamera()
+      }
+    },
+
+    handleSelectFile() {
+      // เปิด file picker เลย
+      this.$nextTick(() => {
+        if (this.$refs.fileInput) {
+          this.$refs.fileInput.click()
+        }
+      })
+    },
+
+    resetUploadMode() {
+      this.uploadMode = null
+      // หยุด video stream ถ้ามี
+      if (this.videoStream) {
+        if (this.videoStream.getTracks) {
+          this.videoStream.getTracks().forEach(track => track.stop())
+        } else if (this.videoStream.stop) {
+          this.videoStream.stop()
+        }
+        this.videoStream = null
+      }
+      this.capturedImage = null
+    },
+
+    async startCamera() {
       // รอให้ modal แสดงก่อน
       await this.$nextTick()
       
@@ -2139,11 +2185,13 @@ export default {
         let errorMessage = 'ไม่สามารถเข้าถึงกล้องได้'
         
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้อง'
+          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้องในเบราว์เซอร์'
         } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
           errorMessage = 'ไม่พบกล้องในอุปกรณ์'
-        } else if (error.name === 'NotSupportedError' || error.name === 'ConstraintNotSatisfiedError') {
-          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
+        } else if (error.name === 'NotSupportedError' || error.name === 'ConstraintNotSatisfiedError' || error.name === 'OverconstrainedError') {
+          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้องหรือ constraints ที่กำหนด'
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+          errorMessage = 'กล้องถูกใช้งานโดยแอปพลิเคชันอื่น กรุณาปิดแอปอื่นแล้วลองอีกครั้ง'
         } else if (error.message && error.message.includes('not support')) {
           errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
         }
@@ -2152,9 +2200,16 @@ export default {
         if (error.message && error.message.includes('not support')) {
           this.useFileInput = true
           this.$toast.warning('เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง ใช้การอัพโหลดไฟล์แทน')
+          // เปิด file picker เลย
+          this.$nextTick(() => {
+            if (this.$refs.fileInput) {
+              this.$refs.fileInput.click()
+            }
+          })
         } else {
           this.$toast.error(errorMessage)
-          this.cameraModalVisible = false
+          // กลับไปหน้าเลือก
+          this.resetUploadMode()
         }
       }
     },
@@ -2182,6 +2237,7 @@ export default {
       }
       
       this.capturedImage = null
+      this.uploadMode = null
       this.useFileInput = false
       this.cameraModalVisible = false
     },
@@ -2222,7 +2278,8 @@ export default {
         
         this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
         
-        // ปิด modal
+        // Reset และปิด modal
+        this.resetUploadMode()
         this.closeCameraModal()
       } catch (error) {
         console.error('Error processing file:', error)
@@ -2293,7 +2350,8 @@ export default {
         
         this.$toast.success(`บันทึกรูปภาพที่ ${index + 1} สำเร็จ`)
         
-        // ปิด modal
+        // Reset และปิด modal
+        this.resetUploadMode()
         this.closeCameraModal()
       } catch (error) {
         console.error('Error processing photo:', error)
@@ -2398,11 +2456,13 @@ export default {
       if (this.currentStep === 5 && (!this.shouldShowStep5 || this.skippedFromQ2)) {
         // เมื่อข้าม step 5 ให้เก็บ activity IDs ไว้ใน q5 แม้ว่าจะไม่มีคำตอบ
         // เพื่อใช้ในการสร้างนัดหมายครั้งถัดไป
+        // ถ้า q2=3 ให้เก็บ q5 ครบทุก activity เหมือน q2=1 แต่ค่าเป็น null
         if (this.skippedFromQ2 && this.q5Activities && this.q5Activities.length > 0) {
           const q5WithIds = {}
+          // เก็บครบทุก activity ใน q5Activities (เหมือน q2=1)
           this.q5Activities.forEach(activity => {
             if (activity && activity.no) {
-              q5WithIds[activity.no] = null // ใช้ null เพื่อบ่งชี้ว่าไม่ได้ตอบ
+              q5WithIds[activity.no] = null // ใช้ null เพื่อบ่งชี้ว่าไม่ได้ตอบ (q2=3)
             }
           })
           this.answers.q5 = q5WithIds
@@ -2419,26 +2479,21 @@ export default {
       if (this.currentStep === 9 && this.skippedFromQ2) {
         // เมื่อข้าม step 9 ให้เก็บ activity IDs ไว้ใน q9 แม้ว่าจะไม่มีคำตอบ
         // เพื่อใช้ในการสร้างนัดหมายครั้งถัดไป
+        // ถ้า q2=3 ให้เก็บ q9 ครบทุก activity เหมือน q2=1 แต่ค่าเป็น null
         if (this.activities && this.activities.length > 0) {
           const q9WithIds = {}
+          // เก็บครบทุก activity ใน activities (เหมือน q2=1)
           this.activities.forEach(activity => {
             if (activity && activity.no) {
-              q9WithIds[activity.no] = null // ใช้ null เพื่อบ่งชี้ว่าไม่ได้ตอบ
+              q9WithIds[activity.no] = null // ใช้ null เพื่อบ่งชี้ว่าไม่ได้ตอบ (q2=3)
             }
           })
           this.answers.q9 = q9WithIds
-          // บันทึก q5Activities เพื่อใช้ในครั้งถัดไป (แม้ว่าจะ skip)
+          
+          // อัพเดท q5Activities เพื่อใช้ในครั้งถัดไป (แม้ว่าจะ skip)
           // q5Activities ควรถูกโหลดมาจาก previous survey แล้ว (จาก loadActivities)
-          // แต่ถ้ายังไม่มี (กรณีผิดปกติ) ให้ใช้ activities ปัจจุบันเป็น fallback
-          // หมายเหตุ: activities ปัจจุบันคือ activities สำหรับ step 9 (ครั้งนี้)
-          // ซึ่งจะกลายเป็น q5Activities สำหรับครั้งถัดไป
-          if (!this.q5Activities || this.q5Activities.length === 0) {
-            // ถ้ายังไม่มี q5Activities ให้ใช้ activities ปัจจุบันเป็น fallback
-            // (กรณีนี้ควรจะไม่เกิดขึ้นเพราะ q5Activities ควรถูกโหลดมาจาก previous survey แล้ว)
-            // แต่ถ้าเกิดขึ้นจริง activities ปัจจุบันจะกลายเป็น q5Activities สำหรับครั้งถัดไป
-            this.q5Activities = [...this.activities]
-            console.warn('q5Activities was empty when skipping step 9, using current activities as fallback')
-          }
+          // แต่ต้องอัพเดทเป็น activities ปัจจุบันเสมอเมื่อจบ step 9 (เหมือน q2=1)
+          this.q5Activities = [...this.activities]
         } else {
           // ถ้ายังไม่มี activities ให้เป็น empty object
           this.answers.q9 = {}
@@ -2448,8 +2503,8 @@ export default {
         this.currentStep++
       }
       
-      // ข้าม step 11 (อัพโหลดรูป) ถ้า q1 === 3 หรือ q2 === 3
-      if (this.currentStep === 11 && (this.skippedFromQ1 || this.skippedFromQ2)) {
+      // ข้าม step 11 (อัพโหลดรูป) ถ้า q1 === 3 เท่านั้น
+      if (this.currentStep === 11 && this.skippedFromQ1) {
         // ล้างรูปภาพเมื่อข้าม step 11
         this.surveyImages = []
         this.surveyImageKeys = []
@@ -2501,8 +2556,8 @@ export default {
         
         this.currentStep--
         
-        // ข้าม step 11 (อัพโหลดรูป) ถ้า q1 === 3 หรือ q2 === 3 (เมื่อย้อนกลับจาก step 12)
-        if (this.currentStep === 11 && (this.skippedFromQ1 || this.skippedFromQ2)) {
+        // ข้าม step 11 (อัพโหลดรูป) ถ้า q1 === 3 เท่านั้น (เมื่อย้อนกลับจาก step 12)
+        if (this.currentStep === 11 && this.skippedFromQ1) {
           this.currentStep--
         }
         
@@ -3819,6 +3874,69 @@ export default {
   display: flex;
   flex-direction: column;
   background: #000;
+  min-height: 400px;
+}
+
+.upload-choice-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+}
+
+.upload-choice-content {
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+}
+
+.upload-choice-content h5 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 2rem;
+}
+
+.upload-choice-buttons {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.choice-btn {
+  flex: 1;
+  min-width: 180px;
+  max-width: 220px;
+  padding: 2rem 1.5rem;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.choice-btn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.choice-btn i {
+  display: block;
+}
+
+.choice-btn-cancel {
+  min-width: 160px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 500;
 }
 
 .file-input-fallback {
@@ -3844,19 +3962,29 @@ export default {
   margin-bottom: 1rem;
 }
 
+.file-input-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 .camera-preview {
   position: relative;
   width: 100%;
-  min-height: 400px;
+  max-height: calc(100vh - 300px);
+  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #000;
+  overflow: hidden;
 }
 
 .camera-video {
-  width: 100%;
+  width: auto;
   max-width: 100%;
+  max-height: calc(100vh - 300px);
   height: auto;
   display: block;
   object-fit: contain;
@@ -3880,17 +4008,21 @@ export default {
 
 .captured-preview {
   width: 100%;
-  min-height: 400px;
+  max-height: calc(100vh - 300px);
+  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #000;
   padding: 1rem;
+  overflow: hidden;
 }
 
 .captured-image {
+  width: auto;
   max-width: 100%;
-  max-height: 500px;
+  max-height: calc(100vh - 300px);
+  height: auto;
   object-fit: contain;
   border-radius: 0.5rem;
 }
@@ -3943,7 +4075,13 @@ export default {
 @media (max-width: 768px) {
   .camera-preview,
   .captured-preview {
-    min-height: 300px;
+    max-height: calc(100vh - 250px);
+    min-height: 250px;
+  }
+
+  .camera-video,
+  .captured-image {
+    max-height: calc(100vh - 250px);
   }
   
   .camera-controls {
@@ -3958,6 +4096,15 @@ export default {
   
   .capture-btn {
     min-width: auto;
+  }
+
+  .upload-choice-buttons {
+    flex-direction: column;
+  }
+
+  .choice-btn {
+    width: 100%;
+    max-width: 100%;
   }
 }
 </style>

@@ -501,39 +501,51 @@
     <!-- Camera Modal -->
     <b-modal
       v-model="cameraModalVisible"
-      :title="`${useFileInput ? 'อัพโหลด' : 'ถ่าย'}รูปภาพที่ ${currentImageIndex + 1}`"
+      :title="`อัพโหลดรูปภาพที่ ${currentImageIndex + 1}`"
       size="lg"
       hide-footer
       @hide="closeCameraModal"
       class="camera-modal"
     >
       <div class="camera-container">
-        <!-- File Input Fallback -->
-        <div v-if="useFileInput" class="file-input-fallback">
-          <div class="file-input-container">
-            <i class="fas fa-image fa-4x mb-3 text-muted"></i>
-            <p class="mb-4">เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง</p>
-            <p class="text-muted mb-4">กรุณาเลือกรูปภาพจากอุปกรณ์ของคุณ</p>
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              @change="handleFileInput"
-              style="display: none"
-            />
+        <!-- Hidden file input -->
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          @change="handleFileInput"
+          style="display: none"
+        />
+
+        <!-- Choice Mode: เลือกวิธีการอัพโหลด -->
+        <div v-if="!uploadMode && !useFileInput" class="upload-choice-container">
+          <div class="upload-choice-content">
+            <h5 class="mb-4">เลือกวิธีการอัพโหลดรูปภาพ</h5>
+            <div class="upload-choice-buttons">
+              <b-button
+                variant="primary"
+                size="lg"
+                @click="handleSelectFile"
+                class="choice-btn"
+              >
+                <i class="fas fa-folder-open fa-2x mb-2"></i>
+                <span>เลือกรูป</span>
+              </b-button>
+              <b-button
+                variant="warning"
+                size="lg"
+                @click="selectUploadMode('camera')"
+                class="choice-btn"
+              >
+                <i class="fas fa-camera fa-2x mb-2"></i>
+                <span>ถ่ายภาพ</span>
+              </b-button>
+            </div>
             <b-button
-              variant="primary"
-              size="lg"
-              @click="$refs.fileInput.click()"
-              class="control-btn"
-            >
-              <i class="fas fa-folder-open"></i> เลือกรูปภาพ
-            </b-button>
-            <b-button
-              variant="danger"
+              variant="secondary"
               size="lg"
               @click="closeCameraModal"
-              class="control-btn mt-2"
+              class="choice-btn-cancel mt-3"
             >
               <i class="fas fa-times"></i> ยกเลิก
             </b-button>
@@ -541,7 +553,7 @@
         </div>
         
         <!-- Camera Mode -->
-        <template v-else>
+        <template v-else-if="uploadMode === 'camera'">
           <!-- Video Preview -->
           <div v-if="!capturedImage" class="camera-preview">
             <video
@@ -708,6 +720,7 @@ export default {
       capturedImage: null, // เก็บ base64 ของภาพที่ถ่าย
       videoElement: null,
       useFileInput: false, // fallback mode เมื่อ browser ไม่รองรับกล้อง
+      uploadMode: null, // 'select' | 'camera' | null - โหมดการอัพโหลดที่ผู้ใช้เลือก
       addForm: {
         name: '',
         nickname: '',
@@ -2316,11 +2329,48 @@ export default {
     },
     
     // Camera modal methods
-    async openCameraModal(index) {
+    openCameraModal(index) {
       this.currentImageIndex = index
       this.capturedImage = null
+      this.uploadMode = null
+      this.useFileInput = false
+      this.videoStream = null
       this.cameraModalVisible = true
+    },
+
+    selectUploadMode(mode) {
+      this.uploadMode = mode
       
+      if (mode === 'camera') {
+        // เริ่มเปิดกล้องเมื่อผู้ใช้เลือกถ่ายภาพ
+        this.startCamera()
+      }
+    },
+
+    handleSelectFile() {
+      // เปิด file picker เลย
+      this.$nextTick(() => {
+        if (this.$refs.fileInput) {
+          this.$refs.fileInput.click()
+        }
+      })
+    },
+
+    resetUploadMode() {
+      this.uploadMode = null
+      // หยุด video stream ถ้ามี
+      if (this.videoStream) {
+        if (this.videoStream.getTracks) {
+          this.videoStream.getTracks().forEach(track => track.stop())
+        } else if (this.videoStream.stop) {
+          this.videoStream.stop()
+        }
+        this.videoStream = null
+      }
+      this.capturedImage = null
+    },
+
+    async startCamera() {
       // รอให้ modal แสดงก่อน
       await this.$nextTick()
       
@@ -2384,11 +2434,13 @@ export default {
         let errorMessage = 'ไม่สามารถเข้าถึงกล้องได้'
         
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้อง'
+          errorMessage = 'กรุณาอนุญาตให้เข้าถึงกล้องในเบราว์เซอร์'
         } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
           errorMessage = 'ไม่พบกล้องในอุปกรณ์'
-        } else if (error.name === 'NotSupportedError' || error.name === 'ConstraintNotSatisfiedError') {
-          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
+        } else if (error.name === 'NotSupportedError' || error.name === 'ConstraintNotSatisfiedError' || error.name === 'OverconstrainedError') {
+          errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้องหรือ constraints ที่กำหนด'
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+          errorMessage = 'กล้องถูกใช้งานโดยแอปพลิเคชันอื่น กรุณาปิดแอปอื่นแล้วลองอีกครั้ง'
         } else if (error.message && error.message.includes('not support')) {
           errorMessage = 'เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง'
         }
@@ -2397,9 +2449,16 @@ export default {
         if (error.message && error.message.includes('not support')) {
           this.useFileInput = true
           this.$toast.warning('เบราว์เซอร์ไม่รองรับการเข้าถึงกล้อง ใช้การอัพโหลดไฟล์แทน')
+          // เปิด file picker เลย
+          this.$nextTick(() => {
+            if (this.$refs.fileInput) {
+              this.$refs.fileInput.click()
+            }
+          })
         } else {
           this.$toast.error(errorMessage)
-          this.cameraModalVisible = false
+          // กลับไปหน้าเลือก
+          this.resetUploadMode()
         }
       }
     },
@@ -2427,6 +2486,7 @@ export default {
       }
       
       this.capturedImage = null
+      this.uploadMode = null
       this.useFileInput = false
       this.cameraModalVisible = false
     },
@@ -2465,7 +2525,8 @@ export default {
         
         this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
         
-        // ปิด modal
+        // Reset และปิด modal
+        this.resetUploadMode()
         this.closeCameraModal()
       } catch (error) {
         console.error('Error processing file:', error)
@@ -2534,7 +2595,8 @@ export default {
         
         this.$toast.success(`บันทึกรูปภาพที่ ${index + 1} สำเร็จ`)
         
-        // ปิด modal
+        // Reset และปิด modal
+        this.resetUploadMode()
         this.closeCameraModal()
       } catch (error) {
         console.error('Error processing photo:', error)
@@ -4167,6 +4229,69 @@ export default {
   display: flex;
   flex-direction: column;
   background: #000;
+  min-height: 400px;
+}
+
+.upload-choice-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+}
+
+.upload-choice-content {
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+}
+
+.upload-choice-content h5 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 2rem;
+}
+
+.upload-choice-buttons {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.choice-btn {
+  flex: 1;
+  min-width: 180px;
+  max-width: 220px;
+  padding: 2rem 1.5rem;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.choice-btn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.choice-btn i {
+  display: block;
+}
+
+.choice-btn-cancel {
+  min-width: 160px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 500;
 }
 
 .file-input-fallback {
@@ -4192,19 +4317,29 @@ export default {
   margin-bottom: 1rem;
 }
 
+.file-input-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 .camera-preview {
   position: relative;
   width: 100%;
-  min-height: 400px;
+  max-height: calc(100vh - 300px);
+  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #000;
+  overflow: hidden;
 }
 
 .camera-video {
-  width: 100%;
+  width: auto;
   max-width: 100%;
+  max-height: calc(100vh - 300px);
   height: auto;
   display: block;
   object-fit: contain;
@@ -4228,17 +4363,21 @@ export default {
 
 .captured-preview {
   width: 100%;
-  min-height: 400px;
+  max-height: calc(100vh - 300px);
+  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #000;
   padding: 1rem;
+  overflow: hidden;
 }
 
 .captured-image {
+  width: auto;
   max-width: 100%;
-  max-height: 500px;
+  max-height: calc(100vh - 300px);
+  height: auto;
   object-fit: contain;
   border-radius: 0.5rem;
 }
@@ -4291,7 +4430,13 @@ export default {
 @media (max-width: 768px) {
   .camera-preview,
   .captured-preview {
-    min-height: 300px;
+    max-height: calc(100vh - 250px);
+    min-height: 250px;
+  }
+
+  .camera-video,
+  .captured-image {
+    max-height: calc(100vh - 250px);
   }
   
   .camera-controls {
@@ -4306,6 +4451,15 @@ export default {
   
   .capture-btn {
     min-width: auto;
+  }
+
+  .upload-choice-buttons {
+    flex-direction: column;
+  }
+
+  .choice-btn {
+    width: 100%;
+    max-width: 100%;
   }
 }
 

@@ -652,22 +652,58 @@ export default function ({ app, store, $axios }, inject) {
             };
 
             // Map q5 และ q9 โดยใช้ activity ID เป็น key
+            // ถ้า q2=3, q5x_name และ q9x_name จะมีค่าแต่ q5x และ q9x จะเป็น empty string
+            // ต้องเก็บเป็น null ในกรณีนี้
             const q5Answers = {};
             const q9Answers = {};
 
-            // Map q5: q51_name เป็น key, q51 เป็น value (convert to number)
-            if (result.q51_name && result.q51) q5Answers[result.q51_name] = Number(result.q51);
-            if (result.q52_name && result.q52) q5Answers[result.q52_name] = Number(result.q52);
-            if (result.q53_name && result.q53) q5Answers[result.q53_name] = Number(result.q53);
-            if (result.q54_name && result.q54) q5Answers[result.q54_name] = Number(result.q54);
-            if (result.q55_name && result.q55) q5Answers[result.q55_name] = Number(result.q55);
+            // Map q5: q51_name เป็น key, q51 เป็น value
+            // ถ้า q5x_name มีค่า แต่ q5x เป็น empty string หรือ null ให้เก็บเป็น null (กรณี q2=3)
+            // ถ้า q5x_name มีค่า และ q5x มีค่า ให้เก็บเป็น Number(q5x)
+            if (result.q51_name && result.q51_name !== "") {
+              q5Answers[result.q51_name] =
+                result.q51 && result.q51 !== "" ? Number(result.q51) : null;
+            }
+            if (result.q52_name && result.q52_name !== "") {
+              q5Answers[result.q52_name] =
+                result.q52 && result.q52 !== "" ? Number(result.q52) : null;
+            }
+            if (result.q53_name && result.q53_name !== "") {
+              q5Answers[result.q53_name] =
+                result.q53 && result.q53 !== "" ? Number(result.q53) : null;
+            }
+            if (result.q54_name && result.q54_name !== "") {
+              q5Answers[result.q54_name] =
+                result.q54 && result.q54 !== "" ? Number(result.q54) : null;
+            }
+            if (result.q55_name && result.q55_name !== "") {
+              q5Answers[result.q55_name] =
+                result.q55 && result.q55 !== "" ? Number(result.q55) : null;
+            }
 
-            // Map q9: q91_name เป็น key, q91 เป็น value (convert to number)
-            if (result.q91_name && result.q91) q9Answers[result.q91_name] = Number(result.q91);
-            if (result.q92_name && result.q92) q9Answers[result.q92_name] = Number(result.q92);
-            if (result.q93_name && result.q93) q9Answers[result.q93_name] = Number(result.q93);
-            if (result.q94_name && result.q94) q9Answers[result.q94_name] = Number(result.q94);
-            if (result.q95_name && result.q95) q9Answers[result.q95_name] = Number(result.q95);
+            // Map q9: q91_name เป็น key, q91 เป็น value
+            // ถ้า q9x_name มีค่า แต่ q9x เป็น empty string หรือ null ให้เก็บเป็น null (กรณี q2=3)
+            // ถ้า q9x_name มีค่า และ q9x มีค่า ให้เก็บเป็น Number(q9x)
+            if (result.q91_name && result.q91_name !== "") {
+              q9Answers[result.q91_name] =
+                result.q91 && result.q91 !== "" ? Number(result.q91) : null;
+            }
+            if (result.q92_name && result.q92_name !== "") {
+              q9Answers[result.q92_name] =
+                result.q92 && result.q92 !== "" ? Number(result.q92) : null;
+            }
+            if (result.q93_name && result.q93_name !== "") {
+              q9Answers[result.q93_name] =
+                result.q93 && result.q93 !== "" ? Number(result.q93) : null;
+            }
+            if (result.q94_name && result.q94_name !== "") {
+              q9Answers[result.q94_name] =
+                result.q94 && result.q94 !== "" ? Number(result.q94) : null;
+            }
+            if (result.q95_name && result.q95_name !== "") {
+              q9Answers[result.q95_name] =
+                result.q95 && result.q95 !== "" ? Number(result.q95) : null;
+            }
 
             // Map API data to survey_progress structure
             // หมายเหตุ: API getchildsample_result.php ไม่มี approve_status
@@ -1245,28 +1281,80 @@ export default function ({ app, store, $axios }, inject) {
             }
 
             // สร้าง activity names สำหรับ q5 (q51_name - q55_name)
-            // q5 = กิจกรรมจาก survey ครั้งก่อนหน้า (เก็บไว้ใน survey.q5Activities)
+            // q5 = q9 ของ survey ก่อนหน้าเสมอ (ไม่สน q2)
             const q5ActivityNames = [];
-            const timeVisit = Number(survey.time_visit || survey.time || 1);
+            // ใช้เฉพาะ time_visit (ไม่ใช้ time เป็น fallback)
+            let timeVisit = Number(survey.time_visit);
+            if (!timeVisit || isNaN(timeVisit) || timeVisit < 1) {
+              // ถ้าไม่มี time_visit ให้คำนวณจาก completed surveys
+              const completedSurveys = await app.$indexedDB.getCompletedSurveysByStid(survey.stid);
+              timeVisit = completedSurveys.length + 1;
+            }
 
             if (timeVisit === 1) {
               // ครั้งแรก ไม่มี q5
               for (let i = 0; i < 5; i++) {
                 q5ActivityNames.push("");
               }
-            } else if (survey.q5Activities && Array.isArray(survey.q5Activities)) {
-              // มี q5Activities ที่เก็บไว้แล้ว
-              for (let i = 0; i < 5; i++) {
-                if (survey.q5Activities[i]) {
-                  q5ActivityNames.push(survey.q5Activities[i].no || "");
+            } else {
+              // หา previous survey (time_visit - 1) เพื่อใช้ q9 เป็น q5
+              const previousTimeVisit = timeVisit - 1;
+              try {
+                // ลองหา previous survey จาก completed surveys ก่อน
+                const completedSurveys = await app.$indexedDB.getCompletedSurveysByStid(
+                  survey.stid
+                );
+                let previousSurvey = completedSurveys.find(
+                  (s) => Number(s.time_visit) === previousTimeVisit && s.completed
+                );
+
+                // ถ้าไม่พบใน completed surveys ให้ลองหาใน survey progress (รวมทั้งที่ยังไม่ completed)
+                if (!previousSurvey) {
+                  previousSurvey = await app.$indexedDB.getSurveyProgress(
+                    survey.stid,
+                    previousTimeVisit
+                  );
+                }
+
+                // ถ้าไม่พบอีก ให้ลองหาโดยใช้ stid และ time_visit โดยตรง
+                if (!previousSurvey) {
+                  const allSurveys = await app.$indexedDB.getAllSurveysByStid(survey.stid);
+                  previousSurvey = allSurveys.find(
+                    (s) => Number(s.time_visit) === previousTimeVisit
+                  );
+                }
+
+                if (
+                  previousSurvey &&
+                  previousSurvey.answers &&
+                  previousSurvey.answers.q9 &&
+                  Object.keys(previousSurvey.answers.q9).length > 0
+                ) {
+                  // ใช้ q9 จาก previous survey เป็น q5 เสมอ (ไม่สน q2)
+                  const q9Answers = previousSurvey.answers.q9;
+                  // ดึง activity IDs จาก keys ของ q9 object (แม้จะเป็น null values ก็ตาม)
+                  const q5ActivityIds = Object.keys(q9Answers).filter((id) => id && id !== "");
+
+                  // เติมให้ครบ 5 ตัว
+                  for (let i = 0; i < 5; i++) {
+                    if (q5ActivityIds[i]) {
+                      q5ActivityNames.push(q5ActivityIds[i]);
+                    } else {
+                      q5ActivityNames.push("");
+                    }
+                  }
                 } else {
+                  // ถ้า previous survey ไม่มี q9 ให้เป็นค่าว่าง
+                  for (let i = 0; i < 5; i++) {
+                    q5ActivityNames.push("");
+                  }
+                }
+              } catch (error) {
+                // ถ้าเกิด error ในการหา previous survey ให้เป็นค่าว่าง
+                console.warn(`Failed to load previous survey for q5ActivityNames:`, error);
+                for (let i = 0; i < 5; i++) {
                   q5ActivityNames.push("");
                 }
-              }
-            } else {
-              // fallback: ถ้าไม่มีข้อมูล q5Activities ให้เป็นค่าว่าง
-              for (let i = 0; i < 5; i++) {
-                q5ActivityNames.push("");
               }
             }
 
@@ -1363,34 +1451,59 @@ export default function ({ app, store, $axios }, inject) {
             }
 
             // เช็คว่ามีข้อมูลใน API แล้วหรือยัง
+            // ⚠️ สำคัญ: ใช้ time_visit เป็น unique key (ไม่ใช่ time)
             let existingRecord = null;
-            try {
-              const checkResponse = await $axios.$get(
-                "/api/parenting2025_census/get/homevisit/getchildsample_result.php",
-                {
-                  params: {
-                    homevisitor: username,
-                    stid: survey.stid,
-                    time_visit: survey.time_visit,
-                  },
-                }
-              );
 
-              // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time หรือไม่
-              if (checkResponse?.results && checkResponse.results.length > 0) {
-                existingRecord = checkResponse.results.find(
-                  (record) =>
-                    record.stid === survey.stid &&
-                    String(record.time_visit) === String(survey.time_visit)
-                );
-              }
-            } catch (error) {
-              console.error(
-                `Failed to check existing record for ${survey.stid}, time ${survey.time}:`,
-                error
+            // ตรวจสอบว่า survey มี time_visit หรือไม่
+            if (!survey.time_visit) {
+              console.warn(
+                `⚠️ Survey ${survey.id} (stid: ${survey.stid}) missing time_visit. Cannot check existing record.`
               );
-              // ถ้าเช็คไม่ได้ ให้ลองสร้างใหม่แทน
-              existingRecord = null;
+            } else {
+              try {
+                const checkResponse = await $axios.$get(
+                  "/api/parenting2025_census/get/homevisit/getchildsample_result.php",
+                  {
+                    params: {
+                      homevisitor: username,
+                      stid: survey.stid,
+                      time_visit: survey.time_visit,
+                    },
+                  }
+                );
+
+                // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time_visit หรือไม่
+                if (checkResponse?.results && checkResponse.results.length > 0) {
+                  existingRecord = checkResponse.results.find(
+                    (record) =>
+                      String(record.stid) === String(survey.stid) &&
+                      String(record.time_visit) === String(survey.time_visit)
+                  );
+
+                  // Log warning ถ้าพบ record ที่ time_visit ไม่ตรงกัน
+                  if (!existingRecord && checkResponse.results.length > 0) {
+                    const foundRecords = checkResponse.results.filter(
+                      (record) => String(record.stid) === String(survey.stid)
+                    );
+                    if (foundRecords.length > 0) {
+                      console.warn(
+                        `⚠️ Found ${foundRecords.length} record(s) for stid ${
+                          survey.stid
+                        } but time_visit mismatch. Expected: ${
+                          survey.time_visit
+                        }, Found: ${foundRecords.map((r) => r.time_visit).join(", ")}`
+                      );
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to check existing record for stid: ${survey.stid}, time_visit: ${survey.time_visit}:`,
+                  error
+                );
+                // ถ้าเช็คไม่ได้ ให้ลองสร้างใหม่แทน
+                existingRecord = null;
+              }
             }
 
             // ตรวจสอบและตั้งค่า recStart ถ้าเป็นค่าว่าง (backward compatibility)
@@ -1504,9 +1617,9 @@ export default function ({ app, store, $axios }, inject) {
                   q5ActivityNames[2],
                   q5ActivityNames[3],
                   q5ActivityNames[4],
-                  // q5 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // q5 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ q2=3)
                   // ถ้า q5ActivityNames[i] เป็น empty string ให้ส่ง empty string
-                  // ถ้า q5ActivityNames[i] มีค่าแต่ q5[activityId] เป็น null ให้ส่ง empty string
+                  // ถ้า q5ActivityNames[i] มีค่าแต่ q5[activityId] เป็น null หรือ undefined ให้ส่ง empty string
                   q5ActivityNames[0] ? String(survey.answers?.q5?.[q5ActivityNames[0]] ?? "") : "",
                   q5ActivityNames[1] ? String(survey.answers?.q5?.[q5ActivityNames[1]] ?? "") : "",
                   q5ActivityNames[2] ? String(survey.answers?.q5?.[q5ActivityNames[2]] ?? "") : "",
@@ -1532,9 +1645,9 @@ export default function ({ app, store, $axios }, inject) {
                   q9ActivityNames[2],
                   q9ActivityNames[3],
                   q9ActivityNames[4],
-                  // q9 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // q9 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ q2=3)
                   // ถ้า q9ActivityNames[i] เป็น empty string ให้ส่ง empty string
-                  // ถ้า q9ActivityNames[i] มีค่าแต่ q9[activityId] เป็น null ให้ส่ง empty string
+                  // ถ้า q9ActivityNames[i] มีค่าแต่ q9[activityId] เป็น null หรือ undefined ให้ส่ง empty string
                   q9ActivityNames[0] ? String(survey.answers?.q9?.[q9ActivityNames[0]] ?? "") : "",
                   q9ActivityNames[1] ? String(survey.answers?.q9?.[q9ActivityNames[1]] ?? "") : "",
                   q9ActivityNames[2] ? String(survey.answers?.q9?.[q9ActivityNames[2]] ?? "") : "",
@@ -1553,6 +1666,14 @@ export default function ({ app, store, $axios }, inject) {
                 pkval: [survey.stid, String(survey.time_visit)],
                 tb: "homevisitor_result",
               };
+
+              // Validation: ตรวจสอบว่า time_visit ถูกต้องก่อน PUT
+              if (!survey.time_visit) {
+                console.error(
+                  `❌ Cannot PUT survey ${survey.id}: missing time_visit. stid: ${survey.stid}, time: ${survey.time}`
+                );
+                throw new Error(`Missing time_visit for survey ${survey.id}`);
+              }
 
               await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", putPayload);
             } else {
@@ -1616,7 +1737,16 @@ export default function ({ app, store, $axios }, inject) {
                   username || "",
                   survey.stid,
                   "15",
-                  String(survey.time_visit || 1),
+                  // Validation: ตรวจสอบว่า time_visit ถูกต้องก่อน POST
+                  (() => {
+                    if (!survey.time_visit) {
+                      console.error(
+                        `❌ Cannot POST survey ${survey.id}: missing time_visit. stid: ${survey.stid}, time: ${survey.time}`
+                      );
+                      throw new Error(`Missing time_visit for survey ${survey.id}`);
+                    }
+                    return String(survey.time_visit);
+                  })(),
                   // recStart: เวลาที่ระบบเริ่มบันทึกจริง (system timestamp)
                   survey.recStart || "",
                   // recEnd: เวลาที่ระบบจบการบันทึกจริง (system timestamp)
@@ -1646,9 +1776,9 @@ export default function ({ app, store, $axios }, inject) {
                   q5ActivityNames[2],
                   q5ActivityNames[3],
                   q5ActivityNames[4],
-                  // q5 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // q5 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ q2=3)
                   // ถ้า q5ActivityNames[i] เป็น empty string ให้ส่ง empty string
-                  // ถ้า q5ActivityNames[i] มีค่าแต่ q5[activityId] เป็น null ให้ส่ง empty string
+                  // ถ้า q5ActivityNames[i] มีค่าแต่ q5[activityId] เป็น null หรือ undefined ให้ส่ง empty string
                   q5ActivityNames[0] ? String(survey.answers?.q5?.[q5ActivityNames[0]] ?? "") : "",
                   q5ActivityNames[1] ? String(survey.answers?.q5?.[q5ActivityNames[1]] ?? "") : "",
                   q5ActivityNames[2] ? String(survey.answers?.q5?.[q5ActivityNames[2]] ?? "") : "",
@@ -1674,9 +1804,9 @@ export default function ({ app, store, $axios }, inject) {
                   q9ActivityNames[2],
                   q9ActivityNames[3],
                   q9ActivityNames[4],
-                  // q9 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ skip)
+                  // q9 ใช้ activity ID เป็น key (รองรับกรณี null เมื่อ q2=3)
                   // ถ้า q9ActivityNames[i] เป็น empty string ให้ส่ง empty string
-                  // ถ้า q9ActivityNames[i] มีค่าแต่ q9[activityId] เป็น null ให้ส่ง empty string
+                  // ถ้า q9ActivityNames[i] มีค่าแต่ q9[activityId] เป็น null หรือ undefined ให้ส่ง empty string
                   q9ActivityNames[0] ? String(survey.answers?.q9?.[q9ActivityNames[0]] ?? "") : "",
                   q9ActivityNames[1] ? String(survey.answers?.q9?.[q9ActivityNames[1]] ?? "") : "",
                   q9ActivityNames[2] ? String(survey.answers?.q9?.[q9ActivityNames[2]] ?? "") : "",
@@ -1700,7 +1830,7 @@ export default function ({ app, store, $axios }, inject) {
               );
 
               console.log(
-                `✅ Created new survey result for stid: ${survey.stid}, time: ${survey.time}`
+                `✅ Created new survey result for stid: ${survey.stid}, time_visit: ${survey.time_visit}, time: ${survey.time}`
               );
             }
 
@@ -1710,7 +1840,7 @@ export default function ({ app, store, $axios }, inject) {
             successCount++;
           } catch (error) {
             console.error(
-              `Failed to sync survey for stid: ${survey.stid}, time: ${survey.time}`,
+              `Failed to sync survey for stid: ${survey.stid}, time_visit: ${survey.time_visit}, time: ${survey.time}`,
               error
             );
             errorCount++;
