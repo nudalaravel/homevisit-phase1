@@ -1,4 +1,4 @@
-export default function ({ $auth, $axios }) {
+export default function ({ $auth, $axios, store, app }) {
   // ปรับแต่ง Response Interceptor สำหรับ Auth API
   $axios.onResponse((response) => {
     // จัดการรูปแบบ response ที่กำหนดเองสำหรับการ login
@@ -12,12 +12,12 @@ export default function ({ $auth, $axios }) {
       }
 
       // ตรวจสอบว่า login สำเร็จหรือไม่
-      // รองรับ level 2 และ level 3
+      // รองรับ level 1, 2 และ 3
       if (
         response.data.statusCode === 200 &&
         response.data.token &&
         response.data.user &&
-        (response.data.user.level === 2 || response.data.user.level === 3)
+        (response.data.user.level === 1 || response.data.user.level === 2 || response.data.user.level === 3)
       ) {
         // เก็บข้อมูล user และ token ก่อนแปลง response
         const userData = response.data.user || {};
@@ -47,12 +47,51 @@ export default function ({ $auth, $axios }) {
           );
         }
 
-        // ตั้งค่า user data ลง auth store หลังจากรอสักครู่
-        setTimeout(() => {
-          if ($auth && userData && Object.keys(userData).length > 0) {
-            $auth.setUser(userData);
+        // ตั้งค่า user data ลง auth store ทันที (ไม่รอ setTimeout)
+        // เพื่อให้ middleware สามารถเข้าถึง user level ได้ทันที
+        if ($auth && userData && Object.keys(userData).length > 0) {
+          console.log("Auth-custom: Setting user data:", {
+            username: userData.username,
+            level: userData.level,
+            userData: userData
+          });
+          
+          // Set user immediately using $auth.setUser
+          $auth.setUser(userData);
+          
+          // Also set directly in store to ensure it's available immediately
+          // Use the store from plugin context, not $auth.$store
+          if (store && store.state && store.state.auth) {
+            store.commit("auth/SET", ["user", userData]);
+            store.commit("auth/SET", ["loggedIn", true]);
+            
+            console.log("Auth-custom: User set directly in store:", {
+              username: userData.username,
+              level: userData.level,
+              storeUser: store.state.auth.user,
+              storeUserLevel: store.state.auth.user?.level
+            });
+          } else {
+            console.warn("Auth-custom: Store not available for direct set");
           }
-        }, 50);
+          
+          // Double check after a short delay to ensure it's set
+          setTimeout(() => {
+            const currentUser = store?.state?.auth?.user;
+            const currentLevel = currentUser?.level;
+            console.log("Auth-custom: Verification after setUser:", {
+              hasUser: !!currentUser,
+              userLevel: currentLevel,
+              user: currentUser
+            });
+            
+            // If level is still missing, set it again
+            if (currentUser && currentLevel === undefined && userData.level !== undefined) {
+              console.warn("Auth-custom: User level missing, setting again");
+              store.commit("auth/SET", ["user", { ...currentUser, level: userData.level }]);
+            }
+          }, 100);
+        }
       } else {
         // Login ไม่สำเร็จ - โยน error ให้ auth module จัดการ
         throw new Error(response.data.message || "Login failed");

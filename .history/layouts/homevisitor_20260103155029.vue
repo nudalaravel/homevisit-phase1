@@ -1,0 +1,718 @@
+<template>
+  <div class="admin-layout">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="header-container">
+        <div class="header-left">
+          <div class="logo-container">
+            <img src="/homevisit/logo.png" alt="Logo" class="logo-img" />
+          </div>
+          <h1 class="page-title">แบบบันทึกข้อมูลสำหรับผู้เยี่ยมบ้าน</h1>
+        </div>
+        
+        <div class="header-right">
+          <div class="network-status" :class="{ online: $store.state.isOnline, offline: !$store.state.isOnline }">
+            <i class="fas" :class="$store.state.isOnline ? 'fa-wifi' : 'fa-wifi-slash'"></i>
+            <span class="status-text">{{ $store.state.isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}</span>
+          </div>
+          <button 
+            class="sync-button" 
+            @click="handleSync"
+            :disabled="$store.getters.isSyncing || !$store.state.isOnline"
+            :title="getSyncTooltip()"
+          >
+            <i class="fas" :class="$store.getters.isSyncing ? 'fa-sync fa-spin' : 'fa-sync-alt'"></i>
+            <span class="sync-text">{{ $store.getters.isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูล' }}</span>
+          </button>
+          <button 
+            class="info-button" 
+            @click="showSystemInfo"
+            title="ข้อมูลระบบ"
+          >
+            <i class="fas fa-info-circle"></i>
+          </button>
+          <div class="user-menu">
+            <div class="user-info">
+              <span class="user-name">{{ $offlineAuth.getUser().username }}</span>
+              <span class="patients-count">จำนวนเด็ก {{ $store.state.patientsCount }} คน</span>
+            </div>
+            <button class="user-avatar" @click="toggleDropdown">
+              <i class="fas fa-user-circle"></i>
+            </button>
+            <div class="dropdown-menu" :class="{ show: showDropdown }">
+              <a href="#" @click.prevent="logout">
+                <i class="fas fa-sign-out-alt"></i>
+                ออกจากระบบ
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="page-content">
+      <Nuxt />
+    </main>
+
+    <!-- System Info Modal -->
+    <b-modal
+      id="systemInfoModal"
+      v-model="showSystemInfoModal"
+      title="ข้อมูลระบบ"
+      size="lg"
+      ok-only
+      ok-title="ปิด"
+      header-class="modal-header-custom"
+    >
+      <div class="system-info-content">
+        <div class="info-section">
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-code-branch"></i>
+              เวอร์ชันแอพพลิเคชัน
+            </div>
+            <div class="info-value">{{ systemInfo.appVersion }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-database"></i>
+              เวอร์ชันฐานข้อมูล
+            </div>
+            <div class="info-value">{{ systemInfo.dbVersion }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-hdd"></i>
+              พื้นที่ IndexedDB ที่ใช้
+            </div>
+            <div class="info-value">{{ systemInfo.usedStorage }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-server"></i>
+              พื้นที่ IndexedDB ที่รองรับ
+            </div>
+            <div class="info-value">{{ systemInfo.totalStorage }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-sync-alt"></i>
+              ซิงค์ข้อมูลล่าสุด
+            </div>
+            <div class="info-value">{{ systemInfo.lastSync }}</div>
+          </div>
+
+          <div class="info-row">
+            <div class="info-label">
+              <i class="fas fa-chart-pie"></i>
+              เปอร์เซ็นต์การใช้งาน
+            </div>
+            <div class="info-value">
+              <div class="storage-progress">
+                <div 
+                  class="storage-progress-bar" 
+                  :style="{ width: systemInfo.usagePercent + '%' }"
+                  :class="getStorageClass(systemInfo.usagePercent)"
+                ></div>
+              </div>
+              <span class="usage-text">{{ systemInfo.usagePercent }}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </b-modal>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      showDropdown: false,
+      showSystemInfoModal: false,
+      systemInfo: {
+        appVersion: '1.0.1',
+        dbVersion: 'N/A',
+        usedStorage: 'กำลังคำนวณ...',
+        totalStorage: 'กำลังคำนวณ...',
+        lastSync: 'ไม่มีข้อมูล',
+        usagePercent: 0
+      }
+    }
+  },
+  computed: {
+  
+  },
+  mounted() {
+    // Close dropdown when clicking outside
+    document.addEventListener('click', this.handleClickOutside)
+    
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.handleClickOutside)
+  },
+  methods: {
+    async handleSync() {
+      try {
+        const result = await this.$store.dispatch('manualSync', this)
+        
+        if (result.success) {
+          this.$toast.success(result.message)
+          // Emit event เพื่อให้ page อื่นๆ reload ข้อมูล
+          this.$nuxt.$emit('sync-completed')
+        } else {
+          this.$toast.error(result.message)
+        }
+      } catch (error) {
+        console.error('Sync error:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการซิงค์ข้อมูล')
+      }
+    },
+    getSyncTooltip() {
+      if (!this.$store.state.isOnline) {
+        return 'ไม่สามารถซิงค์ได้ขณะออฟไลน์'
+      }
+      if (this.$store.getters.isSyncing) {
+        return 'กำลังซิงค์ข้อมูล...'
+      }
+      if (this.$store.state.lastSyncTime) {
+        const lastSync = new Date(this.$store.state.lastSyncTime)
+        return `ซิงค์ข้อมูล (ล่าสุด: ${lastSync.toLocaleString('th-TH')})`
+      }
+      return 'ซิงค์ข้อมูล'
+    },
+    toggleDropdown() {
+      this.showDropdown = !this.showDropdown
+    },
+    handleClickOutside(event) {
+      const userMenu = this.$el.querySelector('.user-menu')
+      if (userMenu && !userMenu.contains(event.target)) {
+        this.showDropdown = false
+      }
+    },
+    async logout() {
+      this.showDropdown = false
+      
+      // แสดง SweetAlert2 ยืนยันการออกจากระบบ
+      const result = await this.$swal.fire({
+        title: 'คุณกำลังจะออกจากระบบใช่หรือไม่',
+        text: 'หากออกจากระบบแล้วข้อมูลแบบประเมินจะถูกลบทันทีไม่สามารถย้อนกลับมาได้',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ใช่, ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก',
+        reverseButtons: true
+      })
+      
+      // ถ้าผู้ใช้กด "ใช่, ออกจากระบบ"
+      if (result.isConfirmed) {
+        try {
+          // Perform logout (works both online and offline)
+          // This will clear all data and redirect to /login
+          await this.$offlineAuth.logout()
+        } catch (error) {
+          console.error('Logout error:', error)
+          
+          // Even if error, try to redirect
+          this.$router.push('/login').catch(() => {
+            window.location.href = '/login'
+          })
+        }
+      }
+    },
+    async showSystemInfo() {
+      // เปิด modal
+      this.showSystemInfoModal = true
+      
+      // โหลดข้อมูลระบบ
+      await this.loadSystemInfo()
+    },
+    async loadSystemInfo() {
+      try {
+        // ดึงเวอร์ชัน DB จาก IndexedDB
+        if (this.$indexedDB) {
+          this.systemInfo.dbVersion = `Version ${this.$indexedDB.version}`
+          
+          // ใช้ฟังก์ชัน getStorageQuota() ที่มีอยู่แล้วใน IndexedDB plugin
+          const storageQuota = await this.$indexedDB.getStorageQuota()
+          
+          if (storageQuota) {
+            this.systemInfo.usedStorage = this.formatBytes(storageQuota.usage)
+            this.systemInfo.totalStorage = this.formatBytes(storageQuota.quota)
+            this.systemInfo.usagePercent = storageQuota.percentage.toFixed(2)
+          } else {
+            this.systemInfo.usedStorage = 'ไม่รองรับ'
+            this.systemInfo.totalStorage = 'ไม่รองรับ'
+            this.systemInfo.usagePercent = 0
+          }
+        } else {
+          this.systemInfo.dbVersion = 'N/A'
+          this.systemInfo.usedStorage = 'ไม่รองรับ'
+          this.systemInfo.totalStorage = 'ไม่รองรับ'
+          this.systemInfo.usagePercent = 0
+        }
+        
+        // ดึงเวลา Sync ล่าสุดจาก Store
+        if (this.$store.state.lastSyncTime) {
+          const lastSync = new Date(this.$store.state.lastSyncTime)
+          this.systemInfo.lastSync = lastSync.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        } else {
+          this.systemInfo.lastSync = 'ยังไม่เคยซิงค์'
+        }
+      } catch (error) {
+        console.error('Error loading system info:', error)
+        this.$toast.error('ไม่สามารถโหลดข้อมูลระบบได้')
+      }
+    },
+    formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes'
+      
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    },
+    getStorageClass(percent) {
+      if (percent >= 90) return 'storage-critical'
+      if (percent >= 70) return 'storage-warning'
+      return 'storage-ok'
+    }
+  }
+}
+</script>
+
+<style scoped>
+.admin-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.top-header {
+  background: linear-gradient(135deg, #3551a4 0%, #2c4088 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  background: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.logo-img {
+  height: 45px;
+  width: auto;
+  object-fit: contain;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.network-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.network-status.online {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.4);
+}
+
+.network-status.online i {
+  color: #4caf50;
+}
+
+.network-status.offline {
+  background: rgba(255, 152, 0, 0.2);
+  border-color: rgba(255, 152, 0, 0.4);
+}
+
+.network-status.offline i {
+  color: #ff9800;
+}
+
+.network-status i {
+  font-size: 1rem;
+}
+
+.status-text {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.sync-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sync-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.sync-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sync-button i {
+  font-size: 1rem;
+}
+
+.sync-text {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .status-text,
+  .sync-text {
+    display: none;
+  }
+  
+  .network-status,
+  .sync-button,
+  .info-button {
+    padding: 0.5rem;
+  }
+  
+  .header-right {
+    gap: 0.75rem;
+  }
+}
+
+.info-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.info-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px) scale(1.05);
+}
+
+.info-button i {
+  font-size: 1.2rem;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.user-info {
+  text-align: right;
+}
+
+.user-name {
+  display: block;
+  font-weight: 400;
+  color: white;
+  font-size: 1.05rem;
+}
+
+.patients-count {
+  display: block;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.user-avatar {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.user-avatar:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.user-avatar i {
+  font-size: 1.8rem;
+  color: white;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: white;
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown-menu a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  color: #495057;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
+
+.dropdown-menu a i {
+  color: #3551a4;
+  font-size: 1rem;
+}
+
+.dropdown-menu a:hover {
+  background-color: #f8f9fa;
+  color: #3551a4;
+}
+
+.page-content {
+  flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+@media (max-width: 768px) {
+  .header-container {
+    padding: 1rem;
+  }
+  
+  .header-left {
+    gap: 1rem;
+  }
+  
+  .logo-img {
+    height: 35px;
+  }
+  
+  .page-title {
+    font-size: 1.1rem;
+  }
+  
+  .user-name {
+    display: none;
+  }
+  
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .page-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 0.95rem;
+  }
+  
+  .logo-container {
+    padding: 0.4rem 0.8rem;
+  }
+  
+  .logo-img {
+    height: 30px;
+  }
+}
+
+/* System Info Modal Styles */
+.system-info-content {
+  padding: 1rem;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 0.5rem;
+  border-left: 4px solid #3551a4;
+  transition: all 0.2s ease;
+}
+
+
+.info-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  color: #495057;
+  font-size: 0.95rem;
+}
+
+.info-label i {
+  color: #3551a4;
+  font-size: 1.1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.info-value {
+  font-weight: 600;
+  color: #212529;
+  font-size: 0.95rem;
+  text-align: right;
+}
+
+.storage-progress {
+  width: 200px;
+  height: 20px;
+  background: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.storage-progress-bar {
+  height: 100%;
+  transition: width 0.5s ease, background-color 0.3s ease;
+  border-radius: 10px;
+}
+
+.storage-progress-bar.storage-ok {
+  background: linear-gradient(90deg, #4caf50, #81c784);
+}
+
+.storage-progress-bar.storage-warning {
+  background: linear-gradient(90deg, #ff9800, #ffb74d);
+}
+
+.storage-progress-bar.storage-critical {
+  background: linear-gradient(90deg, #f44336, #ef5350);
+}
+
+.usage-text {
+  display: block;
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .info-value {
+    text-align: left;
+  }
+  
+  .storage-progress {
+    width: 100%;
+  }
+}
+</style>

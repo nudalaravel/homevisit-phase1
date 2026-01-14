@@ -115,12 +115,25 @@ export default {
     }
   },
   beforeMount() {
-    // Check if already authenticated, redirect to home
+    // Check if already authenticated, redirect based on user level
     if (process.client) {
       const isAuthenticated = this.$store.state.auth?.loggedIn
       if (isAuthenticated) {
-        console.log('Already authenticated, redirecting to home')
-        this.$router.push('/')
+        const user = this.$store.state.auth?.user
+        const userLevel = user?.level
+        
+        if (userLevel === 1) {
+          console.log('Already authenticated (Level 1), redirecting to admin-payment')
+          this.$router.push('/admin-payment')
+        } else if (userLevel === 2) {
+          console.log('Already authenticated (Level 2), redirecting to supervisor dashboard')
+          this.$router.push('/supervisor-dashboard')
+        } else if (userLevel === 3) {
+          console.log('Already authenticated (Level 3), redirecting to home')
+          this.$router.push('/')
+        } else {
+          console.warn('Invalid user level:', userLevel, '- staying on login page')
+        }
       }
     }
   },
@@ -137,16 +150,8 @@ export default {
   },
   methods: {
     validateUsername() {
-      if (!this.form.username) {
+      if (!this.form.username || this.form.username.trim() === '') {
         this.errors.username = 'กรุณากรอกชื่อผู้ใช้'
-        return false
-      }
-      if (this.form.username.length < 3) {
-        this.errors.username = 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร'
-        return false
-      }
-      if (!/^[a-zA-Z0-9_]+$/.test(this.form.username)) {
-        this.errors.username = 'ชื่อผู้ใช้ต้องเป็นตัวอักษร ตัวเลข หรือ _ เท่านั้น'
         return false
       }
       delete this.errors.username
@@ -209,9 +214,76 @@ export default {
         // Show success message
         this.$toast.success('เข้าสู่ระบบสำเร็จ')
 
+        // Get user level and redirect accordingly
+        // Wait a bit to ensure user data is set in store
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Try multiple sources to get user data
+        let user = this.$store.state.auth?.user;
+        let userLevel = user?.level;
+        
+        // Debug logging
+        console.log("Login - User data check:", {
+          storeUser: this.$store.state.auth?.user,
+          storeUserLevel: this.$store.state.auth?.user?.level,
+          offlineUser: this.$offlineAuth?.getUser(),
+          offlineUserLevel: this.$offlineAuth?.getUser()?.level
+        });
+        
+        // If level is undefined, try offline auth
+        if (userLevel === undefined) {
+          const offlineUser = this.$offlineAuth?.getUser();
+          if (offlineUser && offlineUser.level !== undefined) {
+            user = offlineUser;
+            userLevel = offlineUser.level;
+            console.log("Login: Got user level from offline auth:", userLevel);
+          }
+        }
+        
+        // If still undefined, try localStorage
+        if (userLevel === undefined && process.client) {
+          try {
+            const authDataStr = localStorage.getItem("offline_auth_data");
+            if (authDataStr) {
+              const authData = JSON.parse(authDataStr);
+              if (authData && authData.user && authData.user.level !== undefined) {
+                user = authData.user;
+                userLevel = authData.user.level;
+                console.log("Login: Got user level from localStorage:", userLevel);
+                
+                // Update store if needed
+                if (!this.$store.state.auth?.user || !this.$store.state.auth.user.level) {
+                  this.$store.commit("auth/SET", ["user", authData.user]);
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Login: Error reading from localStorage:", e);
+          }
+        }
+
+        // Validate user level
+        if (userLevel !== 1 && userLevel !== 2 && userLevel !== 3) {
+          console.error('Invalid user level:', userLevel, 'User:', user);
+          this.$toast.error('ระดับผู้ใช้ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ')
+          return
+        }
+
         // Wait a bit before redirecting
         setTimeout(() => {
-          this.$router.push('/')
+          if (userLevel === 1) {
+            // Level 1 users (Admin) - go to admin-payment
+            console.log('Level 1 user login: Redirecting to admin-payment')
+            this.$router.push('/admin-payment')
+          } else if (userLevel === 2) {
+            // Level 2 users (Supervisor) - STRICTLY go to supervisor dashboard only
+            console.log('Level 2 user login: Redirecting to supervisor dashboard')
+            this.$router.push('/supervisor-dashboard')
+          } else if (userLevel === 3) {
+            // Level 3 users (Home Visitor) - go to home page
+            console.log('Level 3 user login: Redirecting to home page')
+            this.$router.push('/')
+          }
         }, 500)
 
       } catch (error) {

@@ -27,6 +27,7 @@ import nuxt_plugin_indexeddb_3fb74679 from 'nuxt_plugin_indexeddb_3fb74679' // S
 import nuxt_plugin_systeminit_62d658b8 from 'nuxt_plugin_systeminit_62d658b8' // Source: ../plugins/system-init (mode: 'all')
 import nuxt_plugin_toast_3357971e from 'nuxt_plugin_toast_3357971e' // Source: ../plugins/toast (mode: 'all')
 import nuxt_plugin_sweetalert_4d5e1f3c from 'nuxt_plugin_sweetalert_4d5e1f3c' // Source: ../plugins/sweetalert (mode: 'all')
+import nuxt_plugin_select2_27978b77 from 'nuxt_plugin_select2_27978b77' // Source: ../plugins/select2.js (mode: 'client')
 import nuxt_plugin_plugin_79477512 from 'nuxt_plugin_plugin_79477512' // Source: ./auth/plugin.js (mode: 'all')
 
 // Component: <ClientOnly>
@@ -92,7 +93,7 @@ async function createApp(ssrContext, config = {}) {
   // here we inject the router and store to all child components,
   // making them available everywhere as `this.$router` and `this.$store`.
   const app = {
-    head: {"title":"Riped V2 Research","meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"hid":"description","name":"description","content":"Research Dashboard Template"},{"name":"theme-color","content":"#3551a4"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"Riped V2 Research"},{"hid":"charset","charset":"utf-8"},{"hid":"mobile-web-app-capable","name":"mobile-web-app-capable","content":"yes"},{"hid":"author","name":"author","content":"Riped Team"},{"hid":"og:type","name":"og:type","property":"og:type","content":"website"},{"hid":"og:title","name":"og:title","property":"og:title","content":"Riped V2 Research"},{"hid":"og:site_name","name":"og:site_name","property":"og:site_name","content":"Riped V2 Research"},{"hid":"og:description","name":"og:description","property":"og:description","content":"Research Dashboard Template"}],"link":[{"rel":"icon","type":"image\u002Fx-icon","href":"\u002Fhomevisit\u002Ffavicon.ico"},{"rel":"stylesheet","href":"\u002Fhomevisit\u002Ffonts\u002Fkanit.css"},{"rel":"apple-touch-icon","href":"\u002Fhomevisit\u002Flogo.png"},{"rel":"manifest","href":"\u002Fhomevisit\u002Fmanifest.json"},{"hid":"shortcut-icon","rel":"shortcut icon","href":"\u002Fhomevisit\u002Flogo.png"},{"hid":"apple-touch-icon","rel":"apple-touch-icon","href":"\u002Fhomevisit\u002Flogo.png","sizes":"512x512"},{"rel":"manifest","href":"\u002Fhomevisit\u002F_nuxt\u002Fmanifest.ca1325ce.json","hid":"manifest"}],"style":[],"script":[],"htmlAttrs":{"lang":"th"}},
+    head: {"title":"Riped V2 Research","meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"hid":"description","name":"description","content":"Research Dashboard Template"},{"name":"theme-color","content":"#3551a4"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"Riped V2 Research"}],"link":[{"rel":"icon","type":"image\u002Fx-icon","href":"\u002Fhomevisit\u002Ffavicon.ico"},{"rel":"stylesheet","href":"\u002Fhomevisit\u002Ffonts\u002Fkanit.css"},{"rel":"apple-touch-icon","href":"\u002Fhomevisit\u002Flogo.png"},{"rel":"manifest","href":"\u002Fhomevisit\u002Fmanifest.json"}],"style":[],"script":[]},
 
     store,
     router,
@@ -278,6 +279,10 @@ async function createApp(ssrContext, config = {}) {
 
   if (typeof nuxt_plugin_sweetalert_4d5e1f3c === 'function') {
     await nuxt_plugin_sweetalert_4d5e1f3c(app.context, inject)
+  }
+
+  if (process.client && typeof nuxt_plugin_select2_27978b77 === 'function') {
+    await nuxt_plugin_select2_27978b77(app.context, inject)
   }
 
   if (typeof nuxt_plugin_plugin_79477512 === 'function') {

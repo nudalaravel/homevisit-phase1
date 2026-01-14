@@ -48,6 +48,7 @@ export default {
     "~/plugins/system-init",
     "~/plugins/toast",
     "~/plugins/sweetalert",
+    { src: "~/plugins/select2.js", mode: "client" },
   ],
   components: [
     {
