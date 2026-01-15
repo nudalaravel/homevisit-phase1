@@ -1,2 +1,8 @@
 node_modules
 *.md
+.history
+.history/*
+.agent
+.agent/*
+.dist
+.dist/*

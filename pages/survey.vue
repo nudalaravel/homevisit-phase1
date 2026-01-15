@@ -2799,6 +2799,9 @@ export default {
           // แก้ไขแบบสอบถามที่เสร็จแล้ว
           await this.saveProgress()
           
+          // อัพเดท approve_status ถ้าเป็นการแก้ไขจากการขอแก้ไขของ Supervisor
+          await this.updateApproveStatusAfterEdit()
+          
           // เช็คและอัพเดท booking ครั้งถัดไปถ้ามีการเปลี่ยนแปลงวันนัดใน step12
           const bookingUpdated = await this.updateNextBookingIfChanged()
           if (bookingUpdated) {
@@ -2849,6 +2852,9 @@ export default {
         
         // บันทึกความคืบหน้า
         await this.saveProgress()
+        
+        // อัพเดท approve_status ถ้าเป็นการแก้ไขจากการขอแก้ไขของ Supervisor
+        await this.updateApproveStatusAfterEdit()
         
         // เช็คและอัพเดท booking ครั้งถัดไปถ้ามีการเปลี่ยนแปลงวันนัดใน step12
         const bookingUpdated = await this.updateNextBookingIfChanged()
@@ -2975,6 +2981,49 @@ export default {
         return true
       } catch (error) {
         return false
+      }
+    },
+    
+    /**
+     * อัพเดท approve_status เป็น -2 เมื่อ Home Visitor แก้ไขผลเยี่ยมบ้านที่ถูกขอให้แก้ไข (approve_status = -1) จนเสร็จ
+     */
+    async updateApproveStatusAfterEdit() {
+      try {
+        // ตรวจสอบว่า survey ที่แก้ไขมี approve_status = -1 (ถูกขอให้แก้ไข) หรือไม่
+        const currentSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
+        
+        if (currentSurvey && currentSurvey.approve_status === -1) {
+          // อัพเดท approve_status เป็น -2 (แก้ไขแล้ว รอตรวจสอบใหม่)
+          currentSurvey.approve_status = -2
+          await this.$indexedDB.saveSurveyProgress(currentSurvey)
+          
+          // Sync ไปที่ API (PUT homevisitor_app)
+          await this.syncApproveStatusToAPI(currentSurvey)
+          
+          return true
+        }
+        return false
+      } catch (error) {
+        console.error('Failed to update approve_status after edit:', error)
+        return false
+      }
+    },
+    
+    /**
+     * Sync approve_status ไปที่ API
+     */
+    async syncApproveStatusToAPI(survey) {
+      try {
+        await this.$axios.$put('/api/parenting2025_census/put/homevisit/putdata.php', {
+          variable: ['approve_status'],
+          value: [String(survey.approve_status)],
+          pk: ['stid', 'time_visit'],
+          pkval: [survey.stid, String(survey.time_visit)],
+          tb: 'homevisitor_app'
+        })
+      } catch (error) {
+        console.error('Failed to sync approve_status to API:', error)
+        // ไม่ throw error เพราะจะ sync อีกครั้งตอน manual sync
       }
     },
     

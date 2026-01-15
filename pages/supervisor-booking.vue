@@ -96,19 +96,13 @@
         <template #cell(record)="row">
           <button
             class="btn-record"
-            :class="{
-              'btn-success': row.item.recordStatus === 'completed',
-              'btn-warning': row.item.recordStatus === 'pending'
-            }"
+            :class="getRecordButtonClass(row.item)"
             @click="viewRecord(row.item)"
+            :title="getRecordButtonTitle(row.item)"
           >
             <i
               class="fas"
-              :class="
-                row.item.recordStatus === 'completed'
-                  ? 'fa-check'
-                  : 'fa-exclamation-triangle'
-              "
+              :class="getRecordButtonIcon(row.item)"
             ></i>
             แบบเยี่ยมบ้าน
           </button>
@@ -140,6 +134,7 @@
             ></i>
             <template v-else>
               <button 
+                v-if="row.item.approveStatus !== -1 && row.item.approveStatus !== -2"
                 class="btn-request-correction" 
                 @click="openCorrectionModal(row.item)"
                 title="แจ้งให้แก้ไข"
@@ -156,6 +151,26 @@
           </div>
         </template>
       </b-table>
+    </div>
+
+    <!-- Color Legend -->
+    <div class="color-legend">
+      <span class="legend-item">
+        <span class="legend-color legend-pending"></span>
+        รอตรวจสอบ
+      </span>
+      <span class="legend-item">
+        <span class="legend-color legend-approved"></span>
+        อนุมัติแล้ว
+      </span>
+      <span class="legend-item">
+        <span class="legend-color legend-correction"></span>
+        แจ้งให้แก้ไข
+      </span>
+      <span class="legend-item">
+        <span class="legend-color legend-edited"></span>
+        แก้ไขแล้ว รอตรวจ
+      </span>
     </div>
 
     <!-- Action Buttons -->
@@ -705,12 +720,33 @@ export default {
           params.append('user_id', this.filters.visitor)
         }
         
-        // ใช้ API ใหม่ที่มีข้อมูลครบถ้วน
-        const url = `/api/parenting2025_census/get/homevisit/sup/gethomevisit_result_data.php${params.toString() ? '?' + params.toString() : ''}`
-        const response = await this.$axios.$get(url)
+        // ดึงข้อมูลจาก 2 API พร้อมกัน
+        const [resultDataResponse, resultListResponse] = await Promise.all([
+          // API หลัก - ข้อมูลผลการเยี่ยมบ้าน
+          this.$axios.$get(`/api/parenting2025_census/get/homevisit/sup/gethomevisit_result_data.php${params.toString() ? '?' + params.toString() : ''}`),
+          // API เสริม - ข้อมูล approve_status และ approve_comment
+          this.$axios.$get(`/api/parenting2025_census/get/homevisit/sup/gethomevisit_resultlist.php${params.toString() ? '?' + params.toString() : ''}`)
+        ])
         
-        const isSuccess = response.message === 'success' || response.statusCode === 200
-        if (isSuccess && response.results) {
+        // สร้าง lookup map สำหรับ approve_status และ approve_comment จาก resultlist API
+        // key = stid_time_visit
+        const approveStatusMap = {}
+        if (resultListResponse?.results) {
+          resultListResponse.results.forEach(item => {
+            const key = `${item.stid}_${item.time_visit}`
+            approveStatusMap[key] = {
+              approve_status: item.approve_status !== null && item.approve_status !== undefined 
+                ? parseInt(item.approve_status) 
+                : null,
+              approve_comment: item.approve_comment || null,
+              approve_date: item.approve_date || null,
+              approve_by: item.approve_by || null
+            }
+          })
+        }
+        
+        const isSuccess = resultDataResponse.message === 'success' || resultDataResponse.statusCode === 200
+        if (isSuccess && resultDataResponse.results) {
           // สร้าง lookup map: username -> ชื่อเต็ม จาก visitorOptions
           const visitorNameMap = {}
           this.visitorOptions.forEach(opt => {
@@ -720,27 +756,52 @@ export default {
           })
           
           // Filter ข้อมูลฝั่ง client ตามผู้เยี่ยมบ้านที่เลือก
-          let filteredResults = response.results
+          let filteredResults = resultDataResponse.results
           if (this.filters.visitor && this.filters.visitor !== 'all') {
-            filteredResults = response.results.filter(item => item.recby === this.filters.visitor)
+            filteredResults = resultDataResponse.results.filter(item => item.recby === this.filters.visitor)
           }
           
-          this.tableData = filteredResults.map((item, index) => ({
-            id: `${item.stid}-${item.time_visit}-${index}`,
-            stid: item.stid,
-            visitDate: `${this.formatThaiDate(item.date_visit)} (${item.time_visit || '-'})`,
-            visitorName: visitorNameMap[item.recby] || item.recby || '-',
-            childName: item.fullname_visit || `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
-            recordStatus: item.recStatus === '1' ? 'completed' : 'pending',
-            hasPhotos: !!(item.pic1 || item.pic2),
-            confirmStatus: item.confirmStatus || 'pending',
-            surveyId: item.stid,
-            recby: item.recby,
-            tamCode: item.tam_code,
-            timeVisit: item.time_visit,
-            // เก็บ response ดิบไว้สำหรับ modal
-            rawData: item
-          }))
+          this.tableData = filteredResults.map((item, index) => {
+            // ดึง approve status จาก resultlist API โดยใช้ stid และ time_visit เป็น key
+            const approveKey = `${item.stid}_${item.time_visit}`
+            const approveData = approveStatusMap[approveKey] || {}
+            const approveStatus = approveData.approve_status
+            
+            // แปลง approve_status เป็น confirmStatus
+            // 0 || null = ยังไม่ตรวจสอบ (pending)
+            // -1 = แจ้งให้แก้ไข (correction_requested)
+            // -2 = แก้ไขแล้ว (edited)
+            // 1 = อนุมัติ (confirmed)
+            let confirmStatus = 'pending'
+            if (approveStatus === 1) {
+              confirmStatus = 'confirmed'
+            } else if (approveStatus === -1) {
+              confirmStatus = 'correction_requested'
+            } else if (approveStatus === -2) {
+              confirmStatus = 'edited'
+            }
+            
+            return {
+              id: `${item.stid}-${item.time_visit}-${index}`,
+              stid: item.stid,
+              visitDate: `${this.formatThaiDate(item.date_visit)} (${item.time_visit || '-'})`,
+              visitorName: visitorNameMap[item.recby] || item.recby || '-',
+              childName: item.fullname_visit || `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
+              recordStatus: item.recStatus === '1' ? 'completed' : 'pending',
+              hasPhotos: !!(item.pic1 || item.pic2),
+              confirmStatus: confirmStatus,
+              approveStatus: approveStatus, // เก็บค่าดิบไว้ด้วย
+              approveComment: approveData.approve_comment,
+              approveDate: approveData.approve_date,
+              approveBy: approveData.approve_by,
+              surveyId: item.stid,
+              recby: item.recby,
+              tamCode: item.tam_code,
+              timeVisit: item.time_visit,
+              // เก็บ response ดิบไว้สำหรับ modal
+              rawData: item
+            }
+          })
         } else {
           this.tableData = []
         }
@@ -752,9 +813,53 @@ export default {
       }
     },
 
+
     refreshLatestApprovals() {
       // TODO: Implement refresh approved items API
       this.$toast.info('รีเฟรสข้อมูลการอนุมัติล่าสุด')
+    },
+
+    // Helper methods สำหรับปุ่ม "แบบเยี่ยมบ้าน" แสดง approve_status
+    getRecordButtonClass(item) {
+      // approve_status: 0/null=รอตรวจ, -1=แจ้งแก้ไข, -2=แก้ไขแล้ว, 1=อนุมัติ
+      const approveStatus = item.approveStatus
+      if (approveStatus === 1) {
+        return 'btn-approved' // อนุมัติแล้ว - สีเขียว
+      } else if (approveStatus === -1) {
+        return 'btn-correction-requested' // แจ้งให้แก้ไข - สีแดง
+      } else if (approveStatus === -2) {
+        return 'btn-edited' // แก้ไขแล้ว - สีฟ้า
+      } else {
+        // 0 หรือ null - ยังไม่ตรวจสอบ - สีเหลือง
+        return 'btn-pending'
+      }
+    },
+    
+    getRecordButtonIcon(item) {
+      const approveStatus = item.approveStatus
+      if (approveStatus === 1) {
+        return 'fa-check-circle' // อนุมัติแล้ว
+      } else if (approveStatus === -1) {
+        return 'fa-exclamation-triangle' // แจ้งให้แก้ไข
+      } else if (approveStatus === -2) {
+        return 'fa-clock' // แก้ไขแล้ว - ไอคอนนาฬิกา
+      } else {
+        return 'fa-clock' // รอตรวจสอบ - ไอคอนนาฬิกา
+      }
+    },
+    
+    getRecordButtonTitle(item) {
+      const approveStatus = item.approveStatus
+      const comment = item.approveComment || ''
+      if (approveStatus === 1) {
+        return 'อนุมัติแล้ว'
+      } else if (approveStatus === -1) {
+        return `แจ้งให้แก้ไข: ${comment}`
+      } else if (approveStatus === -2) {
+        return `แก้ไขแล้ว รอตรวจสอบ: ${comment}`
+      } else {
+        return 'รอตรวจสอบ'
+      }
     },
 
     async viewRecord(item) {
@@ -1845,6 +1950,117 @@ export default {
 
 .btn-request-correction i {
   font-size: 0.85rem;
+}
+
+/* Status Badges */
+.correction-badge {
+  background-color: #f0ad4e !important;
+  color: #212529 !important;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.375rem;
+}
+
+.correction-badge i {
+  font-size: 0.8rem;
+}
+
+.edited-badge {
+  background-color: #17a2b8 !important;
+  color: white !important;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.375rem;
+}
+
+.edited-badge i {
+  font-size: 0.8rem;
+}
+
+/* Record Button States based on approve_status */
+.btn-record.btn-approved {
+  background-color: #28a745 !important;
+  color: white !important;
+}
+
+.btn-record.btn-approved:hover {
+  background-color: #218838 !important;
+}
+
+.btn-record.btn-correction-requested {
+  background-color: #dc3545 !important;
+  color: white !important;
+}
+
+.btn-record.btn-correction-requested:hover {
+  background-color: #c82333 !important;
+}
+
+.btn-record.btn-edited {
+  background-color: #17a2b8 !important;
+  color: white !important;
+}
+
+.btn-record.btn-edited:hover {
+  background-color: #138496 !important;
+}
+
+.btn-record.btn-pending {
+  background-color: #ffc107 !important;
+  color: #212529 !important;
+}
+
+.btn-record.btn-pending:hover {
+  background-color: #e0a800 !important;
+}
+
+/* Color Legend */
+.color-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: #495057;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.legend-pending {
+  background-color: #ffc107;
+}
+
+.legend-approved {
+  background-color: #28a745;
+}
+
+.legend-correction {
+  background-color: #dc3545;
+}
+
+.legend-edited {
+  background-color: #17a2b8;
 }
 
 /* Correction Modal Styles */
