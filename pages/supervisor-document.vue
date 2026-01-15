@@ -87,6 +87,7 @@
           <input
             type="checkbox"
             :checked="row.item.sendReceipt"
+            :disabled="!row.item.canEdit"
             @change="toggleSendReceipt(row.item, $event)"
           />
         </template>
@@ -95,6 +96,7 @@
           <input
             type="checkbox"
             :checked="row.item.sendIdCard"
+            :disabled="!row.item.canEdit"
             @change="toggleSendIdCard(row.item, $event)"
           />
         </template>
@@ -421,6 +423,8 @@ export default {
             doc1_date: item.doc1_date || null,
             doc2_by: item.doc2_by || null,
             doc2_date: item.doc2_date || null,
+            // can_edit: 0 = บล็อคไม่ให้แก้ไข, 1 = แก้ไขได้
+            canEdit: item.can_edit === '1' || item.can_edit === 1,
             isComplete: item.doc1 === '1' && item.doc2 === '1',
             rawData: item
           }))
