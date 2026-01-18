@@ -547,24 +547,62 @@ export default {
       this.receiptData = null
     },
     async downloadPDF() {
-      if (!this.receiptData || !window.html2pdf) {
-        this.$toast.error('ไม่สามารถสร้าง PDF ได้ กรุณารอสักครู่แล้วลองอีกครั้ง')
+      // ตรวจสอบว่า html2pdf.js โหลดแล้วหรือยัง
+      if (!window.html2pdf) {
+        this.$toast.warning('กำลังโหลดระบบสร้าง PDF กรุณารอสักครู่...')
+        // รอให้ script โหลดเสร็จ (max 5 วินาที)
+        let attempts = 0
+        while (!window.html2pdf && attempts < 50) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+          attempts++
+        }
+        if (!window.html2pdf) {
+          this.$toast.error('ไม่สามารถโหลดระบบสร้าง PDF ได้ กรุณารีเฟรชหน้าเว็บ')
+          return
+        }
+      }
+
+      if (!this.receiptData) {
+        this.$toast.error('ไม่พบข้อมูลใบสำคัญรับเงิน')
         return
       }
 
       try {
         this.loadingPDF = true
+        
+        // รอให้ Vue render เสร็จ
+        await this.$nextTick()
+        
+        // รอ 1 frame เพิ่มเติมเพื่อให้แน่ใจว่า DOM update เสร็จ
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        
+        // เพิ่ม delay เล็กน้อยเพื่อให้ content stabilize (สำคัญสำหรับ html2canvas)
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
         const element = document.getElementById('receipt-content')
         if (!element) {
           this.$toast.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
         }
 
+        // ตรวจสอบว่า element มี content จริง
+        if (!element.innerText || element.innerText.trim().length < 50) {
+          console.warn('PDF element may be empty:', element.innerText)
+          this.$toast.warning('กำลังรอข้อมูล...')
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+
         const opt = {
           margin: [5, 5, 5, 5],
-          filename: `ใบสำคัญรับเงิน_${this.receiptData.visitorName}_${this.receiptData.formattedDate}.pdf`,
+          filename: `ใบสำคัญรับเงิน_${this.receiptData.visitorName || 'unknown'}_${this.receiptData.formattedDate || 'date'}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
+          html2canvas: { 
+            scale: 2, 
+            useCORS: true,
+            logging: false,
+            allowTaint: true,
+            backgroundColor: '#ffffff'  // กำหนด background ให้ชัดเจน
+          },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         }
 
@@ -572,7 +610,7 @@ export default {
         this.$toast.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
-        this.$toast.error('เกิดข้อผิดพลาดในการสร้าง PDF')
+        this.$toast.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
       } finally {
         this.loadingPDF = false
       }
