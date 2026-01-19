@@ -638,7 +638,6 @@ export default {
   padding: 1rem;
   background: #f8f9fa;
   border-radius: 0.5rem;
-  border-left: 4px solid #3551a4;
   transition: all 0.2s ease;
 }
 

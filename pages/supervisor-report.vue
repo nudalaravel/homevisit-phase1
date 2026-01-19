@@ -174,62 +174,84 @@
     <b-modal
       id="visitResultModal"
       v-model="showVisitResultModal"
-      title="ผลการเยี่ยมบ้าน"
+      title="แบบสังเกตผู้เยี่ยมบ้าน"
       size="xl"
       no-close-on-backdrop
       @hidden="onNestedModalHidden"
       @shown="onNestedModalShown"
       header-class="modal-header-visit"
-      :dialog-class="showObservationsModal ? 'nested-modal-dialog nested-modal-level-2' : ''"
+      :dialog-class="showObservationsModal ? 'nested-modal-dialog nested-modal-level-2 record-modal-dialog' : 'record-modal-dialog'"
       no-enforce-focus
       :static="showObservationsModal"
+      body-class="record-modal-body"
     >
-      <div class="visit-result-header">
-        <div class="patient-info-bar">
-          <i class="fas fa-user-circle"></i>
-          <span class="patient-name-large">{{ visitResultForm.childName }}</span>
-          <span class="patient-nickname-badge">ครั้งที่ {{ visitResultForm.visitNumber }}</span>
-        </div>
-        <div class="visit-date-info">
-          <i class="fas fa-calendar-alt"></i>
-          <span>{{ formatThaiDate(visitResultForm.visitDate) }} เวลา {{ visitResultForm.visitTime }}</span>
+      <div v-if="observationData && !loadingObservation" class="visit-record-wrapper">
+        <div id="observation-record-content" class="visit-record-content">
+         
+
+          <!-- Basic Info Section -->
+          <div class="plain-text-section">
+            <p>ชื่อ-นามสกุลของเด็ก : {{ visitResultForm.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatThaiDate(observationData?.date_visit) }}</span></p>
+            <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การสังเกตครั้งที่ {{ observationData?.time_visit || '-' }}</span></p>
+            <p>เวลาเริ่มต้นการสังเกต {{ observationData?.timeStart || '-' }} น.</p>
+          </div>
+
+          <!-- การสังเกต Section -->
+          <div class="plain-text-section">
+            <p class="section-header-text underline">การสังเกต</p>
+            <p>ผู้ดูแลหลัก : {{ getQ0Label(observationData?.q0) }}</p>
+          </div>
+
+          <!-- ทบทวนกิจกรรมการเยี่ยมบ้าน Section -->
+          <div class="plain-text-section">
+            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ observationData?.month_age || '-' }} การเยี่ยมบ้าน {{ observationData?.time || '-' }}</p>
+          </div>
+
+          <!-- Questions Section -->
+          <div class="plain-text-section">
+            <div v-for="(answer, index) in visitResultForm.answers" :key="index" class="question-answer-item">
+              <p>{{ answer.questionNumber }} : {{ answer.question }}</p>
+              <p class="indent-answer">{{ answer.answer }}</p>
+            </div>
+            <div v-if="!visitResultForm.answers || visitResultForm.answers.length === 0" class="text-muted">
+              ไม่มีข้อมูลการสังเกต
+            </div>
+          </div>
+
+          <!-- End Time Section -->
+          <div class="plain-text-section">
+            <p>เวลาสิ้นสุดการสังเกต {{ observationData?.timeEnd || '-' }} น.</p>
+            <p v-if="observationData?.note">บันทึกผู้สังเกต - {{ observationData.note }}</p>
+          </div>
+
+          <!-- Images Section - 2 columns -->
+          <div v-if="observationData?.pic1 || observationData?.pic2" class="plain-text-section">
+            <p class="section-header-text">รูปภาพ</p>
+            <div class="observation-images-grid">
+              <div v-if="observationData?.pic1" class="image-preview-grid">
+                <img :src="observationData.pic1" alt="รูปภาพที่ 1" @error="handleImageError">
+              </div>
+              <div v-if="observationData?.pic2" class="image-preview-grid">
+                <img :src="observationData.pic2" alt="รูปภาพที่ 2" @error="handleImageError">
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div v-if="visitResultForm.answers && visitResultForm.answers.length > 0" class="survey-answers-list">
-        <div v-for="(answer, index) in visitResultForm.answers" :key="index" class="answer-item">
-          <div class="answer-question">
-            <span class="question-number">{{ answer.questionNumber }}</span>
-            <span class="question-text">{{ answer.question }}</span>
-          </div>
-          <div class="answer-content">
-            <div v-if="answer.type === 'text'" class="answer-text">
-              {{ answer.answer }}
-            </div>
-            <div v-else-if="answer.type === 'options'" class="answer-options">
-              <span class="answer-option">{{ answer.answer }}</span>
-            </div>
-            <div v-else-if="answer.type === 'number'" class="answer-number">
-              {{ answer.answer }}
-            </div>
-            <div v-else-if="answer.type === 'list'" class="answer-list">
-              <ul>
-                <li v-for="(item, idx) in answer.answer" :key="idx">{{ item }}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else class="empty-answers">
-        <i class="fas fa-clipboard-question"></i>
-        <p>ยังไม่มีข้อมูลการตอบคำถาม</p>
+      <div v-else class="loading-record">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>กำลังโหลดข้อมูล...</p>
       </div>
 
       <template #modal-footer="{ cancel }">
         <b-button variant="secondary" @click="cancel()">
           <i class="fas fa-times"></i>
           ปิด
+        </b-button>
+        <b-button variant="primary" @click="downloadObservationPDF" :disabled="!observationData || loadingPDF">
+          <i class="fas" :class="loadingPDF ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+          {{ loadingPDF ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF' }}
         </b-button>
       </template>
     </b-modal>
@@ -279,7 +301,11 @@ export default {
         visitDate: '',
         visitTime: '',
         answers: []
-      }
+      },
+      surveyQuestions: [],
+      loadingPDF: false,
+      loadingObservation: false,
+      observationData: null
     }
   },
   async mounted() {
@@ -315,178 +341,159 @@ export default {
       }
     },
 
-    viewChildren(item) {
-      // สร้างข้อมูลจำลองสำหรับรายชื่อเด็ก
-      const mockChildren = []
-      const childNames = [
-        'ณัฐบดินทร์ สมฆ้อง',
-        'กานต์พิชชา ใจดี',
-        'ปิยะวัฒน์ แก้วใส',
-        'สุชาดา รักธรรม',
-        'ธีรพงษ์ เกียรติสูง',
-        'อารียา สุขใจ',
-        'พงศ์ศิริ มั่นคง'
-      ]
-      
-      for (let i = 0; i < item.childCount; i++) {
-        const visitDate = new Date()
-        visitDate.setDate(visitDate.getDate() - Math.floor(Math.random() * 30))
+    async viewChildren(item) {
+      try {
+        // เรียก API เพื่อดึงข้อมูลรายละเอียด
+        const url = `/api/parenting2025_census/get/homevisit/sup/gethomevisit_dashboard.php?homevisitor=${encodeURIComponent(item.homevisitor)}`
+        const response = await this.$axios.$get(url)
         
-        const day = visitDate.getDate()
-        const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 
-                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
-        const month = monthNames[visitDate.getMonth()]
-        const year = visitDate.getFullYear() + 543
+        const isSuccess = response.message === 'success' || response.statusCode === 200
         
-        mockChildren.push({
-          childName: childNames[i] || `เด็ก ${i + 1}`,
-          lastVisitDate: `${day} ${month} ${year}`,
-          observationCount: Math.floor(Math.random() * 5)
-        })
+        if (isSuccess && response.results && response.results.length > 0) {
+          const visitorData = response.results[0]
+          const homeVisitRecords = visitorData.homeVisitRecord || []
+          
+          // Map ข้อมูลจาก homeVisitRecord
+          const children = homeVisitRecords.map(record => ({
+            stid: record.stid,
+            childName: record.fullname_child || `${record.fname || ''} ${record.surname || ''}`.trim() || '-',
+            lastVisitDate: record.date_visit_last,
+            observationCount: parseInt(record.count_obs) || 0
+          }))
+          
+          this.childrenForm = {
+            visitorName: item.visitorName,
+            homevisitor: item.homevisitor,
+            children: children
+          }
+        } else {
+          // ถ้าไม่มีข้อมูลจาก API ให้ใช้ข้อมูลที่มีอยู่แล้ว (ถ้ามี)
+          const homeVisitRecords = item.homeVisitRecord || []
+          
+          const children = homeVisitRecords.map(record => ({
+            stid: record.stid,
+            childName: record.fullname_child || `${record.fname || ''} ${record.surname || ''}`.trim() || '-',
+            lastVisitDate: record.date_visit_last,
+            observationCount: parseInt(record.count_obs) || 0
+          }))
+          
+          this.childrenForm = {
+            visitorName: item.visitorName,
+            homevisitor: item.homevisitor,
+            children: children
+          }
+        }
+        
+        this.showChildrenModal = true
+      } catch (error) {
+        console.error('Error fetching children data:', error)
+        this.$toast.error('ไม่สามารถดึงข้อมูลเด็กได้')
+        
+        // Fallback ใช้ข้อมูลที่มีอยู่แล้ว
+        const homeVisitRecords = item.homeVisitRecord || []
+        
+        const children = homeVisitRecords.map(record => ({
+          stid: record.stid,
+          childName: record.fullname_child || `${record.fname || ''} ${record.surname || ''}`.trim() || '-',
+          lastVisitDate: record.date_visit_last,
+          observationCount: parseInt(record.count_obs) || 0
+        }))
+        
+        this.childrenForm = {
+          visitorName: item.visitorName,
+          homevisitor: item.homevisitor,
+          children: children
+        }
+        
+        this.showChildrenModal = true
       }
-      
-      this.childrenForm = {
-        visitorName: item.visitorName,
-        children: mockChildren
-      }
-      
-      this.showChildrenModal = true
     },
     viewChildObservations(child, visitorName) {
-      // สร้างข้อมูลจำลองสำหรับการสังเกตของเด็กคนนี้
-      const mockObservations = []
-      const observationCount = child.observationCount || 0
-      
-      for (let i = 0; i < observationCount; i++) {
-        const visitDate = new Date()
-        visitDate.setDate(visitDate.getDate() - i * 21) // ห่างกัน 21 วัน
-        
-        const day = visitDate.getDate()
-        const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 
-                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
-        const month = monthNames[visitDate.getMonth()]
-        const year = visitDate.getFullYear() + 543
-        
-        mockObservations.push({
-          childName: child.childName,
-          visitDate: `${day} ${month} ${year}`,
-          visitNumber: observationCount - i,
-          visitTime: '15:00 น.'
-        })
-      }
-      
-      this.observationsForm = {
-        visitorName: visitorName,
-        observations: mockObservations
-      }
-      
-      this.showChildrenModal = false
-      this.showObservationsModal = true
+      // ไม่ใช้แล้ว - เก็บไว้เผื่อต้องการในอนาคต
+      console.log('viewChildObservations called but not used')
     },
-    viewObservations(item) {
-      // สร้างข้อมูลจำลองสำหรับการสังเกตทั้งหมด
-      const mockObservations = []
-      const observationCount = item.observationCount || 0
-      const childNames = [
-        'ณัฐบดินทร์ สมฆ้อง',
-        'กานต์พิชชา ใจดี',
-        'ปิยะวัฒน์ แก้วใส',
-        'สุชาดา รักธรรม'
-      ]
-      
-      for (let i = 0; i < observationCount; i++) {
-        const visitDate = new Date()
-        visitDate.setDate(visitDate.getDate() - i * 21)
+    async viewObservations(item) {
+      try {
+        // เรียก API เพื่อดึงข้อมูลรายละเอียด
+        const url = `/api/parenting2025_census/get/homevisit/sup/gethomevisit_dashboard.php?homevisitor=${encodeURIComponent(item.homevisitor)}`
+        const response = await this.$axios.$get(url)
         
-        const day = visitDate.getDate()
-        const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 
-                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
-        const month = monthNames[visitDate.getMonth()]
-        const year = visitDate.getFullYear() + 543
+        const isSuccess = response.message === 'success' || response.statusCode === 200
         
-        mockObservations.push({
-          childName: childNames[i % childNames.length],
-          visitDate: `${day} ${month} ${year}`,
-          visitNumber: observationCount - i,
-          visitTime: '15:00 น.'
-        })
-      }
-      
-      this.observationsForm = {
-        visitorName: item.visitorName,
-        observations: mockObservations
-      }
-      
-      this.showObservationsModal = true
-    },
-    viewObservationDetail(observation) {
-      // สร้างข้อมูลจำลองสำหรับผลการเยี่ยมบ้าน (เหมือนใน dashboard)
-      const mockAnswers = [
-        {
-          questionNumber: 'Q1',
-          question: 'กิจกรรมที่ทำในครั้งนี้',
-          type: 'list',
-          answer: [
-            'กิจกรรมที่ 1: เล่นของเล่น',
-            'กิจกรรมที่ 2: อ่านหนังสือ',
-            'กิจกรรมที่ 3: วาดรูป'
-          ]
-        },
-        {
-          questionNumber: 'Q2',
-          question: 'จุดประสงค์ของกิจกรรม',
-          type: 'text',
-          answer: 'เพื่อพัฒนาทักษะการสื่อสารและความคิดสร้างสรรค์ของเด็ก'
-        },
-        {
-          questionNumber: 'Q3',
-          question: 'พฤติกรรมของเด็กขณะทำกิจกรรม',
-          type: 'options',
-          answer: 'ให้ความร่วมมือดี'
-        },
-        {
-          questionNumber: 'Q4',
-          question: 'การมีส่วนร่วมของผู้ปกครอง',
-          type: 'options',
-          answer: 'มีส่วนร่วมอย่างเต็มที่'
-        },
-        {
-          questionNumber: 'Q5',
-          question: 'ความพึงพอใจของเด็ก',
-          type: 'number',
-          answer: '8/10'
-        },
-        {
-          questionNumber: 'Q6',
-          question: 'ปัญหาหรืออุปสรรคที่พบ',
-          type: 'text',
-          answer: 'ไม่มีปัญหาที่สำคัญ'
-        },
-        {
-          questionNumber: 'Q7',
-          question: 'ข้อเสนอแนะ',
-          type: 'text',
-          answer: 'ควรเพิ่มกิจกรรมที่ใช้การเคลื่อนไหวมากขึ้น'
-        },
-        {
-          questionNumber: 'Q8',
-          question: 'ความพร้อมสำหรับการเยี่ยมครั้งถัดไป',
-          type: 'options',
-          answer: 'พร้อม'
-        },
-        {
-          questionNumber: 'Q9',
-          question: 'เวลาที่ใช้ในการเยี่ยมบ้าน',
-          type: 'text',
-          answer: '45 นาที'
-        },
-        {
-          questionNumber: 'Q10',
-          question: 'นัดหมายครั้งถัดไป',
-          type: 'text',
-          answer: 'วันที่ 15 กุมภาพันธ์ 2566 เวลา 15:00 น.'
+        if (isSuccess && response.results && response.results.length > 0) {
+          const visitorData = response.results[0]
+          const classroomObsRecords = visitorData.classroomObsRecord || []
+          
+          // Map ข้อมูลจาก classroomObsRecord
+          const observations = classroomObsRecords.map(record => ({
+            rowNo: record.row_no,
+            stid: record.stid,
+            recby: record.recby,
+            homevisitor: record.homevisitor,
+            childName: record.fullname_child || `${record.fname || ''} ${record.surname || ''}`.trim() || '-',
+            visitDate: record.date_visit,
+            visitNumber: record.time_visit || 1,
+            visitTime: '-'
+          }))
+          
+          this.observationsForm = {
+            visitorName: item.visitorName,
+            homevisitor: item.homevisitor,
+            observations: observations
+          }
+        } else {
+          // ถ้าไม่มีข้อมูลจาก API ให้ใช้ข้อมูลที่มีอยู่แล้ว (ถ้ามี)
+          const classroomObsRecords = item.classroomObsRecord || []
+          
+          const observations = classroomObsRecords.map(record => ({
+            rowNo: record.row_no,
+            stid: record.stid,
+            recby: record.recby,
+            homevisitor: record.homevisitor,
+            childName: record.fullname_child || `${record.fname || ''} ${record.surname || ''}`.trim() || '-',
+            visitDate: record.date_visit,
+            visitNumber: record.time_visit || 1,
+            visitTime: '-'
+          }))
+          
+          this.observationsForm = {
+            visitorName: item.visitorName,
+            homevisitor: item.homevisitor,
+            observations: observations
+          }
         }
-      ]
+        
+        this.showObservationsModal = true
+      } catch (error) {
+        console.error('Error fetching observations data:', error)
+        this.$toast.error('ไม่สามารถดึงข้อมูลการสังเกตได้')
+        
+        // Fallback ใช้ข้อมูลที่มีอยู่แล้ว
+        const classroomObsRecords = item.classroomObsRecord || []
+        
+        const observations = classroomObsRecords.map(record => ({
+          rowNo: record.row_no,
+          stid: record.stid,
+          recby: record.recby,
+          homevisitor: record.homevisitor,
+          childName: record.fullname_child || `${record.fname || ''} ${record.surname || ''}`.trim() || '-',
+          visitDate: record.date_visit,
+          visitNumber: record.time_visit || 1,
+          visitTime: '-'
+        }))
+        
+        this.observationsForm = {
+          visitorName: item.visitorName,
+          homevisitor: item.homevisitor,
+          observations: observations
+        }
+        
+        this.showObservationsModal = true
+      }
+    },
+    async viewObservationDetail(observation) {
+      this.observationData = null
+      this.loadingObservation = true
       
       this.visitResultForm = {
         childName: observation.childName,
@@ -494,10 +501,347 @@ export default {
         visitNumber: observation.visitNumber,
         visitDate: observation.visitDate,
         visitTime: observation.visitTime,
-        answers: mockAnswers
+        answers: []
       }
       
       this.showVisitResultModal = true
+      
+      try {
+        // Fetch survey questions if not loaded
+        if (this.surveyQuestions.length === 0) {
+          await this.fetchSurveyQuestions()
+        }
+        
+        // Fetch observation data from API
+        const url = `/api/parenting2025_census/get/homevisit/sup/gethomevisit_observation_data.php?homevisitor=${encodeURIComponent(observation.homevisitor)}&stid=${encodeURIComponent(observation.stid)}&time_visit=${encodeURIComponent(observation.visitNumber)}`
+        const response = await this.$axios.$get(url)
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        
+        if (isSuccess && response.results && response.results.length > 0) {
+          const data = response.results[0]
+          this.observationData = data
+          
+          // Map observation data to answers using surveyQuestions
+          const answers = this.mapObservationToAnswers(data)
+          this.visitResultForm.answers = answers
+          
+          // Update header info
+          this.visitResultForm.childName = observation.childName
+          this.visitResultForm.visitDate = data.date_visit || observation.visitDate
+          this.visitResultForm.visitTime = data.timeStart || '-'
+          this.visitResultForm.visitNumber = data.time_visit || observation.visitNumber
+          this.visitResultForm.timeStart = data.timeStart || '-'
+          this.visitResultForm.timeEnd = data.timeEnd || '-'
+          this.visitResultForm.note = data.note || ''
+          this.visitResultForm.q0 = data.q0 || ''
+          this.visitResultForm.monthAge = data.month_age || ''
+          this.visitResultForm.time = data.time || ''
+          this.visitResultForm.pic1 = data.pic1 || ''
+          this.visitResultForm.pic2 = data.pic2 || ''
+        }
+      } catch (error) {
+        console.error('Error fetching observation data:', error)
+        this.$toast?.error?.('ไม่สามารถโหลดข้อมูลการสังเกตได้')
+      } finally {
+        this.loadingObservation = false
+      }
+    },
+    
+    // Fetch survey questions from API
+    async fetchSurveyQuestions() {
+      try {
+        const url = '/api/parenting2025_census/get/homevisit/sup/gethomevisit_observations_question.php'
+        const response = await this.$axios.$get(url)
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        
+        if (isSuccess && response.results) {
+          this.surveyQuestions = response.results
+        }
+      } catch (error) {
+        console.error('Error fetching survey questions:', error)
+      }
+    },
+    
+    // Map observation data to answer display format (1-based numbering: q0=1, q1=2, etc.)
+    mapObservationToAnswers(data) {
+      const answers = []
+      let questionNumber = 1
+      
+      // Get q0 answer label (now numbered as 1)
+      const q0Labels = {
+        '1': 'แม่',
+        '2': 'พ่อ',
+        '3': 'ย่า/ยาย',
+        '4': 'ปู่/ตา',
+        '5': 'พี่น้อง',
+        '6': 'ลุง/ป้า/น้ำ/อา',
+        '7': 'ญาติคนอื่น',
+        '8': 'ไม่ใช่ญาติ'
+      }
+      
+      if (data.q0) {
+        answers.push({
+          questionNumber: questionNumber,
+          question: 'ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่',
+          type: 'options',
+          answer: q0Labels[data.q0] || data.q0,
+          section: 'homevisit'
+        })
+        questionNumber++
+      }
+      
+      // Map q1-q30 using surveyQuestions (numbered sequentially)
+      for (let i = 1; i <= 30; i++) {
+        const qCode = `q${i}`
+        const qValue = data[qCode]
+        
+        if (qValue !== undefined && qValue !== null && qValue !== '') {
+          const question = this.surveyQuestions.find(q => q.question_code === qCode)
+          
+          if (question) {
+            let answerLabel = qValue
+            
+            // Find choice label
+            if (question.choices && question.choices.length > 0) {
+              const choice = question.choices.find(c => String(c.value) === String(qValue))
+              if (choice) {
+                answerLabel = choice.label
+              }
+            }
+            
+            answers.push({
+              questionNumber: questionNumber,
+              question: question.question_text || `คำถามที่ ${questionNumber}`,
+              type: 'options',
+              answer: answerLabel,
+              section: question.section || 'general'
+            })
+            questionNumber++
+          }
+        }
+      }
+      
+      return answers
+    },
+    
+    // Get home visit section answers (first 2 questions)
+    getHomeVisitAnswers() {
+      return this.visitResultForm.answers.filter((_, index) => index < 2)
+    },
+    
+    // Get review section answers (questions 3-5)
+    getReviewAnswers() {
+      return this.visitResultForm.answers.filter((_, index) => index >= 2 && index < 5)
+    },
+    
+    // Check if activity review data exists
+    hasActivityReviewData() {
+      // For now, return false as activity data structure needs to be defined
+      return false
+    },
+    
+    // Get activity review data
+    getActivityReviewData() {
+      // For now, return empty array - can be populated from API later
+      return []
+    },
+    
+    // Download observation as PDF
+    async downloadObservationPDF() {
+      this.loadingPDF = true
+      
+      try {
+        // Ensure html2pdf is loaded
+        if (!window.html2pdf) {
+          const script = document.createElement('script')
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+          document.head.appendChild(script)
+          await new Promise(resolve => {
+            script.onload = resolve
+          })
+        }
+        
+        // Helper function to convert image URL to base64
+        const imageToBase64 = async (url) => {
+          try {
+            const response = await fetch(url, { mode: 'cors' })
+            const blob = await response.blob()
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onloadend = () => resolve(reader.result)
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+          } catch (error) {
+            console.error('Error converting image to base64:', error)
+            return null
+          }
+        }
+        
+        // Build HTML content for PDF
+        const data = this.observationData
+        const q0Labels = {
+          '1': 'แม่', '2': 'พ่อ', '3': 'ย่า/ยาย', '4': 'ปู่/ตา',
+          '5': 'พี่น้อง', '6': 'ลุง/ป้า/น้ำ/อา', '7': 'ญาติคนอื่น', '8': 'ไม่ใช่ญาติ'
+        }
+        
+        // Convert images to base64 for PDF
+        let pic1Base64 = null
+        let pic2Base64 = null
+        if (data?.pic1) {
+          pic1Base64 = await imageToBase64(data.pic1)
+        }
+        if (data?.pic2) {
+          pic2Base64 = await imageToBase64(data.pic2)
+        }
+        
+        let html = `
+          <style>
+            .pdf-container {
+              font-family: 'Sarabun', sans-serif;
+              padding: 20px;
+              max-width: 210mm;
+              margin: 0 auto;
+              font-size: 14px;
+              color: #1a5276;
+            }
+            .pdf-section {
+              page-break-inside: avoid;
+              margin-bottom: 15px;
+            }
+            .pdf-question-item {
+              page-break-inside: avoid;
+              margin-bottom: 8px;
+            }
+            .pdf-images-section {
+              page-break-inside: avoid;
+              page-break-before: auto;
+            }
+            .pdf-image-grid {
+              display: flex;
+              gap: 15px;
+              flex-wrap: wrap;
+            }
+            .pdf-image-item {
+              flex: 1;
+              min-width: 40%;
+              max-width: 48%;
+              page-break-inside: avoid;
+            }
+            .pdf-image-item img {
+              width: 100%;
+              max-height: 280px;
+              object-fit: contain;
+              border: 1px solid #ccc;
+              border-radius: 4px;
+            }
+          </style>
+          <div class="pdf-container">
+            <h2 style="text-align: center; margin-bottom: 30px; font-size: 20px; font-weight: bold; color: #1a5276;">แบบสังเกตผู้เยี่ยมบ้าน</h2>
+            
+            <div class="pdf-section" style="line-height: 1.8;">
+              <p style="margin: 5px 0;">ชื่อ-นามสกุลของเด็ก : ${this.visitResultForm.childName || '-'} <span style="margin-left: 3rem;">วันที่ ${this.formatThaiDate(data?.date_visit) || '-'}</span></p>
+              <p style="margin: 5px 0;">ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : ${this.visitResultForm.visitorName || '-'} <span style="margin-left: 3rem;">การสังเกตครั้งที่ ${data?.time_visit || '-'}</span></p>
+              <p style="margin: 5px 0;">เวลาเริ่มต้นการสังเกต ${data?.timeStart || '-'} น.</p>
+            </div>
+            
+            <!-- การสังเกต Section -->
+            <div class="pdf-section" style="line-height: 1.8;">
+              <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">การสังเกต</p>
+              <p>ผู้ดูแลหลัก : ${q0Labels[data?.q0] || data?.q0 || '-'}</p>
+            </div>
+            
+            <!-- ทบทวนกิจกรรมการเยี่ยมบ้าน Section -->
+            <div class="pdf-section" style="line-height: 1.8;">
+              <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ ${data?.month_age || '-'} การเยี่ยมบ้าน ${data?.time || '-'}</p>
+            </div>
+            
+            <!-- Questions -->
+            <div style="line-height: 1.8;">
+        `
+        
+        this.visitResultForm.answers.forEach(answer => {
+          html += `
+              <div class="pdf-question-item">
+                <p style="margin: 2px 0;">${answer.questionNumber} : ${answer.question}</p>
+                <p style="margin: 2px 0; margin-left: 2rem;">${answer.answer}</p>
+              </div>
+          `
+        })
+        
+        html += `
+            </div>
+            
+            <!-- End time and note -->
+            <div class="pdf-section" style="margin-top: 20px; line-height: 1.8;">
+              <p style="margin: 5px 0;">เวลาสิ้นสุดการสังเกต ${data?.timeEnd || '-'} น.</p>
+              ${data?.note ? `<p style="margin: 5px 0;">บันทึกผู้สังเกต - ${data.note}</p>` : ''}
+            </div>
+        `
+        
+        // Add images in 2-column layout with base64
+        if (pic1Base64 || pic2Base64) {
+          html += `
+            <div class="pdf-images-section" style="margin-top: 20px;">
+              <p style="font-weight: bold; margin-bottom: 10px;">รูปภาพ</p>
+              <div class="pdf-image-grid">
+          `
+          if (pic1Base64) {
+            html += `
+                <div class="pdf-image-item">
+                  <img src="${pic1Base64}" alt="รูปภาพที่ 1">
+                </div>
+            `
+          }
+          if (pic2Base64) {
+            html += `
+                <div class="pdf-image-item">
+                  <img src="${pic2Base64}" alt="รูปภาพที่ 2">
+                </div>
+            `
+          }
+          html += `
+              </div>
+            </div>
+          `
+        }
+        
+        html += `</div>`
+        
+        // Create temporary element
+        const container = document.createElement('div')
+        container.innerHTML = html
+        document.body.appendChild(container)
+        
+        // Generate PDF with page break options
+        const options = {
+          margin: [10, 10, 10, 10],
+          filename: `แบบสังเกตผู้เยี่ยมบ้าน_${this.visitResultForm.childName || 'observation'}_${data?.date_visit || 'pdf'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2, 
+            useCORS: true,
+            allowTaint: true,
+            logging: false
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        }
+        
+        await window.html2pdf().set(options).from(container).save()
+        
+        // Cleanup
+        document.body.removeChild(container)
+        
+        this.$toast?.success?.('ดาวน์โหลด PDF สำเร็จ')
+      } catch (error) {
+        console.error('Error generating PDF:', error)
+        this.$toast?.error?.('ไม่สามารถสร้าง PDF ได้')
+      } finally {
+        this.loadingPDF = false
+      }
     },
     resetChildrenForm() {
       this.childrenForm = {
@@ -584,6 +928,26 @@ export default {
           }
         }, 100)
       })
+    },
+    
+    // Get Q0 label for caregiver
+    getQ0Label(value) {
+      const labels = {
+        '1': 'แม่',
+        '2': 'พ่อ',
+        '3': 'ย่า/ยาย',
+        '4': 'ปู่/ตา',
+        '5': 'พี่น้อง',
+        '6': 'ลุง/ป้า/น้ำ/อา',
+        '7': 'ญาติคนอื่น',
+        '8': 'ไม่ใช่ญาติ'
+      }
+      return labels[value] || value || '-'
+    },
+    
+    // Handle image load error
+    handleImageError(event) {
+      event.target.style.display = 'none'
     },
     
     // Format date to Thai format
@@ -1318,6 +1682,35 @@ export default {
   .answer-question {
     flex-direction: column;
     gap: 0.75rem;
+  }
+}
+
+/* 2-Column Image Grid for Observation */
+.observation-images-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  width: 100%;
+}
+
+.image-preview-grid {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.image-preview-grid img {
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 576px) {
+  .observation-images-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

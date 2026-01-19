@@ -2,11 +2,25 @@
   <div class="supervisor-survey">
     <!-- Page Header -->
     <div class="page-header">
-      <h1 class="page-title">บันทึกการสังเกตผู้เยี่ยมบ้าน</h1>
+      <h1 class="page-title">
+        บันทึกการสังเกตผู้เยี่ยมบ้าน
+        <b-badge v-if="isEditMode" variant="warning" class="ml-2">โหมดแก้ไข</b-badge>
+        <b-badge v-else-if="isFormReady && !loadingObservation" variant="success" class="ml-2">สร้างใหม่</b-badge>
+      </h1>
+      <div v-if="loadingObservation" class="loading-observation">
+        <i class="fas fa-spinner fa-spin mr-2"></i>
+        <span>กำลังโหลดข้อมูลเดิม...</span>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loadingData" class="loading-state">
+      <i class="fas fa-spinner fa-spin mr-2"></i>
+      <span>กำลังโหลดข้อมูล...</span>
     </div>
 
     <!-- Form Section -->
-    <b-form @submit.prevent="handleSubmit" class="form-section">
+    <b-form v-else @submit.prevent="handleSubmit" class="form-section">
       <!-- Selection Dropdowns -->
       <div class="form-row">
         <div class="form-group">
@@ -67,300 +81,198 @@
 
       <!-- Survey Form Content -->
       <div v-if="isFormReady" class="survey-content">
-
-        <!-- Question 1: ผู้ปกครองสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
-        <div class="question-section">
-          <h4 class="question-title">1. ผู้ปกครองสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
-          <div class="options-container">
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q1 === 1 }"
-              @click="answers.q1 = 1"
-            >
-              ได้ (1)
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q1 === 3 }"
-              @click="answers.q1 = 3"
-            >
-              ไม่ได้ (3)
-            </button>
+        
+        <!-- Fixed Form Section -->
+        <div class="fixed-form-section">
+          <!-- วันที่เข้าเยี่ยมบ้าน (read-only) -->
+          <div class="fixed-form-row">
+            <label class="fixed-label">วันที่เข้าเยี่ยมบ้าน :</label>
+            <span class="fixed-value">{{ formatThaiDateFull(selectedVisitData.date_app_curr || selectedVisitData.date_visit) }}</span>
           </div>
-          <!-- Show input when "ไม่ได้" is selected -->
-          <div v-if="answers.q1 === 3" class="sub-question-input">
-            <label class="form-label">โปรดให้เหตุผล:</label>
-            <b-form-input
-              v-model="answers.q1_des"
-              placeholder="กรอกเหตุผล..."
-            ></b-form-input>
+          
+          <!-- กิจกรรมการเยี่ยมบ้าน (read-only) -->
+          <div class="fixed-form-row">
+            <label class="fixed-label">กิจกรรมการเยี่ยมบ้าน :</label>
+            <span class="fixed-value">เดือนที่ {{ selectedVisitData.month_age || '-' }} การเยี่ยมบ้าน {{ selectedVisitData.time || '-' }}</span>
           </div>
-        </div>
-
-        <!-- Question 2: เด็กสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
-        <div class="question-section">
-          <h4 class="question-title">2. เด็กสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
-          <div class="options-container">
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q2 === 1 }"
-              @click="answers.q2 = 1"
-            >
-              ได้ (1)
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q2 === 3 }"
-              @click="answers.q2 = 3"
-            >
-              ไม่ได้ (3)
-            </button>
+          
+          <!-- กิจกรรมเริ่มเวลา (free text) -->
+          <div class="fixed-form-row">
+            <label class="fixed-label">กิจกรรมเริ่มเวลา :</label>
+            <input 
+              v-model="fixForm.timeStart"
+              type="text"
+              class="form-control fixed-input"
+              placeholder="เช่น 09.00 น."
+            />
           </div>
-          <div v-if="answers.q2 === 3" class="sub-question-input">
-            <label class="form-label">โปรดให้เหตุผล:</label>
-            <b-form-input
-              v-model="answers.q2_des"
-              placeholder="กรอกเหตุผล..."
-            ></b-form-input>
+          
+          <!-- กิจกรรมสิ้นสุดเวลา (free text) -->
+          <div class="fixed-form-row">
+            <label class="fixed-label">กิจกรรมสิ้นสุดเวลา :</label>
+            <input 
+              v-model="fixForm.timeEnd"
+              type="text"
+              class="form-control fixed-input"
+              placeholder="เช่น 10.00 น." />
           </div>
-        </div>
-
-        <!-- Question 3: ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก -->
-        <div class="question-section">
-          <h4 class="question-title">3. ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก (ทบทวนการเยี่ยมบ้านที่ผ่านมา)</h4>
-          <div class="options-container multi-select">
-            <button
-              v-for="option in q3Options"
-              :key="option.value"
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q3.includes(option.value) }"
-              @click="toggleQ3Answer(option.value)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-          <div v-if="answers.q3.includes(13)" class="sub-question-input">
-            <label class="form-label">อื่นๆ ระบุ:</label>
-            <b-form-input
-              v-model="answers.q3_des"
-              placeholder="โปรดระบุ..."
-            ></b-form-input>
-          </div>
-        </div>
-
-        <!-- Question 4: ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน -->
-        <div class="question-section">
-          <h4 class="question-title">4. ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน ? (ทบทวนการเยี่ยมบ้านที่ผ่านมา)</h4>
-          <div class="options-container">
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q4 === 1 }"
-              @click="answers.q4 = 1"
-            >
-              ไม่ทำเลย
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q4 === 2 }"
-              @click="answers.q4 = 2"
-            >
-              ทำน้อย (1-2 วัน)
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q4 === 3 }"
-              @click="answers.q4 = 3"
-            >
-              ทำบ้างเป็นบางวัน (3-4 วัน)
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q4 === 4 }"
-              @click="answers.q4 = 4"
-            >
-              ทำเกือบทุกวัน (5-7 วัน)
-            </button>
-          </div>
-        </div>
-
-        <!-- Question 5: Dynamic Activities from previous visit (Mockup) -->
-        <div class="question-section">
-          <h4 class="question-title">5. ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา</h4>
-          <p class="question-subtitle">กิจกรรมจากการเยี่ยมบ้านครั้งก่อน</p>
-          <div v-for="(activity, index) in q5Activities" :key="activity.no" class="activity-block">
-            <div class="activity-title">{{ index + 1 }}. {{ activity.title }}</div>
+          
+          <!-- ผู้ดูแลหลัก (q0 - styled like other questions) -->
+          <div class="question-section q0-section" :class="{ 'has-error': validationErrors.q0 }">
+            <h4 class="question-title">
+              ผู้ดูแลหลัก
+              <span class="required-mark">*</span>
+            </h4>
+            <div v-if="validationErrors.q0" class="error-message">
+              <i class="fas fa-exclamation-circle"></i> กรุณาเลือกผู้ดูแลหลัก
+            </div>
             <div class="options-container">
               <button
+                v-for="opt in q0Options"
+                :key="opt.value"
                 type="button"
                 class="option-btn"
-                :class="{ 'selected': answers.q5[activity.no] === 1 }"
-                @click="setQ5Answer(activity.no, 1)"
+                :class="{ 'selected': fixForm.q0 === opt.value }"
+                @click="fixForm.q0 = opt.value"
               >
-                ทำได้เอง (1)
-              </button>
-              <button
-                type="button"
-                class="option-btn"
-                :class="{ 'selected': answers.q5[activity.no] === 2 }"
-                @click="setQ5Answer(activity.no, 2)"
-              >
-                ทำได้โดยได้รับการช่วยเหลือ (2)
-              </button>
-              <button
-                type="button"
-                class="option-btn"
-                :class="{ 'selected': answers.q5[activity.no] === 3 }"
-                @click="setQ5Answer(activity.no, 3)"
-              >
-                ทำไม่ได้เลย (3)
+                {{ opt.label }}
               </button>
             </div>
           </div>
         </div>
-
-        <!-- Question 6: ใครเป็นคนทำกิจกรรมการเยี่ยมบ้านร่วมกับเด็กเป็นหลัก -->
-        <div class="question-section">
-          <h4 class="question-title">6. ใครเป็นคนทำกิจกรรมการเยี่ยมบ้านร่วมกับเด็กเป็นหลัก (การเยี่ยมบ้านครั้งนี้)</h4>
-          <div class="options-container three-columns">
-            <button
-              v-for="option in q6Options"
-              :key="option.value"
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q6 === option.value }"
-              @click="answers.q6 = option.value"
-            >
-              {{ option.label }}
-            </button>
+        
+        <!-- Dynamic Questions by Section -->
+        <template v-for="(sectionQuestions, sectionName) in groupedQuestions">
+          <!-- Section Header -->
+          <div :key="'section-' + sectionName" class="section-header">
+            <h3 class="section-title">{{ sectionName }}</h3>
           </div>
-          <div v-if="answers.q6 === 13" class="sub-question-input">
-            <label class="form-label">อื่นๆ ระบุ:</label>
-            <b-form-input
-              v-model="answers.q6_other"
-              placeholder="โปรดระบุ..."
-            ></b-form-input>
-          </div>
-        </div>
-
-        <!-- Question 7: มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ -->
-        <div class="question-section">
-          <h4 class="question-title">7. มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</h4>
-          <div class="options-container">
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q7 === 3 }"
-              @click="answers.q7 = 3"
+          
+          <!-- Questions in Section -->
+          <template v-for="(question, qIndex) in sectionQuestions">
+            <!-- Skip q5 if first visit (time_visit=1) -->
+            <div 
+              v-if="shouldShowQuestion(question)"
+              :key="question.question_code"
+              class="question-section"
+              :class="{ 'has-error': hasError(question.question_code) }"
             >
-              ไม่มี (3)
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q7 === 1 }"
-              @click="answers.q7 = 1"
-            >
-              มี (1)
-            </button>
-          </div>
-          <!-- Sub-question when "มี" is selected -->
-          <div v-if="answers.q7 === 1" class="sub-question">
-            <h5 class="sub-question-title">ใครเป็นผู้ร่วมทำกิจกรรม</h5>
-            <div class="options-container multi-select">
-              <button
-                v-for="option in q71Options"
-                :key="option.value"
-                type="button"
-                class="option-btn"
-                :class="{ 'selected': answers.q71 && answers.q71.includes(option.value) }"
-                @click="toggleQ71Answer(option.value)"
+              <!-- Question Title -->
+              <h4 class="question-title">
+                {{ getQuestionNumber(question) }}. {{ question.question_text }}
+                <span v-if="question.choices && question.choices.length > 0" class="required-mark">*</span>
+              </h4>
+              <div v-if="hasError(question.question_code)" class="error-message">
+                <i class="fas fa-exclamation-circle"></i> กรุณาเลือกคำตอบ
+              </div>
+              
+              <!-- Single Select (Radio-style buttons) -->
+              <div v-if="question.qtype === 'single'" class="options-container">
+                <!-- Empty choices warning -->
+                <div v-if="!question.choices || question.choices.length === 0" class="no-choices-warning">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <span>ไม่มีตัวเลือกสำหรับคำถามนี้ (กรุณาติดต่อผู้ดูแลระบบ)</span>
+                </div>
+                <button
+                  v-for="choice in question.choices"
+                  :key="choice.value"
+                  type="button"
+                  class="option-btn"
+                  :class="{ 'selected': answers[question.question_code] === choice.value }"
+                  @click="setAnswer(question.question_code, choice.value, choice)"
+                >
+                  {{ choice.label }}
+                </button>
+              </div>
+              
+              <!-- Multi Select (Checkbox-style buttons) -->
+              <div v-else-if="question.qtype === 'multi'" class="options-container multi-select">
+                <button
+                  v-for="choice in question.choices"
+                  :key="choice.value"
+                  type="button"
+                  class="option-btn"
+                  :class="{ 'selected': isMultiSelected(question.question_code, choice.value) }"
+                  @click="toggleMultiAnswer(question.question_code, choice.value, choice)"
+                >
+                  {{ choice.label }}
+                </button>
+              </div>
+              
+              <!-- "Other" Text Input (is_other=1) -->
+              <div 
+                v-if="shouldShowOtherInput(question)" 
+                class="sub-question-input"
               >
-                {{ option.label }}
-              </button>
+                <label class="form-label">โปรดระบุ:</label>
+                <b-form-input
+                  v-model="answers[question.question_code + '_other']"
+                  placeholder="โปรดระบุ..."
+                ></b-form-input>
+              </div>
+              
+              <!-- Child Questions (Sub-questions) -->
+              <template v-for="choice in question.choices">
+                <template v-if="choice.children && shouldShowChildren(question.question_code, choice)">
+                  <div 
+                    v-for="childQ in choice.children" 
+                    :key="childQ.question_code"
+                    class="sub-question"
+                  >
+                    <h5 class="sub-question-title">{{ childQ.question_text }}</h5>
+                    
+                    <!-- Child Single Select -->
+                    <div v-if="childQ.qtype === 'single'" class="options-container">
+                      <button
+                        v-for="childChoice in childQ.choices"
+                        :key="childChoice.value"
+                        type="button"
+                        class="option-btn"
+                        :class="{ 'selected': answers[childQ.question_code] === childChoice.value }"
+                        @click="setAnswer(childQ.question_code, childChoice.value, childChoice)"
+                      >
+                        {{ childChoice.label }}
+                      </button>
+                    </div>
+                    
+                    <!-- Child Multi Select -->
+                    <div v-else-if="childQ.qtype === 'multi'" class="options-container multi-select">
+                      <button
+                        v-for="childChoice in childQ.choices"
+                        :key="childChoice.value"
+                        type="button"
+                        class="option-btn"
+                        :class="{ 'selected': isMultiSelected(childQ.question_code, childChoice.value) }"
+                        @click="toggleMultiAnswer(childQ.question_code, childChoice.value, childChoice)"
+                      >
+                        {{ childChoice.label }}
+                      </button>
+                    </div>
+                    
+                    <!-- Child "Other" Input -->
+                    <div 
+                      v-if="shouldShowOtherInputForChild(childQ)" 
+                      class="sub-question-input"
+                    >
+                      <label class="form-label">โปรดระบุ:</label>
+                      <b-form-input
+                        v-model="answers[childQ.question_code + '_other']"
+                        placeholder="โปรดระบุ..."
+                      ></b-form-input>
+                    </div>
+                  </div>
+                </template>
+              </template>
             </div>
-            <div v-if="answers.q71 && answers.q71.includes(13)" class="sub-question-input">
-              <label class="form-label">อื่นๆ โปรดระบุ:</label>
-              <b-form-input
-                v-model="answers.q71_des"
-                placeholder="โปรดระบุ..."
-              ></b-form-input>
-            </div>
-          </div>
-        </div>
+          </template>
+        </template>
 
-        <!-- Question 8: มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็ก -->
+        <!-- Notes Section -->
         <div class="question-section">
-          <h4 class="question-title">8. มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ)</h4>
-          <div class="options-container">
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q8 === 1 }"
-              @click="answers.q8 = 1"
-            >
-              มี (1)
-            </button>
-            <button
-              type="button"
-              class="option-btn"
-              :class="{ 'selected': answers.q8 === 3 }"
-              @click="answers.q8 = 3"
-            >
-              ไม่มี (3)
-            </button>
-          </div>
-        </div>
-
-        <!-- Question 9: Dynamic Activities for current visit (Mockup) -->
-        <div class="question-section">
-          <h4 class="question-title">9. ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งนี้</h4>
-          <p class="question-subtitle">กิจกรรมจากการเยี่ยมบ้านครั้งนี้</p>
-          <div v-for="(activity, index) in q9Activities" :key="activity.no" class="activity-block">
-            <div class="activity-title">{{ index + 1 }}. {{ activity.title }}</div>
-            <div class="options-container">
-              <button
-                type="button"
-                class="option-btn"
-                :class="{ 'selected': answers.q9[activity.no] === 1 }"
-                @click="setQ9Answer(activity.no, 1)"
-              >
-                ทำได้เอง (1)
-              </button>
-              <button
-                type="button"
-                class="option-btn"
-                :class="{ 'selected': answers.q9[activity.no] === 2 }"
-                @click="setQ9Answer(activity.no, 2)"
-              >
-                ทำได้โดยได้รับการช่วยเหลือ (2)
-              </button>
-              <button
-                type="button"
-                class="option-btn"
-                :class="{ 'selected': answers.q9[activity.no] === 3 }"
-                @click="setQ9Answer(activity.no, 3)"
-              >
-                ทำไม่ได้เลย (3)
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Question 10: Notes Section -->
-        <div class="question-section">
-          <h4 class="question-title">10. บันทึกผู้เยี่ยมบ้าน</h4>
+          <h4 class="question-title">บันทึกเพิ่มเติม</h4>
           <b-form-textarea
             v-model="answers.notes"
-            placeholder="กรอกข้อมูล..."
+            placeholder="กรอกข้อมูลเพิ่มเติม..."
             rows="6"
             class="notes-textarea"
           ></b-form-textarea>
@@ -368,9 +280,9 @@
 
         <!-- Image Upload Section -->
         <div class="question-section">
-          <h4 class="question-title">11. รูปภาพการเยี่ยมบ้าน</h4>
+          <h4 class="question-title">รูปภาพการเยี่ยมบ้าน</h4>
           
-          <!-- Image 1: รูปของเล่น/สื่ออุปกรณ์ -->
+          <!-- Image 1 -->
           <div class="image-upload-block">
             <div class="image-label">รูปภาพที่ 1: รูปของเล่น สื่ออุปกรณ์ที่ใช้ในครั้งนี้</div>
             <div class="upload-container">
@@ -404,7 +316,7 @@
             </div>
           </div>
 
-          <!-- Image 2: รูปเด็กและผู้ปกครองทำกิจกรรม -->
+          <!-- Image 2 -->
           <div class="image-upload-block">
             <div class="image-label">รูปภาพที่ 2: รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม</div>
             <div class="upload-container">
@@ -452,9 +364,13 @@
               <b-spinner small class="mr-2"></b-spinner>
               กำลังบันทึก...
             </span>
+            <span v-else-if="isEditMode">
+              <i class="fas fa-save mr-2"></i>
+              อัปเดตข้อมูล
+            </span>
             <span v-else>
               <i class="fas fa-check-circle mr-2"></i>
-              บันทึกและสิ้นสุด
+              บันทึกข้อมูล
             </span>
           </b-button>
         </div>
@@ -470,102 +386,49 @@ export default {
   data() {
     return {
       isSubmitting: false,
+      loadingData: true,
       form: {
         visitor: null,
         child: null,
         visitDate: null
       },
+      // Fixed form fields (at top)
+      fixForm: {
+        timeStart: '',
+        timeEnd: '',
+        q0: null  // ผู้ดูแลหลัก
+      },
+      // q0 options
+      q0Options: [
+        { value: '1', label: 'แม่' },
+        { value: '2', label: 'พ่อ' },
+        { value: '3', label: 'ย่า/ยาย' },
+        { value: '4', label: 'ปู่/ตา' },
+        { value: '5', label: 'พี่น้อง' },
+        { value: '6', label: 'ลุง/ป้า/น้า/อา' },
+        { value: '7', label: 'ญาติคนอื่น' },
+        { value: '8', label: 'ไม่ใช่ญาติ' }
+      ],
       answers: {
-        q1: null,
-        q1_des: '',
-        q2: null,
-        q2_des: '',
-        q3: [],
-        q3_des: '',
-        q4: null,
-        q5: {},
-        q6: null,
-        q6_other: '',
-        q7: null,
-        q71: [],
-        q71_des: '',
-        q8: null,
-        q9: {},
         notes: ''
       },
+      validationErrors: {}, // Track validation errors
+      showValidationAlert: false,
       images: {
         image1: null,
         image2: null
       },
+      // API Data
       visitorOptions: [
-        { value: null, text: '--เลือก--' },
-        { value: '1', text: 'นายอุทิศ เนื่องแก้ว' }
+        { value: null, text: '--เลือก--' }
       ],
-      childOptions: [
-        { value: null, text: '--เลือก--' },
-        { value: '1', text: 'ณัฐบดินทร์ สมฆ้อง' }
-      ],
-      visitDateOptions: [
-        { value: null, text: '--เลือก--' },
-        { value: '1', text: 'อ. 03 ตุลาคม 2566' }
-      ],
-      q3Options: [
-        { value: 1, label: 'แม่ (1)' },
-        { value: 2, label: 'พ่อ (2)' },
-        { value: 3, label: 'ย่า (3)' },
-        { value: 4, label: 'ยาย (4)' },
-        { value: 5, label: 'ปู่ (5)' },
-        { value: 6, label: 'ตา (6)' },
-        { value: 7, label: 'พี่ชาย (7)' },
-        { value: 8, label: 'พี่สาว (8)' },
-        { value: 9, label: 'น้องชาย (9)' },
-        { value: 10, label: 'น้องสาว (10)' },
-        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 12, label: 'ไม่ใช่ญาติ (12)' },
-        { value: 13, label: 'อื่นๆ (13)' }
-      ],
-      q6Options: [
-        { value: 1, label: 'แม่ (1)' },
-        { value: 2, label: 'พ่อ (2)' },
-        { value: 3, label: 'ย่า (3)' },
-        { value: 4, label: 'ยาย (4)' },
-        { value: 5, label: 'ปู่ (5)' },
-        { value: 6, label: 'ตา (6)' },
-        { value: 7, label: 'พี่ชาย (7)' },
-        { value: 8, label: 'พี่สาว (8)' },
-        { value: 9, label: 'น้องชาย (9)' },
-        { value: 10, label: 'น้องสาว (10)' },
-        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 12, label: 'ไม่ใช่ญาติ (12)' },
-        { value: 13, label: 'อื่นๆ (13)' }
-      ],
-      q71Options: [
-        { value: 1, label: 'แม่ (1)' },
-        { value: 2, label: 'พ่อ (2)' },
-        { value: 3, label: 'ย่า (3)' },
-        { value: 4, label: 'ยาย (4)' },
-        { value: 5, label: 'ปู่ (5)' },
-        { value: 6, label: 'ตา (6)' },
-        { value: 7, label: 'พี่ชาย (7)' },
-        { value: 8, label: 'พี่สาว (8)' },
-        { value: 9, label: 'น้องชาย (9)' },
-        { value: 10, label: 'น้องสาว (10)' },
-        { value: 11, label: 'ลุง/ป้า/น้า/อา (11)' },
-        { value: 12, label: 'ไม่ใช่ญาติ (12)' },
-        { value: 13, label: 'อื่นๆ (13)' }
-      ],
-      // Mockup activities for Q5 (previous visit)
-      q5Activities: [
-        { no: 'A1', title: 'กิจกรรมตัวอย่างที่ 1 - เล่นกับลูกบอล' },
-        { no: 'A2', title: 'กิจกรรมตัวอย่างที่ 2 - อ่านหนังสือนิทาน' },
-        { no: 'A3', title: 'กิจกรรมตัวอย่างที่ 3 - ร้องเพลง' }
-      ],
-      // Mockup activities for Q9 (current visit)
-      q9Activities: [
-        { no: 'B1', title: 'กิจกรรมตัวอย่างที่ 1 - เล่นต่อบล็อก' },
-        { no: 'B2', title: 'กิจกรรมตัวอย่างที่ 2 - ระบายสี' },
-        { no: 'B3', title: 'กิจกรรมตัวอย่างที่ 3 - เล่นของเล่นเสริมพัฒนาการ' }
-      ]
+      allVisitResults: [],
+      surveyQuestions: [], // Questions from API
+      selectedVisitData: null, // To track time_visit
+      // Edit Mode
+      isEditMode: false,
+      existingData: null,
+      loadingObservation: false
     }
   },
   computed: {
@@ -581,34 +444,594 @@ export default {
         this.form.visitDate !== undefined &&
         this.form.visitDate !== ''
       )
+    },
+    // Filter children by selected visitor (recby = username)
+    childOptions() {
+      const options = [{ value: null, text: '--เลือก--' }]
+      
+      if (!this.form.visitor) {
+        return options
+      }
+      
+      const filteredResults = this.allVisitResults.filter(
+        item => item.recby === this.form.visitor
+      )
+      
+      const uniqueChildren = new Map()
+      filteredResults.forEach(item => {
+        if (!uniqueChildren.has(item.stid)) {
+          uniqueChildren.set(item.stid, {
+            value: item.stid,
+            text: item.fullname_visit || item.fname_ch || '-',
+            data: item
+          })
+        }
+      })
+      
+      return [...options, ...Array.from(uniqueChildren.values())]
+    },
+    // Filter visit dates by selected child
+    visitDateOptions() {
+      const options = [{ value: null, text: '--เลือก--' }]
+      
+      if (!this.form.visitor || !this.form.child) {
+        return options
+      }
+      
+      const filteredResults = this.allVisitResults.filter(
+        item => item.stid === this.form.child && item.recby === this.form.visitor
+      )
+      
+      filteredResults.forEach(item => {
+        // Use date_app_curr instead of date_visit
+        const dateToUse = item.date_app_curr || item.date_visit
+        if (dateToUse) {
+          const formattedDate = this.formatThaiDateOption(dateToUse)
+          options.push({
+            value: `${item.stid}_${item.time_visit}`,
+            text: `${formattedDate} (ครั้งที่ ${item.time_visit || 1})`,
+            data: item
+          })
+        }
+      })
+      
+      return options
+    },
+    // Get current time_visit from selected visit
+    currentTimeVisit() {
+      if (!this.form.visitDate || !this.selectedVisitData) {
+        return null
+      }
+      return parseInt(this.selectedVisitData.time_visit) || null
+    },
+    // Group questions by section
+    groupedQuestions() {
+      const groups = {}
+      
+      // Only include top-level questions (no parent_code)
+      const mainQuestions = this.surveyQuestions.filter(q => !q.parent_code)
+      
+      mainQuestions.forEach(q => {
+        const section = q.section || 'อื่นๆ'
+        if (!groups[section]) {
+          groups[section] = []
+        }
+        groups[section].push(q)
+      })
+      
+      return groups
     }
   },
   methods: {
-    toggleQ3Answer(value) {
-      const index = this.answers.q3.indexOf(value)
+    // Set single answer
+    setAnswer(questionCode, value, choice) {
+      this.$set(this.answers, questionCode, value)
+      
+      // Clear child answers when parent changes (if needed)
+      if (choice && choice.children) {
+        // Keep child answers
+      }
+    },
+    
+    // Check if multi-select option is selected
+    isMultiSelected(questionCode, value) {
+      const current = this.answers[questionCode]
+      return Array.isArray(current) && current.includes(value)
+    },
+    
+    // Toggle multi-select answer
+    toggleMultiAnswer(questionCode, value, choice) {
+      if (!this.answers[questionCode]) {
+        this.$set(this.answers, questionCode, [])
+      }
+      
+      const current = this.answers[questionCode]
+      const index = current.indexOf(value)
+      
       if (index === -1) {
-        this.answers.q3.push(value)
+        current.push(value)
       } else {
-        this.answers.q3.splice(index, 1)
+        current.splice(index, 1)
       }
     },
-    toggleQ71Answer(value) {
-      if (!this.answers.q71) {
-        this.answers.q71 = []
+    
+    // Check if question should be shown (skip q5 if time_visit=1)
+    shouldShowQuestion(question) {
+      if (question.question_code === 'q5' && this.currentTimeVisit === 1) {
+        return false
       }
-      const index = this.answers.q71.indexOf(value)
-      if (index === -1) {
-        this.answers.q71.push(value)
+      return true
+    },
+    
+    // Get display question number
+    getQuestionNumber(question) {
+      // Extract number from question_code (e.g., q1 -> 1)
+      const match = question.question_code.match(/q(\d+)/)
+      return match ? match[1] : question.sort_order
+    },
+    
+    // Check if "other" input should be shown
+    shouldShowOtherInput(question) {
+      const answer = this.answers[question.question_code]
+      
+      // For single select
+      if (question.qtype === 'single') {
+        const selectedChoice = question.choices.find(c => c.value === answer)
+        return selectedChoice && selectedChoice.is_other === 1
+      }
+      
+      // For multi select
+      if (question.qtype === 'multi' && Array.isArray(answer)) {
+        return answer.some(val => {
+          const choice = question.choices.find(c => c.value === val)
+          return choice && choice.is_other === 1
+        })
+      }
+      
+      return false
+    },
+    
+    // Check if "other" input for child question should be shown
+    shouldShowOtherInputForChild(childQ) {
+      const answer = this.answers[childQ.question_code]
+      
+      if (childQ.qtype === 'single') {
+        const selectedChoice = childQ.choices.find(c => c.value === answer)
+        return selectedChoice && selectedChoice.is_other === 1
+      }
+      
+      if (childQ.qtype === 'multi' && Array.isArray(answer)) {
+        return answer.some(val => {
+          const choice = childQ.choices.find(c => c.value === val)
+          return choice && choice.is_other === 1
+        })
+      }
+      
+      return false
+    },
+    
+    // Check if children sub-questions should be shown
+    shouldShowChildren(parentCode, choice) {
+      const parentAnswer = this.answers[parentCode]
+      
+      // Check if this choice is selected and has show_when condition
+      if (choice.children && choice.children.length > 0) {
+        const childQ = choice.children[0]
+        if (childQ.show_when && childQ.show_when.choice_value) {
+          return parentAnswer === childQ.show_when.choice_value
+        }
+        // Default: show if parent choice is selected
+        return parentAnswer === choice.value
+      }
+      
+      return false
+    },
+    
+    // Check if a question has validation error
+    hasError(questionCode) {
+      return this.showValidationAlert && this.validationErrors[questionCode]
+    },
+    
+    // Check if a question is required (all main questions are required)
+    isQuestionRequired(question) {
+      // Skip if no choices available (can't answer)
+      if (!question.choices || question.choices.length === 0) {
+        return false
+      }
+      // All main questions without parent_code are required
+      return !question.parent_code
+    },
+    
+    // Validate entire form
+    validateForm() {
+      this.validationErrors = {}
+      let missingCount = 0
+      
+      // Get all visible main questions
+      const mainQuestions = this.surveyQuestions.filter(q => !q.parent_code)
+      
+      for (const question of mainQuestions) {
+        // Skip if question is not shown (e.g., q5 on first visit)
+        if (!this.shouldShowQuestion(question)) {
+          continue
+        }
+        
+        // Skip if question has no choices (can't answer, e.g., q14)
+        if (!question.choices || question.choices.length === 0) {
+          continue
+        }
+        
+        const answer = this.answers[question.question_code]
+        let isAnswered = false
+        
+        if (question.qtype === 'single') {
+          isAnswered = answer !== null && answer !== undefined && answer !== ''
+        } else if (question.qtype === 'multi') {
+          isAnswered = Array.isArray(answer) && answer.length > 0
+        }
+        
+        if (!isAnswered) {
+          this.$set(this.validationErrors, question.question_code, true)
+          missingCount++
+        }
+        
+        // Check "other" input if required
+        if (isAnswered && this.shouldShowOtherInput(question)) {
+          const otherAnswer = this.answers[question.question_code + '_other']
+          if (!otherAnswer || otherAnswer.trim() === '') {
+            this.$set(this.validationErrors, question.question_code + '_other', true)
+            missingCount++
+          }
+        }
+        
+        // Check child questions if visible
+        if (question.choices) {
+          for (const choice of question.choices) {
+            if (choice.children && this.shouldShowChildren(question.question_code, choice)) {
+              for (const childQ of choice.children) {
+                const childAnswer = this.answers[childQ.question_code]
+                let isChildAnswered = false
+                
+                if (childQ.qtype === 'single') {
+                  isChildAnswered = childAnswer !== null && childAnswer !== undefined && childAnswer !== ''
+                } else if (childQ.qtype === 'multi') {
+                  isChildAnswered = Array.isArray(childAnswer) && childAnswer.length > 0
+                }
+                
+                if (!isChildAnswered) {
+                  this.$set(this.validationErrors, childQ.question_code, true)
+                  missingCount++
+                }
+                
+                // Check child "other" input
+                if (isChildAnswered && this.shouldShowOtherInputForChild(childQ)) {
+                  const childOtherAnswer = this.answers[childQ.question_code + '_other']
+                  if (!childOtherAnswer || childOtherAnswer.trim() === '') {
+                    this.$set(this.validationErrors, childQ.question_code + '_other', true)
+                    missingCount++
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Validate q0 (ผู้ดูแลหลัก - required)
+      if (!this.fixForm.q0) {
+        this.$set(this.validationErrors, 'q0', true)
+        missingCount++
+      }
+      
+      return {
+        isValid: missingCount === 0,
+        missingCount
+      }
+    },
+    
+    // Fetch visitors from API
+    async fetchVisitors() {
+      try {
+        const url = '/api/parenting2025_census/get/homevisit/getuser.php'
+        const response = await this.$axios.$get(url)
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        
+        if (isSuccess && response.results) {
+          this.visitorOptions = [
+            { value: null, text: '--เลือก--' },
+            ...response.results.map(user => ({
+              value: user.username,
+              text: `${user.fname || ''} ${user.lname || ''}`.trim() || user.username,
+              data: user
+            }))
+          ]
+        }
+      } catch (error) {
+        console.error('Error fetching visitors:', error)
+        this.$toast.error('ไม่สามารถดึงข้อมูลผู้เยี่ยมบ้านได้')
+      }
+    },
+    
+    // Fetch visit results from API
+    async fetchVisitResults() {
+      try {
+        const url = '/api/parenting2025_census/get/homevisit/sup/gethomevisit_resultlist.php'
+        const response = await this.$axios.$get(url)
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        
+        if (isSuccess && response.results) {
+          this.allVisitResults = response.results
+        }
+      } catch (error) {
+        console.error('Error fetching visit results:', error)
+        this.$toast.error('ไม่สามารถดึงข้อมูลผลการเยี่ยมบ้านได้')
+      }
+    },
+    
+    // Fetch survey questions from API
+    async fetchSurveyQuestions() {
+      try {
+        const url = '/api/parenting2025_census/get/homevisit/sup/gethomevisit_observations_question.php'
+        const response = await this.$axios.$get(url)
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        
+        if (isSuccess && response.results) {
+          this.surveyQuestions = response.results
+          
+          // Initialize answers for each question
+          this.surveyQuestions.forEach(q => {
+            // Fallback choices for q14 if empty
+            // if (q.question_code === 'q14' && (!q.choices || q.choices.length === 0)) {
+            //   q.choices = [
+            //     { value: '1', label: 'ส่วนใหญ่', order: 1, is_other: 0 },
+            //     { value: '2', label: 'บางครั้ง', order: 2, is_other: 0 },
+            //     { value: '3', label: 'เล็กน้อย', order: 3, is_other: 0 },
+            //     { value: '4', label: 'ไม่เลย', order: 4, is_other: 0 }
+            //   ]
+            // }
+            
+            if (q.qtype === 'multi') {
+              this.$set(this.answers, q.question_code, [])
+            } else {
+              this.$set(this.answers, q.question_code, null)
+            }
+            
+            // Also initialize child questions
+            if (q.choices) {
+              q.choices.forEach(choice => {
+                if (choice.children) {
+                  choice.children.forEach(childQ => {
+                    if (childQ.qtype === 'multi') {
+                      this.$set(this.answers, childQ.question_code, [])
+                    } else {
+                      this.$set(this.answers, childQ.question_code, null)
+                    }
+                  })
+                }
+              })
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching survey questions:', error)
+        this.$toast.error('ไม่สามารถดึงข้อมูลคำถามได้')
+      }
+    },
+    
+    // Fetch existing observation data (for edit mode)
+    async fetchObservationData() {
+      if (!this.selectedVisitData) return
+      
+      const { recby, stid, time_visit } = this.selectedVisitData
+      if (!recby || !stid || !time_visit) return
+      
+      this.loadingObservation = true
+      
+      try {
+        const url = `/api/parenting2025_census/get/homevisit/sup/gethomevisit_observation_data.php?homevisitor=${encodeURIComponent(recby)}&stid=${encodeURIComponent(stid)}&time_visit=${encodeURIComponent(time_visit)}`
+        const response = await this.$axios.$get(url)
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        
+        if (isSuccess && response.results && response.results.length > 0) {
+          // มีข้อมูลเดิม → Edit mode
+          this.existingData = response.results[0]
+          this.isEditMode = true
+          this.populateFormFromData(this.existingData)
+          this.$toast.info('กำลังแก้ไขแบบสังเกตผู้เยี่ยมบ้าน')
+        } else {
+          // ไม่มีข้อมูล → Create mode
+          this.existingData = null
+          this.isEditMode = false
+          this.resetFormAnswers()
+        }
+      } catch (error) {
+        console.error('Error fetching observation data:', error)
+        // ถ้า API error ให้เป็น create mode
+        this.existingData = null
+        this.isEditMode = false
+        this.resetFormAnswers()
+      } finally {
+        this.loadingObservation = false
+      }
+    },
+    
+    // Populate form from existing data
+    populateFormFromData(data) {
+      // Map fixForm fields
+      if (data.timeStart) {
+        this.fixForm.timeStart = data.timeStart
+      }
+      if (data.timeEnd) {
+        this.fixForm.timeEnd = data.timeEnd
+      }
+      if (data.q0) {
+        this.fixForm.q0 = String(data.q0)
+      }
+      
+      // Map q1-q30
+      for (let i = 1; i <= 30; i++) {
+        const key = `q${i}`
+        if (data[key] !== null && data[key] !== undefined) {
+          this.$set(this.answers, key, data[key])
+        }
+      }
+      
+      // Map q2a → q2_reason
+      if (data.q2a) {
+        this.$set(this.answers, 'q2_reason', data.q2a)
+      }
+      
+      // Map q2a_des → q2_reason_other
+      if (data.q2a_des) {
+        this.$set(this.answers, 'q2_reason_other', data.q2a_des)
+      }
+      
+      // Map q3a → q3_who (comma-separated to array)
+      if (data.q3a) {
+        const whoArray = data.q3a.split(',').filter(v => v.trim())
+        this.$set(this.answers, 'q3_who', whoArray)
+      }
+      
+      // Map note → notes
+      if (data.note) {
+        this.$set(this.answers, 'notes', data.note)
+      }
+      
+      // Map pictures
+      if (data.pic1) {
+        this.images.image1 = data.pic1
+      }
+      if (data.pic2) {
+        this.images.image2 = data.pic2
+      }
+    },
+    
+    // Reset form answers (for create mode)
+    resetFormAnswers() {
+      // Reset all q1-q30 answers
+      this.surveyQuestions.forEach(q => {
+        if (q.qtype === 'multi') {
+          this.$set(this.answers, q.question_code, [])
+        } else {
+          this.$set(this.answers, q.question_code, null)
+        }
+        
+        // Reset child questions too
+        if (q.choices) {
+          q.choices.forEach(choice => {
+            if (choice.children) {
+              choice.children.forEach(childQ => {
+                if (childQ.qtype === 'multi') {
+                  this.$set(this.answers, childQ.question_code, [])
+                } else {
+                  this.$set(this.answers, childQ.question_code, null)
+                }
+                // Reset _other fields
+                this.$set(this.answers, childQ.question_code + '_other', '')
+              })
+            }
+          })
+        }
+      })
+      
+      // Reset notes and images
+      this.answers.notes = ''
+      this.images.image1 = null
+      this.images.image2 = null
+      
+      // Reset fixForm fields
+      this.fixForm.timeStart = ''
+      this.fixForm.timeEnd = ''
+      this.fixForm.q0 = null
+    },
+    
+    // Format date to Thai
+    formatThaiDateOption(dateStr) {
+      if (!dateStr) return '-'
+      try {
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return dateStr
+        
+        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
+        const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
+        
+        const dayName = thaiDays[date.getDay()]
+        const day = date.getDate().toString().padStart(2, '0')
+        const month = thaiMonths[date.getMonth()]
+        const year = date.getFullYear() + 543
+        
+        return `${dayName} ${day} ${month} ${year}`
+      } catch (e) {
+        return dateStr
+      }
+    },
+    
+    // Format date to full Thai format (พฤ. 22 ธันวาคม 2565)
+    formatThaiDateFull(dateStr) {
+      if (!dateStr) return '-'
+      try {
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return dateStr
+        
+        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
+        const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
+        
+        const dayName = thaiDays[date.getDay()]
+        const day = date.getDate()
+        const month = thaiMonths[date.getMonth()]
+        const year = date.getFullYear() + 543
+        
+        return `${dayName} ${day} ${month} ${year}`
+      } catch (e) {
+        return dateStr
+      }
+    },
+    
+    // Reset child and visitDate when visitor changes
+    resetChildSelection() {
+      this.form.child = null
+      this.form.visitDate = null
+      this.selectedVisitData = null
+      
+      this.$nextTick(() => {
+        if (this.$select2 && this.$refs.childSelect && window.$) {
+          window.$(this.$refs.childSelect).val(null).trigger('change')
+        }
+        if (this.$select2 && this.$refs.visitDateSelect && window.$) {
+          window.$(this.$refs.visitDateSelect).val(null).trigger('change')
+        }
+      })
+    },
+    
+    // Reset visitDate when child changes
+    resetVisitDateSelection() {
+      this.form.visitDate = null
+      this.selectedVisitData = null
+      
+      this.$nextTick(() => {
+        if (this.$select2 && this.$refs.visitDateSelect && window.$) {
+          window.$(this.$refs.visitDateSelect).val(null).trigger('change')
+        }
+      })
+    },
+    
+    // Update selectedVisitData when visitDate changes
+    updateSelectedVisitData() {
+      if (this.form.visitDate) {
+        const option = this.visitDateOptions.find(o => o.value === this.form.visitDate)
+        this.selectedVisitData = option ? option.data : null
       } else {
-        this.answers.q71.splice(index, 1)
+        this.selectedVisitData = null
       }
     },
-    setQ5Answer(activityNo, value) {
-      this.$set(this.answers.q5, activityNo, value)
-    },
-    setQ9Answer(activityNo, value) {
-      this.$set(this.answers.q9, activityNo, value)
-    },
+    
+    // Image handling
     triggerFileInput(index) {
       const refName = `fileInput${index}`
       if (this.$refs[refName]) {
@@ -642,83 +1065,341 @@ export default {
         }
       }
     },
+    
+    // Submit form
     async handleSubmit() {
       if (!this.isFormReady) {
         this.$toast.error('กรุณาเลือกข้อมูลครบถ้วน', 'ข้อมูลไม่ครบถ้วน')
         return
       }
-
+      
+      // Validate all required questions
+      const validationResult = this.validateForm()
+      if (!validationResult.isValid) {
+        this.showValidationAlert = true
+        this.$toast.error(`กรุณาตอบคำถามให้ครบถ้วน (ยังขาด ${validationResult.missingCount} ข้อ)`, 'ข้อมูลไม่ครบถ้วน')
+        
+        // Scroll to first error
+        this.$nextTick(() => {
+          const firstError = document.querySelector('.question-section.has-error')
+          if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        })
+        return
+      }
+      
+      this.showValidationAlert = false
       this.isSubmitting = true
 
       try {
-        // TODO: Implement API call to save survey data
-        // Combine form and answers for submission
-        const submissionData = {
-          ...this.form,
-          answers: this.answers
+        // Upload images to S3 first
+        let pic1Url = ''
+        let pic2Url = ''
+        const stid = this.selectedVisitData.stid
+        const timeVisit = this.selectedVisitData.time_visit
+        
+        // Upload pic1 if exists
+        if (this.images.image1) {
+          this.$toast.info('กำลังอัพโหลดรูปภาพที่ 1...', 'กำลังอัพโหลด')
+          pic1Url = await this.uploadImageToS3(this.images.image1, 'observation1', stid, timeVisit)
+          if (!pic1Url && this.images.image1) {
+            throw new Error('ไม่สามารถอัพโหลดรูปภาพที่ 1 ได้')
+          }
         }
         
-        console.log('Survey Data:', submissionData)
+        // Upload pic2 if exists
+        if (this.images.image2) {
+          this.$toast.info('กำลังอัพโหลดรูปภาพที่ 2...', 'กำลังอัพโหลด')
+          pic2Url = await this.uploadImageToS3(this.images.image2, 'observation2', stid, timeVisit)
+          if (!pic2Url && this.images.image2) {
+            throw new Error('ไม่สามารถอัพโหลดรูปภาพที่ 2 ได้')
+          }
+        }
         
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Build payload with uploaded image URLs
+        const payload = this.buildPayload(pic1Url, pic2Url)
         
-        this.$toast.success('บันทึกข้อมูลสำเร็จ', 'สำเร็จ')
+        if (this.isEditMode) {
+          // UPDATE existing record
+          await this.$axios.$put(
+            '/api/parenting2025_census/put/homevisit/putdata.php',
+            {
+              variable: payload.variable,
+              value: payload.value,
+              pk: ['stid', 'time_visit','homevisitor'],
+              pkval: [this.selectedVisitData.stid, String(this.selectedVisitData.time_visit),this.selectedVisitData.homevisitor],
+              tb: 'homevisitor_observation'
+            }
+          )
+          this.$toast.success('อัปเดตข้อมูลสำเร็จ', 'สำเร็จ')
+        } else {
+          // CREATE new record
+          await this.$axios.$post(
+            '/api/parenting2025_census/post/homevisit/datarecord1row.php',
+            {
+              variable: payload.variable,
+              value: payload.value,
+              tb: 'homevisitor_observation'
+            }
+          )
+          this.$toast.success('บันทึกข้อมูลสำเร็จ', 'สำเร็จ')
+        }
+        
+        // Refresh data after save
+        await this.fetchObservationData()
+        
       } catch (error) {
         console.error('Error saving survey:', error)
         this.$toast.error(
-          error.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล',
+          error.response?.data?.message || error.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล',
           'ข้อผิดพลาด'
         )
       } finally {
         this.isSubmitting = false
       }
+    },
+    
+    // Build payload for API
+    buildPayload(pic1Url = '', pic2Url = '') {
+      const data = this.selectedVisitData
+      
+      // Generate recStart for new records
+      const now = new Date()
+      const recStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+      
+      const variable = [
+        'recby',
+        'project',
+        'homevisitor',
+        'stid',
+        'date_visit',
+        'time_visit',
+        'month_age',
+        'time',
+        // Fixed form fields
+        'recStart',
+        'timeStart',
+        'timeEnd',
+        'q0',
+        // q1-q30
+        'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10',
+        'q11', 'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18', 'q19', 'q20',
+        'q21', 'q22', 'q23', 'q24', 'q25', 'q26', 'q27', 'q28', 'q29', 'q30',
+        // Special fields
+        'q2a',
+        'q2a_des',
+        'q3a',
+        'note',
+        'pic1',
+        'pic2'
+      ]
+      
+      // Get supervisor username
+      const supervisorUsername = this.$offlineAuth?.getUser?.()?.username || ''
+      
+      // Use date_app_curr for date_visit if available
+      const dateVisit = data.date_app_curr || data.date_visit || ''
+      
+      // For update mode, use existing recStart if available
+      const recStartValue = this.isEditMode && this.existingData?.recStart 
+        ? this.existingData.recStart 
+        : recStart
+      
+      const value = [
+        supervisorUsername, // recby = supervisor username
+        '15', // project fixed
+        this.form.visitor || '',
+        data.stid || '',
+        dateVisit,
+        String(data.time_visit || ''),
+        String(data.month_age || ''),
+        String(data.time || ''),
+        // Fixed form fields
+        recStartValue,
+        this.fixForm.timeStart || '',
+        this.fixForm.timeEnd || '',
+        String(this.fixForm.q0 || ''),
+        // q1-q30 values
+        String(this.answers.q1 || ''),
+        String(this.answers.q2 || ''),
+        String(this.answers.q3 || ''),
+        String(this.answers.q4 || ''),
+        String(this.answers.q5 || ''),
+        String(this.answers.q6 || ''),
+        String(this.answers.q7 || ''),
+        String(this.answers.q8 || ''),
+        String(this.answers.q9 || ''),
+        String(this.answers.q10 || ''),
+        String(this.answers.q11 || ''),
+        String(this.answers.q12 || ''),
+        String(this.answers.q13 || ''),
+        String(this.answers.q14 || ''),
+        String(this.answers.q15 || ''),
+        String(this.answers.q16 || ''),
+        String(this.answers.q17 || ''),
+        String(this.answers.q18 || ''),
+        String(this.answers.q19 || ''),
+        String(this.answers.q20 || ''),
+        String(this.answers.q21 || ''),
+        String(this.answers.q22 || ''),
+        String(this.answers.q23 || ''),
+        String(this.answers.q24 || ''),
+        String(this.answers.q25 || ''),
+        String(this.answers.q26 || ''),
+        String(this.answers.q27 || ''),
+        String(this.answers.q28 || ''),
+        String(this.answers.q29 || ''),
+        String(this.answers.q30 || ''),
+        // Special fields
+        String(this.answers.q2_reason || ''),
+        String(this.answers.q2_reason_other || ''),
+        Array.isArray(this.answers.q3_who) ? this.answers.q3_who.join(',') : String(this.answers.q3_who || ''),
+        this.answers.notes || '',
+        pic1Url,
+        pic2Url
+      ]
+      
+      return { variable, value }
+    },
+    
+    // Upload image to S3 and get URL
+    async uploadImageToS3(base64Image, picname, stid, timeVisit) {
+      try {
+        if (!base64Image || !base64Image.startsWith('data:image')) {
+          return ''
+        }
+        
+        const response = await this.$axios.$post(
+          '/api/parenting2025_census/post/homevisit/s3upload.php',
+          {
+            image: base64Image,
+            picname: picname,
+            stid: stid,
+            time: String(timeVisit)
+          }
+        )
+        
+        if (response && response.url) {
+          return response.url
+        }
+        
+        return ''
+      } catch (error) {
+        console.error('Failed to upload image to S3:', error)
+        throw error
+      }
     }
   },
-  mounted() {
-    // Initialize Select2 for dropdowns
+  async mounted() {
+    this.loadingData = true
+    try {
+      await Promise.all([
+        this.fetchVisitors(),
+        this.fetchVisitResults(),
+        this.fetchSurveyQuestions()
+      ])
+    } finally {
+      this.loadingData = false
+    }
+    
+    // Initialize Select2
     this.$nextTick(() => {
       if (this.$select2) {
         if (this.$refs.visitorSelect) {
           this.$select2.init(this.$refs.visitorSelect)
           window.$(this.$refs.visitorSelect).on('change', () => {
-            this.form.visitor = window.$(this.$refs.visitorSelect).val()
+            const newVal = window.$(this.$refs.visitorSelect).val()
+            if (this.form.visitor !== newVal) {
+              this.form.visitor = newVal
+              this.resetChildSelection()
+            }
           })
         }
         if (this.$refs.childSelect) {
           this.$select2.init(this.$refs.childSelect)
           window.$(this.$refs.childSelect).on('change', () => {
-            this.form.child = window.$(this.$refs.childSelect).val()
+            const newVal = window.$(this.$refs.childSelect).val()
+            if (this.form.child !== newVal) {
+              this.form.child = newVal
+              this.resetVisitDateSelection()
+            }
           })
         }
         if (this.$refs.visitDateSelect) {
           this.$select2.init(this.$refs.visitDateSelect)
           window.$(this.$refs.visitDateSelect).on('change', () => {
             this.form.visitDate = window.$(this.$refs.visitDateSelect).val()
+            this.updateSelectedVisitData()
           })
         }
       }
     })
   },
   watch: {
-    'form.visitor'(newVal) {
+    'form.visitor'(newVal, oldVal) {
       if (this.$refs.visitorSelect && window.$) {
-        window.$(this.$refs.visitorSelect).val(newVal).trigger('change')
+        window.$(this.$refs.visitorSelect).val(newVal).trigger('change.select2')
       }
     },
-    'form.child'(newVal) {
+    'form.child'(newVal, oldVal) {
       if (this.$refs.childSelect && window.$) {
-        window.$(this.$refs.childSelect).val(newVal).trigger('change')
+        window.$(this.$refs.childSelect).val(newVal).trigger('change.select2')
       }
     },
     'form.visitDate'(newVal) {
       if (this.$refs.visitDateSelect && window.$) {
-        window.$(this.$refs.visitDateSelect).val(newVal).trigger('change')
+        window.$(this.$refs.visitDateSelect).val(newVal).trigger('change.select2')
       }
+      this.updateSelectedVisitData()
+    },
+    childOptions: {
+      handler() {
+        this.$nextTick(() => {
+          if (this.$select2 && this.$refs.childSelect && window.$) {
+            this.$select2.destroy(this.$refs.childSelect)
+            this.$select2.init(this.$refs.childSelect)
+            window.$(this.$refs.childSelect).on('change', () => {
+              const newVal = window.$(this.$refs.childSelect).val()
+              if (this.form.child !== newVal) {
+                this.form.child = newVal
+                this.resetVisitDateSelection()
+              }
+            })
+          }
+        })
+      },
+      deep: true
+    },
+    visitDateOptions: {
+      handler() {
+        this.$nextTick(() => {
+          if (this.$select2 && this.$refs.visitDateSelect && window.$) {
+            this.$select2.destroy(this.$refs.visitDateSelect)
+            this.$select2.init(this.$refs.visitDateSelect)
+            window.$(this.$refs.visitDateSelect).on('change', () => {
+              this.form.visitDate = window.$(this.$refs.visitDateSelect).val()
+              this.updateSelectedVisitData()
+            })
+          }
+        })
+      },
+      deep: true
+    },
+    // Fetch observation data when visit is selected
+    selectedVisitData: {
+      handler(newVal) {
+        if (newVal && newVal.recby && newVal.stid && newVal.time_visit) {
+          this.fetchObservationData()
+        } else {
+          this.isEditMode = false
+          this.existingData = null
+        }
+      },
+      deep: true
     }
   },
   beforeDestroy() {
-    // Destroy Select2 instances
     if (this.$select2) {
       if (this.$refs.visitorSelect && window.$) {
         window.$(this.$refs.visitorSelect).off('change')
@@ -738,6 +1419,68 @@ export default {
 </script>
 
 <style scoped>
+/* Fixed Form Section */
+.fixed-form-section {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.fixed-form-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.fixed-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.fixed-label {
+  font-weight: 500;
+  color: #495057;
+  min-width: 160px;
+}
+
+.fixed-value {
+  color: #212529;
+}
+
+.fixed-input {
+  max-width: 250px;
+  height: 38px;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.q0-row {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.q0-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.q0-options .radio-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.q0-options .radio-inline input[type="radio"] {
+  margin: 0;
+}
+
 .supervisor-survey {
   padding: 2rem;
   min-height: 100vh;
@@ -755,6 +1498,15 @@ export default {
   font-weight: 500;
   color: #2c3e50;
   margin: 0;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #6c757d;
+  font-size: 1.1rem;
 }
 
 .form-section {
@@ -792,6 +1544,17 @@ export default {
 
 .form-select {
   width: 100%;
+}
+
+.loading-observation {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #fff3cd;
+  border-radius: 0.375rem;
+  color: #856404;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
 }
 
 ::v-deep .select2-container {
@@ -838,6 +1601,24 @@ export default {
   margin-top: 1.5rem;
 }
 
+.section-header {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #3551a4;
+}
+
+.section-header:first-child {
+  margin-top: 0;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #3551a4;
+  margin: 0;
+}
+
 .question-section {
   background-color: #f8f9fa;
   border-radius: 0.5rem;
@@ -853,12 +1634,6 @@ export default {
   line-height: 1.5;
 }
 
-.question-subtitle {
-  color: #6c757d;
-  margin-bottom: 1rem;
-  font-size: 0.95rem;
-}
-
 .options-container {
   display: flex;
   flex-wrap: wrap;
@@ -867,12 +1642,6 @@ export default {
 }
 
 .options-container.multi-select {
-  gap: 0.5rem;
-}
-
-.options-container.three-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 0.5rem;
 }
 
@@ -898,12 +1667,59 @@ export default {
   color: #fff;
 }
 
+.no-choices-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 0.375rem;
+  color: #856404;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+/* Validation Error Styles */
+.question-section.has-error {
+  border: 2px solid #dc3545;
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.required-mark {
+  color: #dc3545;
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-message i {
+  font-size: 0.85rem;
+}
+
+.question-section.has-error .option-btn {
+  border-color: #f5c6cb;
+}
+
 .sub-question {
   margin-top: 1.5rem;
   padding: 1rem;
   background-color: #fff;
   border-radius: 0.375rem;
-  border-left: 4px solid #3551a4;
 }
 
 .sub-question-title {
@@ -920,20 +1736,6 @@ export default {
 .sub-question-input .form-label {
   display: block;
   margin-bottom: 0.5rem;
-}
-
-.activity-block {
-  background-color: #fff;
-  border: 1px solid #e9ecef;
-  border-radius: 0.375rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.activity-title {
-  font-weight: 500;
-  color: #2c3e50;
-  margin-bottom: 0.75rem;
 }
 
 .notes-textarea {
@@ -972,10 +1774,6 @@ export default {
 
   .options-container {
     flex-direction: column;
-  }
-
-  .options-container.three-columns {
-    grid-template-columns: 1fr;
   }
 
   .option-btn {

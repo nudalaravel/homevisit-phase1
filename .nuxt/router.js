@@ -15,6 +15,7 @@ const _7eeec80e = () => interopDefault(import('../pages/supervisor-dashboard.vue
 const _5afbc511 = () => interopDefault(import('../pages/supervisor-document.vue' /* webpackChunkName: "pages/supervisor-document" */))
 const _692c97ac = () => interopDefault(import('../pages/supervisor-report.vue' /* webpackChunkName: "pages/supervisor-report" */))
 const _301f8350 = () => interopDefault(import('../pages/supervisor-survey.vue' /* webpackChunkName: "pages/supervisor-survey" */))
+const _6c8958e2 = () => interopDefault(import('../pages/supervisor-survey-backup.vue' /* webpackChunkName: "pages/supervisor-survey-backup" */))
 const _4510288e = () => interopDefault(import('../pages/survey.vue' /* webpackChunkName: "pages/survey" */))
 const _c320427a = () => interopDefault(import('../pages/index.vue' /* webpackChunkName: "pages/index" */))
 
@@ -73,6 +74,10 @@ export const routerOptions = {
     path: "/supervisor-survey",
     component: _301f8350,
     name: "supervisor-survey"
+  }, {
+    path: "/supervisor-survey-backup",
+    component: _6c8958e2,
+    name: "supervisor-survey-backup"
   }, {
     path: "/survey",
     component: _4510288e,
