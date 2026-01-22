@@ -577,12 +577,18 @@ export default {
         await new Promise(resolve => requestAnimationFrame(resolve))
         
         // เพิ่ม delay เล็กน้อยเพื่อให้ content stabilize (สำคัญสำหรับ html2canvas)
-        await new Promise(resolve => setTimeout(resolve, 300))
+        await new Promise(resolve => setTimeout(resolve, 500))
         
         const element = document.getElementById('receipt-content')
         if (!element) {
           this.$toast.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
+        }
+
+        // ตรวจสอบ visibility
+        if (!element.offsetHeight || element.offsetHeight < 100) {
+          console.warn('Element may not be fully visible. Height:', element.offsetHeight)
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
 
         // ตรวจสอบว่า element มี content จริง
@@ -599,7 +605,7 @@ export default {
           html2canvas: { 
             scale: 2, 
             useCORS: true,
-            logging: false,
+            logging: true,
             allowTaint: true,
             backgroundColor: '#ffffff'  // กำหนด background ให้ชัดเจน
           },

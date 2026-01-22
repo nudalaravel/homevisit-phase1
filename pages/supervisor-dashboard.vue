@@ -786,10 +786,27 @@ export default {
       
       try {
         this.loadingPDF = true
+        
+        // รอให้ Vue render เสร็จ
+        await this.$nextTick()
+        
+        // รอ 1 animation frame
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        
+        // รอเพิ่มเติม 500ms ให้ content stabilize
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
         const element = document.getElementById('visit-result-pdf-content')
         if (!element) {
           this.$toast?.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
+        }
+        
+        // ตรวจสอบ visibility
+        if (!element.offsetHeight || element.offsetHeight < 100) {
+          console.warn('Element may not be fully visible. Height:', element.offsetHeight)
+          // รออีก 500ms
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
         
         const opt = {
@@ -800,7 +817,8 @@ export default {
             scale: 2, 
             useCORS: true,
             letterRendering: true,
-            logging: false
+            logging: true,
+            backgroundColor: '#ffffff'
           },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak: { 
@@ -815,7 +833,7 @@ export default {
         this.$toast?.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
-        this.$toast?.error('เกิดข้อผิดพลาดในการสร้าง PDF')
+        this.$toast?.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
       } finally {
         this.loadingPDF = false
       }

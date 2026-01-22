@@ -663,6 +663,11 @@ export default {
           })
         }
         
+        // รอให้ fonts โหลดเสร็จ
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready
+        }
+        
         // Helper function to convert image URL to base64
         const imageToBase64 = async (url) => {
           try {
@@ -813,7 +818,13 @@ export default {
         // Create temporary element
         const container = document.createElement('div')
         container.innerHTML = html
+        container.style.position = 'absolute'
+        container.style.left = '-9999px'
         document.body.appendChild(container)
+        
+        // รอให้ browser render element
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        await new Promise(resolve => setTimeout(resolve, 300))
         
         // Generate PDF with page break options
         const options = {
@@ -838,7 +849,7 @@ export default {
         this.$toast?.success?.('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
-        this.$toast?.error?.('ไม่สามารถสร้าง PDF ได้')
+        this.$toast?.error?.('ไม่สามารถสร้าง PDF ได้: ' + (error.message || 'Unknown error'))
       } finally {
         this.loadingPDF = false
       }
