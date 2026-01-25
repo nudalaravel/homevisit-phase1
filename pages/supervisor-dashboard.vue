@@ -344,6 +344,8 @@
 <script>
 import { formatVisitDate } from '~/utils/dateHelpers'
 import { PARTICIPANT_OPTIONS, ACTIVITY_ANSWER_OPTIONS } from '~/utils/surveyHelpers'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 export default {
   layout: 'supervisor',
@@ -412,15 +414,7 @@ export default {
     }
   },
   async mounted() {
-    // Load html2pdf.js from CDN
-    if (process.client && !window.html2pdf) {
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-      script.onload = () => {
-        console.log('html2pdf.js loaded')
-      }
-      document.head.appendChild(script)
-    }
+    // jsPDF and html2canvas imported directly, no need for CDN
 
     // Load data from APIs
     await this.fetchAmphoeOptions()
@@ -779,61 +773,135 @@ export default {
     },
     
     async downloadPDF() {
-      if (!this.visitResultForm || !window.html2pdf) {
-        this.$toast?.error('ไม่สามารถสร้าง PDF ได้ กรุณารอสักครู่แล้วลองอีกครั้ง')
+      if (!this.visitResultForm) {
+        this.$toast?.error('ไม่พบข้อมูลที่จะสร้าง PDF')
         return
       }
       
       try {
         this.loadingPDF = true
         
-        // รอให้ Vue render เสร็จ
         await this.$nextTick()
+        await new Promise(resolve => setTimeout(resolve, 300))
         
-        // รอ 1 animation frame
-        await new Promise(resolve => requestAnimationFrame(resolve))
-        
-        // รอเพิ่มเติม 500ms ให้ content stabilize
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const element = document.getElementById('visit-result-pdf-content')
-        if (!element) {
+        const originalElement = document.getElementById('visit-result-pdf-content')
+        if (!originalElement) {
           this.$toast?.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
         }
         
-        // ตรวจสอบ visibility
-        if (!element.offsetHeight || element.offsetHeight < 100) {
-          console.warn('Element may not be fully visible. Height:', element.offsetHeight)
-          // รออีก 500ms
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
+        const A4_WIDTH_MM = 210
+        const A4_HEIGHT_MM = 297
+        const MARGIN_MM = 15
+        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
         
-        const opt = {
-          margin: [15, 15, 15, 15],
-          filename: `แบบบันทึก_${this.visitResultForm.childName}_ครั้งที่${this.visitResultForm.visitNumber}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { 
-            scale: 2, 
-            useCORS: true,
-            letterRendering: true,
-            logging: true,
-            backgroundColor: '#ffffff'
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { 
-            mode: ['avoid-all', 'css', 'legacy'],
-            before: '.page-break-before',
-            after: '.page-break-after',
-            avoid: ['.plain-text-section', '.plain-table', 'tr', 'p']
+        const pdfContainer = document.createElement('div')
+        pdfContainer.id = 'pdf-gen-container'
+        pdfContainer.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: 680px;
+          background: white;
+          padding: 30px;
+          font-family: 'Kanit', 'Sarabun', Arial, sans-serif;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #000000;
+        `
+        
+        pdfContainer.innerHTML = originalElement.innerHTML
+        document.body.appendChild(pdfContainer)
+        
+        const applyStyles = (container) => {
+          const recordHeader = container.querySelector('.record-header')
+          if (recordHeader) {
+            recordHeader.style.cssText = 'text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #3551a4;'
           }
+          const recordTitle = container.querySelector('.record-title')
+          if (recordTitle) {
+            recordTitle.style.cssText = 'font-size: 18px; font-weight: bold; color: #3551a4; margin: 0;'
+          }
+          container.querySelectorAll('p').forEach(p => {
+            p.style.cssText = 'margin: 6px 0; font-size: 14px; line-height: 1.6; color: #000000;'
+          })
+          container.querySelectorAll('.section-header-text').forEach(h => {
+            h.style.cssText = 'font-weight: bold; color: #000000; margin-top: 15px; margin-bottom: 10px;'
+          })
+          container.querySelectorAll('.indent-answer').forEach(a => {
+            a.style.cssText = 'padding-left: 30px; color: #333333; margin: 6px 0;'
+          })
+          container.querySelectorAll('table').forEach(table => {
+            table.style.cssText = 'width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;'
+          })
+          container.querySelectorAll('th').forEach(th => {
+            th.style.cssText = 'border: 1px solid #333; padding: 8px; text-align: left; font-weight: bold; background-color: #f0f0f0;'
+          })
+          container.querySelectorAll('td').forEach(td => {
+            td.style.cssText = 'border: 1px solid #333; padding: 8px; text-align: left;'
+          })
+          container.querySelectorAll('.plain-text-section').forEach(section => {
+            section.style.cssText = 'margin-bottom: 15px;'
+          })
         }
         
-        await window.html2pdf().set(opt).from(element).save()
+        applyStyles(pdfContainer)
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const canvas = await html2canvas(pdfContainer, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: 680,
+          windowWidth: 680
+        })
+        
+        document.body.removeChild(pdfContainer)
+        
+        const imgWidth = CONTENT_WIDTH_MM
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        })
+        
+        const totalPages = Math.ceil(imgHeight / pageHeight)
+        
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage()
+          
+          const sourceY = (page * pageHeight * canvas.width) / imgWidth
+          const sourceHeight = Math.min(
+            (pageHeight * canvas.width) / imgWidth,
+            canvas.height - sourceY
+          )
+          
+          const pageCanvas = document.createElement('canvas')
+          pageCanvas.width = canvas.width
+          pageCanvas.height = sourceHeight
+          
+          const ctx = pageCanvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
+          
+          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
+          pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', MARGIN_MM, MARGIN_MM, imgWidth, sliceHeight)
+        }
+        
+        const filename = `แบบบันทึก_${this.visitResultForm.childName}_ครั้งที่${this.visitResultForm.visitNumber}.pdf`
+        pdf.save(filename)
+        
         this.$toast?.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
         this.$toast?.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
+        const container = document.getElementById('pdf-gen-container')
+        if (container) document.body.removeChild(container)
       } finally {
         this.loadingPDF = false
       }

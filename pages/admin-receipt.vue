@@ -27,13 +27,37 @@
 
     <!-- Data Table -->
     <div class="table-container">
+      <!-- Skeleton Loading -->
+      <div v-if="loading" class="skeleton-table">
+        <table class="admin-table-skeleton">
+          <thead>
+            <tr>
+              <th v-for="field in tableFields" :key="field.key" class="table-header">{{ field.label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="n in 6" :key="'skeleton-' + n" class="skeleton-row">
+              <td><div class="skeleton-cell skeleton-text"></div></td>
+              <td><div class="skeleton-cell skeleton-small"></div></td>
+              <td><div class="skeleton-cell skeleton-small"></div></td>
+              <td><div class="skeleton-cell skeleton-text"></div></td>
+              <td><div class="skeleton-cell skeleton-button"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Actual Table -->
       <b-table
+        v-else
         :items="tableData"
         :fields="tableFields"
         striped
         hover
         responsive
         class="admin-table"
+        show-empty
+        empty-text="ไม่พบข้อมูล"
       >
         <template #cell(visitorName)="row">
           {{ row.item.visitorName }}
@@ -187,12 +211,15 @@
 
 <script>
 import { numberToThaiWords } from '~/utils/helpers'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 export default {
   layout: 'admin',
   middleware: 'auth',
   data() {
     return {
+      loading: true,
       filters: {
         team: 'songkhla'
       },
@@ -227,72 +254,16 @@ export default {
           thClass: 'table-header'
         }
       ],
-      tableData: [
-        {
-          visitorName: 'นางสาวกันทิมา เจะ อาแซ',
-          installment: 10,
-          amount: '500.00',
-          paymentDate: 'อ. 28 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'นางสาวรอมือละ กะ เส็มมิ',
-          installment: 10,
-          amount: '100.00',
-          paymentDate: 'อ. 28 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'น.ส.สุฮัยนี สาเร๊ะ',
-          installment: 11,
-          amount: '2000.00',
-          paymentDate: 'พ. 01 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'นางอธิพร คงเป็น ยอด',
-          installment: 10,
-          amount: '2900.00',
-          paymentDate: 'พ. 01 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'น.ส.ซารีนา ดือเระ',
-          installment: 8,
-          amount: '2000.00',
-          paymentDate: 'พ. 01 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'น.ส.สารภี ธรรม พิทักษ์',
-          installment: 8,
-          amount: '1000.00',
-          paymentDate: 'พ. 01 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'สาวิตรี ราชเล็ก',
-          installment: 9,
-          amount: '900.00',
-          paymentDate: 'พ. 01 พฤศจิกายน 2566'
-        },
-        {
-          visitorName: 'น.ส.ลีเยาะ กาลาแต',
-          installment: 11,
-          amount: '600.00',
-          paymentDate: 'พ. 01 พฤศจิกายน 2566'
-        }
-      ],
+      tableData: [],
       // Receipt Modal
       showReceiptModal: false,
       receiptData: null,
       loadingPDF: false
     }
   },
-  mounted() {
-    // Load html2pdf.js from CDN
-    if (process.client && !window.html2pdf) {
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-      script.onload = () => {
-        console.log('html2pdf.js loaded')
-      }
-      document.head.appendChild(script)
-    }
+  async mounted() {
+    // โหลดข้อมูลจาก API
+    await this.fetchTableData()
 
     // Initialize Select2 for dropdowns
     this.$nextTick(() => {
@@ -319,6 +290,60 @@ export default {
     }
   },
   methods: {
+    // ดึงข้อมูลจาก API
+    async fetchTableData() {
+      this.loading = true
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/gethomevisitpayment.php')
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          this.tableData = response.results.map(item => ({
+            no: item.no,
+            visitorName: item.VendorName || '-',
+            installment: item.transfIns || '-',
+            amount: item.Amount || '0.00',
+            paymentDate: this.formatApiDate(item.paymentDate),
+            idCard: item.PID || '',
+            address: item.Address || '',
+            rawData: item
+          }))
+        } else {
+          this.tableData = []
+        }
+      } catch (error) {
+        console.error('Error fetching table data:', error)
+        this.tableData = []
+        this.$toast?.error('ไม่สามารถโหลดข้อมูลได้')
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // แปลงวันที่จาก API format (YYYY-MM-DD) เป็น Thai format
+    formatApiDate(dateStr) {
+      if (!dateStr) return '-'
+      try {
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return dateStr
+        
+        const thaiMonths = [
+          'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+          'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ]
+        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
+        
+        const day = date.getDate()
+        const monthName = thaiMonths[date.getMonth()]
+        const year = date.getFullYear() + 543
+        const dayName = thaiDays[date.getDay()]
+        
+        return `${dayName} ${day.toString().padStart(2, '0')} ${monthName} ${year}`
+      } catch (e) {
+        return dateStr
+      }
+    },
+    
     // Receipt Methods
     getAmountInWords(amount) {
       if (!amount) return ''
@@ -348,53 +373,102 @@ export default {
       this.receiptData = null
     },
     async downloadPDF() {
-      if (!this.receiptData || !window.html2pdf) {
-        this.$toast.error('ไม่สามารถสร้าง PDF ได้ กรุณารอสักครู่แล้วลองอีกครั้ง')
+      if (!this.receiptData) {
+        this.$toast.error('ไม่พบข้อมูลที่จะสร้าง PDF')
         return
       }
 
       try {
         this.loadingPDF = true
         
-        // รอให้ Vue render เสร็จ
         await this.$nextTick()
+        await new Promise(resolve => setTimeout(resolve, 300))
         
-        // รอ 1 animation frame
-        await new Promise(resolve => requestAnimationFrame(resolve))
-        
-        // รอเพิ่มเติม 500ms ให้ content stabilize
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const element = document.getElementById('receipt-content')
-        if (!element) {
+        const originalElement = document.getElementById('receipt-content')
+        if (!originalElement) {
           this.$toast.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
         }
 
-        // ตรวจสอบ visibility
-        if (!element.offsetHeight || element.offsetHeight < 100) {
-          console.warn('Element may not be fully visible. Height:', element.offsetHeight)
-          await new Promise(resolve => setTimeout(resolve, 500))
+        const A4_WIDTH_MM = 210
+        const A4_HEIGHT_MM = 297
+        const MARGIN_MM = 10
+        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
+        
+        const pdfContainer = document.createElement('div')
+        pdfContainer.id = 'pdf-gen-container'
+        pdfContainer.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: 680px;
+          background: white;
+          padding: 20px;
+          font-family: 'Kanit', 'Sarabun', Arial, sans-serif;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #000000;
+        `
+        
+        pdfContainer.innerHTML = originalElement.innerHTML
+        document.body.appendChild(pdfContainer)
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const canvas = await html2canvas(pdfContainer, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: 680,
+          windowWidth: 680
+        })
+        
+        document.body.removeChild(pdfContainer)
+        
+        const imgWidth = CONTENT_WIDTH_MM
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        })
+        
+        const totalPages = Math.ceil(imgHeight / pageHeight)
+        
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage()
+          
+          const sourceY = (page * pageHeight * canvas.width) / imgWidth
+          const sourceHeight = Math.min(
+            (pageHeight * canvas.width) / imgWidth,
+            canvas.height - sourceY
+          )
+          
+          const pageCanvas = document.createElement('canvas')
+          pageCanvas.width = canvas.width
+          pageCanvas.height = sourceHeight
+          
+          const ctx = pageCanvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
+          
+          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
+          pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', MARGIN_MM, MARGIN_MM, imgWidth, sliceHeight)
         }
-
-        const opt = {
-          margin: [5, 5, 5, 5],
-          filename: `ใบสำคัญรับเงิน_${this.receiptData.visitorName}_${this.receiptData.formattedDate}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { 
-            scale: 2, 
-            useCORS: true,
-            logging: true,
-            backgroundColor: '#ffffff'
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        }
-
-        await window.html2pdf().set(opt).from(element).save()
+        
+        const filename = `ใบสำคัญรับเงิน_${this.receiptData.visitorName}_${this.receiptData.formattedDate}.pdf`
+        pdf.save(filename)
+        
         this.$toast.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
         this.$toast.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
+        const container = document.getElementById('pdf-gen-container')
+        if (container) document.body.removeChild(container)
       } finally {
         this.loadingPDF = false
       }
@@ -761,6 +835,69 @@ export default {
   border-bottom: 1px dotted;
   width: 200px;
   display: inline-block;
+}
+
+/* Skeleton Loading */
+.skeleton-table {
+  width: 100%;
+}
+
+.admin-table-skeleton {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table-skeleton th {
+  background-color: #3551a4;
+  color: white;
+  font-weight: 500;
+  text-align: center;
+  padding: 1rem;
+  border: none;
+}
+
+.skeleton-row {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-row td {
+  padding: 1rem;
+  text-align: center;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.skeleton-cell {
+  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+  height: 20px;
+}
+
+.skeleton-text {
+  width: 150px;
+  margin: 0 auto;
+}
+
+.skeleton-small {
+  width: 60px;
+  margin: 0 auto;
+}
+
+.skeleton-button {
+  width: 110px;
+  height: 35px;
+  margin: 0 auto;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>
 

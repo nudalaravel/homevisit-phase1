@@ -7,13 +7,35 @@
 
     <!-- Data Table -->
     <div class="table-container">
+      <!-- Skeleton Loading -->
+      <div v-if="loading" class="skeleton-table">
+        <table class="admin-table-skeleton">
+          <thead>
+            <tr>
+              <th v-for="field in tableFields" :key="field.key" class="table-header">{{ field.label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="n in 6" :key="'skeleton-' + n" class="skeleton-row">
+              <td><div class="skeleton-cell skeleton-text"></div></td>
+              <td><div class="skeleton-cell skeleton-button"></div></td>
+              <td><div class="skeleton-cell skeleton-button"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Actual Table -->
       <b-table
+        v-else
         :items="tableData"
         :fields="tableFields"
         striped
         hover
         responsive
         class="admin-table"
+        show-empty
+        empty-text="ไม่พบข้อมูล"
       >
         <template #cell(paymentDate)="row">
           {{ row.item.paymentDate }}
@@ -82,6 +104,7 @@ export default {
   middleware: 'auth',
   data() {
     return {
+      loading: true,
       tableFields: [
         {
           key: 'paymentDate',
@@ -99,52 +122,7 @@ export default {
           thClass: 'table-header'
         }
       ],
-      tableData: [
-        {
-          paymentDate: 'อ. 25 มีนาคม 2568',
-          amount: '500.00'
-        },
-        {
-          paymentDate: 'อ. 25 กุมภาพันธ์ 2568',
-          amount: '500.00'
-        },
-        {
-          paymentDate: 'อ. 28 มกราคม 2568',
-          amount: '500.00'
-        },
-        {
-          paymentDate: 'พฤ. 02 มกราคม 2568',
-          amount: '500.00'
-        },
-        {
-          paymentDate: 'อ. 26 พฤศจิกายน 2567',
-          amount: '500.00'
-        },
-        {
-          paymentDate: 'อ. 29 ตุลาคม 2567',
-          amount: '500.00'
-        },
-        {
-          paymentDate: 'อ. 24 กันยายน 2567',
-          amount: '600.00'
-        },
-        {
-          paymentDate: 'อ. 27 สิงหาคม 2567',
-          amount: '400.00'
-        },
-        {
-          paymentDate: 'อ. 30 กรกฎาคม 2567',
-          amount: '750.00'
-        },
-        {
-          paymentDate: 'อ. 25 มิถุนายน 2567',
-          amount: '600.00'
-        },
-        {
-          paymentDate: 'อ. 28 พฤษภาคม 2567',
-          amount: '700.00'
-        }
-      ],
+      tableData: [],
       // Payment History Modal
       showPaymentHistoryModal: false,
       paymentHistoryData: null
@@ -156,7 +134,60 @@ export default {
       return `ประวัติการจ่าย ${this.paymentHistoryData.paymentDate}`
     }
   },
+  async mounted() {
+    await this.fetchTableData()
+  },
   methods: {
+    // ดึงข้อมูลจาก API
+    async fetchTableData() {
+      this.loading = true
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/admin/gethomevisitpayment_groupdate.php')
+        
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          this.tableData = response.results.map(item => ({
+            paymentDate: this.formatApiDate(item.paymentDate),
+            rawPaymentDate: item.paymentDate,
+            submitDate: this.formatApiDate(item.submitDate),
+            amount: item.summation || '0.00'
+          }))
+        } else {
+          this.tableData = []
+        }
+      } catch (error) {
+        console.error('Error fetching table data:', error)
+        this.tableData = []
+        this.$toast?.error('ไม่สามารถโหลดข้อมูลได้')
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // แปลงวันที่จาก API format (YYYY-MM-DD) เป็น Thai format
+    formatApiDate(dateStr) {
+      if (!dateStr) return '-'
+      try {
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return dateStr
+        
+        const thaiMonths = [
+          'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+          'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ]
+        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
+        
+        const day = date.getDate()
+        const monthName = thaiMonths[date.getMonth()]
+        const year = date.getFullYear() + 543
+        const dayName = thaiDays[date.getDay()]
+        
+        return `${dayName} ${day.toString().padStart(2, '0')} ${monthName} ${year}`
+      } catch (e) {
+        return dateStr
+      }
+    },
+    
     viewPaymentHistory(item) {
       // Mock data for payment history - should be replaced with actual data
       // Generate mock records based on the payment date
@@ -474,6 +505,64 @@ export default {
   .col-child-name {
     min-width: 150px;
   }
+}
+
+/* Skeleton Loading */
+.skeleton-table {
+  width: 100%;
+}
+
+.admin-table-skeleton {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table-skeleton th {
+  background-color: #3551a4;
+  color: white;
+  font-weight: 500;
+  text-align: center;
+  padding: 1rem;
+  border: none;
+}
+
+.skeleton-row {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-row td {
+  padding: 1rem;
+  text-align: center;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.skeleton-cell {
+  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+  height: 20px;
+}
+
+.skeleton-text {
+  width: 120px;
+  margin: 0 auto;
+}
+
+.skeleton-button {
+  width: 90px;
+  height: 35px;
+  margin: 0 auto;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>
 

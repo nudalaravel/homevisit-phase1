@@ -26,12 +26,15 @@
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "html2canvas": "^1.4.1",
     "jquery": "^3.7.1",
+    "jspdf": "2.5.1",
     "lodash": "^4.17.21",
     "nuxt": "^2.17.3",
     "select2": "^4.1.0-rc.0",
     "sweetalert2": "^11.26.2",
     "vue-chartjs": "^3.5.1",
+    "vue-html-to-paper": "^2.0.3",
     "workbox-webpack-plugin": "^6.5.4"
   },
   "devDependencies": {

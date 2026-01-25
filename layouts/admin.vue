@@ -211,7 +211,7 @@ export default {
 /* Toggle Button */
 .sidebar-toggle {
   position: absolute;
-  top: 10px;
+  top: 69px;
   right: -15px;
     transform: translateY(-50%);
     width: 30px;

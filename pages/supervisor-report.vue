@@ -259,6 +259,9 @@
 </template>
 
 <script>
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
+
 export default {
   layout: 'supervisor',
   middleware: 'auth',
@@ -648,21 +651,10 @@ export default {
       return []
     },
     
-    // Download observation as PDF
     async downloadObservationPDF() {
       this.loadingPDF = true
       
       try {
-        // Ensure html2pdf is loaded
-        if (!window.html2pdf) {
-          const script = document.createElement('script')
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-          document.head.appendChild(script)
-          await new Promise(resolve => {
-            script.onload = resolve
-          })
-        }
-        
         // รอให้ fonts โหลดเสร็จ
         if (document.fonts && document.fonts.ready) {
           await document.fonts.ready
@@ -685,166 +677,109 @@ export default {
           }
         }
         
-        // Build HTML content for PDF
         const data = this.observationData
         const q0Labels = {
           '1': 'แม่', '2': 'พ่อ', '3': 'ย่า/ยาย', '4': 'ปู่/ตา',
           '5': 'พี่น้อง', '6': 'ลุง/ป้า/น้ำ/อา', '7': 'ญาติคนอื่น', '8': 'ไม่ใช่ญาติ'
         }
         
-        // Convert images to base64 for PDF
         let pic1Base64 = null
         let pic2Base64 = null
-        if (data?.pic1) {
-          pic1Base64 = await imageToBase64(data.pic1)
-        }
-        if (data?.pic2) {
-          pic2Base64 = await imageToBase64(data.pic2)
-        }
+        if (data?.pic1) pic1Base64 = await imageToBase64(data.pic1)
+        if (data?.pic2) pic2Base64 = await imageToBase64(data.pic2)
         
         let html = `
-          <style>
-            .pdf-container {
-              font-family: 'Sarabun', sans-serif;
-              padding: 20px;
-              max-width: 210mm;
-              margin: 0 auto;
-              font-size: 14px;
-              color: #1a5276;
-            }
-            .pdf-section {
-              page-break-inside: avoid;
-              margin-bottom: 15px;
-            }
-            .pdf-question-item {
-              page-break-inside: avoid;
-              margin-bottom: 8px;
-            }
-            .pdf-images-section {
-              page-break-inside: avoid;
-              page-break-before: auto;
-            }
-            .pdf-image-grid {
-              display: flex;
-              gap: 15px;
-              flex-wrap: wrap;
-            }
-            .pdf-image-item {
-              flex: 1;
-              min-width: 40%;
-              max-width: 48%;
-              page-break-inside: avoid;
-            }
-            .pdf-image-item img {
-              width: 100%;
-              max-height: 280px;
-              object-fit: contain;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-            }
-          </style>
-          <div class="pdf-container">
+          <div style="font-family: 'Kanit', 'Sarabun', sans-serif; padding: 20px; max-width: 680px; font-size: 14px; color: #1a5276; line-height: 1.6;">
             <h2 style="text-align: center; margin-bottom: 30px; font-size: 20px; font-weight: bold; color: #1a5276;">แบบสังเกตผู้เยี่ยมบ้าน</h2>
             
-            <div class="pdf-section" style="line-height: 1.8;">
+            <div style="margin-bottom: 15px;">
               <p style="margin: 5px 0;">ชื่อ-นามสกุลของเด็ก : ${this.visitResultForm.childName || '-'} <span style="margin-left: 3rem;">วันที่ ${this.formatThaiDate(data?.date_visit) || '-'}</span></p>
               <p style="margin: 5px 0;">ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : ${this.visitResultForm.visitorName || '-'} <span style="margin-left: 3rem;">การสังเกตครั้งที่ ${data?.time_visit || '-'}</span></p>
               <p style="margin: 5px 0;">เวลาเริ่มต้นการสังเกต ${data?.timeStart || '-'} น.</p>
             </div>
             
-            <!-- การสังเกต Section -->
-            <div class="pdf-section" style="line-height: 1.8;">
+            <div style="margin-bottom: 15px;">
               <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">การสังเกต</p>
               <p>ผู้ดูแลหลัก : ${q0Labels[data?.q0] || data?.q0 || '-'}</p>
             </div>
             
-            <!-- ทบทวนกิจกรรมการเยี่ยมบ้าน Section -->
-            <div class="pdf-section" style="line-height: 1.8;">
+            <div style="margin-bottom: 15px;">
               <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ ${data?.month_age || '-'} การเยี่ยมบ้าน ${data?.time || '-'}</p>
             </div>
-            
-            <!-- Questions -->
-            <div style="line-height: 1.8;">
         `
         
         this.visitResultForm.answers.forEach(answer => {
           html += `
-              <div class="pdf-question-item">
-                <p style="margin: 2px 0;">${answer.questionNumber} : ${answer.question}</p>
-                <p style="margin: 2px 0; margin-left: 2rem;">${answer.answer}</p>
-              </div>
+            <div style="margin-bottom: 8px;">
+              <p style="margin: 2px 0;">${answer.questionNumber} : ${answer.question}</p>
+              <p style="margin: 2px 0; margin-left: 2rem;">${answer.answer}</p>
+            </div>
           `
         })
         
         html += `
-            </div>
-            
-            <!-- End time and note -->
-            <div class="pdf-section" style="margin-top: 20px; line-height: 1.8;">
+            <div style="margin-top: 20px;">
               <p style="margin: 5px 0;">เวลาสิ้นสุดการสังเกต ${data?.timeEnd || '-'} น.</p>
               ${data?.note ? `<p style="margin: 5px 0;">บันทึกผู้สังเกต - ${data.note}</p>` : ''}
             </div>
         `
         
-        // Add images in 2-column layout with base64
         if (pic1Base64 || pic2Base64) {
-          html += `
-            <div class="pdf-images-section" style="margin-top: 20px;">
-              <p style="font-weight: bold; margin-bottom: 10px;">รูปภาพ</p>
-              <div class="pdf-image-grid">
-          `
-          if (pic1Base64) {
-            html += `
-                <div class="pdf-image-item">
-                  <img src="${pic1Base64}" alt="รูปภาพที่ 1">
-                </div>
-            `
-          }
-          if (pic2Base64) {
-            html += `
-                <div class="pdf-image-item">
-                  <img src="${pic2Base64}" alt="รูปภาพที่ 2">
-                </div>
-            `
-          }
-          html += `
-              </div>
-            </div>
-          `
+          html += `<div style="margin-top: 20px;"><p style="font-weight: bold; margin-bottom: 10px;">รูปภาพ</p><div style="display: flex; gap: 15px; flex-wrap: wrap;">`
+          if (pic1Base64) html += `<div style="flex: 1; min-width: 40%; max-width: 48%;"><img src="${pic1Base64}" style="width: 100%; max-height: 280px; object-fit: contain; border: 1px solid #ccc; border-radius: 4px;" alt="รูปภาพที่ 1"></div>`
+          if (pic2Base64) html += `<div style="flex: 1; min-width: 40%; max-width: 48%;"><img src="${pic2Base64}" style="width: 100%; max-height: 280px; object-fit: contain; border: 1px solid #ccc; border-radius: 4px;" alt="รูปภาพที่ 2"></div>`
+          html += `</div></div>`
         }
         
         html += `</div>`
         
-        // Create temporary element
         const container = document.createElement('div')
         container.innerHTML = html
-        container.style.position = 'absolute'
-        container.style.left = '-9999px'
+        container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 680px; background: white;'
         document.body.appendChild(container)
         
-        // รอให้ browser render element
-        await new Promise(resolve => requestAnimationFrame(resolve))
-        await new Promise(resolve => setTimeout(resolve, 300))
+        await new Promise(resolve => setTimeout(resolve, 500))
         
-        // Generate PDF with page break options
-        const options = {
-          margin: [10, 10, 10, 10],
-          filename: `แบบสังเกตผู้เยี่ยมบ้าน_${this.visitResultForm.childName || 'observation'}_${data?.date_visit || 'pdf'}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { 
-            scale: 2, 
-            useCORS: true,
-            allowTaint: true,
-            logging: false
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        const canvas = await html2canvas(container, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: 680,
+          windowWidth: 680
+        })
+        
+        document.body.removeChild(container)
+        
+        const A4_WIDTH_MM = 210
+        const A4_HEIGHT_MM = 297
+        const MARGIN_MM = 10
+        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
+        
+        const imgWidth = CONTENT_WIDTH_MM
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
+        
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+        const totalPages = Math.ceil(imgHeight / pageHeight)
+        
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage()
+          const sourceY = (page * pageHeight * canvas.width) / imgWidth
+          const sourceHeight = Math.min((pageHeight * canvas.width) / imgWidth, canvas.height - sourceY)
+          const pageCanvas = document.createElement('canvas')
+          pageCanvas.width = canvas.width
+          pageCanvas.height = sourceHeight
+          const ctx = pageCanvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
+          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
+          pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', MARGIN_MM, MARGIN_MM, imgWidth, sliceHeight)
         }
         
-        await window.html2pdf().set(options).from(container).save()
-        
-        // Cleanup
-        document.body.removeChild(container)
+        const filename = `แบบสังเกตผู้เยี่ยมบ้าน_${this.visitResultForm.childName || 'observation'}_${data?.date_visit || 'pdf'}.pdf`
+        pdf.save(filename)
         
         this.$toast?.success?.('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {

@@ -15,8 +15,8 @@
           ref="teamSelect"
         >
           <option
-            v-for="option in teamOptions"
-            :key="option.value"
+            v-for="(option, index) in teamOptions"
+            :key="'team-' + index"
             :value="option.value"
           >
             {{ option.text }}
@@ -31,8 +31,8 @@
           ref="subdistrictSelect"
         >
           <option
-            v-for="option in subdistrictOptions"
-            :key="option.value"
+            v-for="(option, index) in subdistrictOptions"
+            :key="'subdistrict-' + index"
             :value="option.value"
           >
             {{ option.text }}
@@ -47,8 +47,8 @@
           ref="visitorSelect"
         >
           <option
-            v-for="option in visitorOptions"
-            :key="option.value"
+            v-for="(option, index) in visitorOptions"
+            :key="'visitor-' + index"
             :value="option.value"
           >
             {{ option.text }}
@@ -57,20 +57,44 @@
       </div>
     </div>
 
-    <!-- Note -->
-    <!-- <div class="note-section">
-      ***ภาคใต้ ตำบลสะบ้าย้อย แก้ไขเป็น ตำบลท่าพระยา | 3.1.2023
-    </div> -->
-
     <!-- Data Table -->
     <div class="table-container">
+      <!-- Skeleton Loading -->
+      <div v-if="loading" class="skeleton-table">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th v-for="field in tableFields" :key="field.key">{{ field.label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="n in 8" :key="'skeleton-' + n" class="skeleton-row">
+              <td><div class="skeleton-cell skeleton-text"></div></td>
+              <td><div class="skeleton-cell skeleton-text"></div></td>
+              <td>
+                <div class="skeleton-cell skeleton-text-short"></div>
+                <div class="skeleton-cell skeleton-text-short mt-1"></div>
+              </td>
+              <td>
+                <div class="skeleton-cell skeleton-text-short"></div>
+              </td>
+              <td><div class="skeleton-cell skeleton-button"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Actual Table -->
       <b-table
+        v-else
         :items="tableData"
         :fields="tableFields"
         striped
         hover
         responsive
         class="admin-table"
+        show-empty
+        empty-text="ไม่พบข้อมูล"
       >
         <template #cell(visitorName)="row">
           {{ row.item.visitorName }}
@@ -82,7 +106,7 @@
 
         <template #cell(lastVisit)="row">
           <div class="visit-info">
-            <div class="visit-date text-center">{{ row.item.lastVisitDate }}</div>
+            <div class="visit-date text-center">{{ formatVisitDate(row.item.lastVisitDate) }}</div>
             <div class="visit-time text-center">{{ row.item.lastVisitTime }}</div>
             <div class="visit-number text-center">({{ row.item.visitNumber }})</div>
           </div>
@@ -125,10 +149,12 @@
     >
       <template #modal-header>
         <div class="modal-header-content">
-          <h5 class="modal-title">ประวัติการเยี่ยมบ้าน* {{ visitHistoryForm.childName }}</h5>
-          <button class="close-button" @click="closeModal">
-            <i class="fas fa-times"></i>
-          </button>
+          <h5 class="modal-title">ประวัติการเยี่ยมบ้าน</h5>
+          <div class="patient-info-bar">
+            <i class="fas fa-user-circle"></i>
+            <span class="patient-name-large">{{ visitHistoryForm.childName }}</span>
+            <span class="patient-nickname-badge">({{ visitHistoryForm.visitorName }})</span>
+          </div>
         </div>
       </template>
 
@@ -136,34 +162,37 @@
         <table class="visit-history-table">
           <thead>
             <tr>
-              <th class="col-visit-number">ครั้งที่</th>
-              <th class="col-visitor">ผู้เยี่ยมบ้าน</th>
-              <th class="col-time">เวลา</th>
-              <th class="col-record">บันทึกเยี่ยมบ้าน</th>
-              <th class="col-photos">รูปกิจกรรม</th>
+              <th class="col-visit-number">ครั้งที่ / สถานะ</th>
+              <th class="col-date-time">วันที่ / เวลา</th>
+              <th class="col-action">ดูผลการเยี่ยมบ้าน</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(visit, index) in visitHistoryForm.visits" :key="index" class="visit-history-row">
               <td class="col-visit-number">
-                {{ visit.visitNumber }}
+                <div class="visit-number-status">
+                  <div class="visit-number-badge">ครั้งที่ {{ visit.visitNumber }}</div>
+                </div>
               </td>
-              <td class="col-visitor">
-                {{ visit.visitorName }}
+              <td class="col-date-time">
+                <div class="date-time-info">
+                  <div class="visit-date-text">
+                    <i class="fas fa-calendar-day"></i>
+                    {{ formatVisitDate(visit.date) }}
+                  </div>
+                  <div class="visit-time-text">
+                    <i class="fas fa-clock"></i>
+                    {{ visit.time }}
+                  </div>
+                </div>
               </td>
-              <td class="col-time">
-                {{ visit.date }} {{ visit.time }}
-              </td>
-              <td class="col-record">
-                <button class="btn-survey" @click="viewSurvey(visit)">
-                  <i class="fas fa-check-circle"></i>
-                  แบบเยี่ยมบ้าน*
-                </button>
-              </td>
-              <td class="col-photos">
-                <button class="btn-photos" @click="viewPhotos(visit)">
-                  <i class="fas fa-camera"></i>
-                  ดูรูป
+              <td class="col-action">
+                <button 
+                  class="btn-view-result" 
+                  @click="viewVisitResult(visit)"
+                >
+                  <i class="fas fa-eye"></i>
+                  ดูผลการเยี่ยมบ้าน
                 </button>
               </td>
             </tr>
@@ -184,148 +213,62 @@
       </template>
     </b-modal>
 
-    <!-- Photo View Modal -->
+    <!-- Visit Result Modal (PDF Style) -->
     <b-modal
-      id="photoModal"
-      v-model="showPhotoModal"
-      title="รูปภาพกิจกรรม"
-      size="xl"
-      no-close-on-backdrop
-      @hidden="closePhotoModal"
-      @shown="onNestedModalShown"
-      header-class="modal-header-visit"
-      :dialog-class="showVisitHistoryModal ? 'nested-modal-dialog nested-modal-level-2' : ''"
-      no-enforce-focus
-      :static="showVisitHistoryModal"
-    >
-      <div class="photo-view-content">
-        <div class="patient-info-bar-small">
-          <i class="fas fa-user-circle"></i>
-          <span>{{ photoModalData.childName }}</span>
-          <span class="badge badge-info">{{ photoModalData.visitDate }}</span>
-        </div>
-
-        <div v-if="loadingPhotos" class="loading-photos">
-          <i class="fas fa-spinner fa-spin"></i>
-          <p>กำลังโหลดรูปภาพ...</p>
-        </div>
-
-        <div v-else class="dual-image-container">
-          <!-- Image 1 -->
-          <div class="image-section">
-            <h6>รูปภาพที่ 1: รูปของเล่น สื่ออุปกรณ์ที่ใช้ในครั้งนี้</h6>
-            <div v-if="photoModalData.images[0]" class="current-image-section">
-              <div class="image-preview-large">
-                <img :src="photoModalData.images[0]" alt="รูปของเล่น สื่ออุปกรณ์">
-              </div>
-            </div>
-            <div v-else class="no-image-section">
-              <i class="fas fa-image"></i>
-              <p>ยังไม่มีรูปภาพ</p>
-            </div>
-          </div>
-
-          <!-- Image 2 -->
-          <div class="image-section">
-            <h6>รูปภาพที่ 2: รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม</h6>
-            <div v-if="photoModalData.images[1]" class="current-image-section">
-              <div class="image-preview-large">
-                <img :src="photoModalData.images[1]" alt="รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม">
-              </div>
-            </div>
-            <div v-else class="no-image-section">
-              <i class="fas fa-image"></i>
-              <p>ยังไม่มีรูปภาพ</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <template #modal-footer="{ cancel }">
-        <b-button variant="secondary" @click="cancel()">
-          <i class="fas fa-times"></i>
-          ปิด
-        </b-button>
-      </template>
-    </b-modal>
-
-    <!-- Visit Record Detail Modal -->
-    <b-modal
-      id="recordModal"
-      v-model="showRecordModal"
+      id="visitResultModal"
+      v-model="showVisitResultModal"
       title="แบบบันทึกข้อมูลเด็ก สำหรับผู้เยี่ยมบ้าน"
       :dialog-class="showVisitHistoryModal ? 'nested-modal-dialog nested-modal-level-2 record-modal-dialog' : 'record-modal-dialog'"
       no-close-on-backdrop
-      @hidden="closeRecordModal"
+      @hidden="onNestedModalHidden"
       @shown="onNestedModalShown"
       header-class="modal-header-visit"
       body-class="record-modal-body"
       no-enforce-focus
       :static="showVisitHistoryModal"
-      hide-footer
     >
-      <div v-if="recordData" class="visit-record-wrapper">
-        <div id="visit-record-content" class="visit-record-content">
+      <div v-if="loadingVisitResult" class="loading-record">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>กำลังโหลดข้อมูล...</p>
+      </div>
+
+      <div v-else-if="visitResultForm && visitResultForm.childName" class="visit-record-wrapper">
+        <div id="visit-result-pdf-content" class="visit-record-content">
           <!-- Header Section -->
           <div class="record-header">
             <div class="record-title">แบบบันทึกข้อมูลเด็ก สำหรับผู้เยี่ยมบ้าน</div>
           </div>
 
           <!-- Basic Info Section -->
-          <div class="record-section">
-            <div class="info-row-single">
-              <span class="info-label">ชื่อ-นามสกุลของเด็ก:</span>
-              <span class="info-value">{{ recordData.childName || '-' }}</span>
-            </div>
-            <div class="info-row-single">
-              <span class="info-label">ชื่อ-นามสกุลของผู้เยี่ยมบ้าน:</span>
-              <span class="info-value">{{ recordData.visitorName || '-' }}</span>
-            </div>
-            <div class="info-row-single">
-              <span class="info-label">เวลาเริ่มต้นการเยี่ยมบ้าน:</span>
-              <span class="info-value">{{ recordData.startTime || '-' }}</span>
-            </div>
-            <div class="info-row-single">
-              <span class="info-label">วันที่เยี่ยมบ้าน:</span>
-              <span class="info-value">{{ recordData.visitDate || '-' }}</span>
-              <span class="info-label" style="margin-left: 1rem;">การเยี่ยมบ้านครั้งที่:</span>
-              <span class="info-value">{{ recordData.visitNumber || '-' }}</span>
-            </div>
+          <div class="plain-text-section">
+            <p>ชื่อ-นามสกุลของเด็ก : {{ visitResultForm.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatVisitDate(visitResultForm.visitDate) }}</span></p>
+            <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ visitResultForm.visitNumber || '-' }}</span></p>
+            <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ visitResultForm.visitTime || '-' }} น.</p>
           </div>
 
           <!-- Home Visit Section -->
-          <div class="record-section">
-            <div class="section-title">การเยี่ยมบ้าน</div>
-            <div class="question-item">
-              <div class="question-text">ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</div>
-              <div class="answer-text">{{ getQ1Answer(recordData.answers?.q1) }}</div>
-            </div>
-            <div class="question-item">
-              <div class="question-text">เด็กสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</div>
-              <div class="answer-text">{{ getQ2Answer(recordData.answers?.q2) }}</div>
-            </div>
+          <div class="plain-text-section">
+            <p class="section-header-text">การเยี่ยมบ้าน</p>
+            <p>1 : ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
+            <p class="indent-answer">{{ getQ1Answer(visitResultForm.answers?.q1) }}</p>
+            <p>2 : เด็กสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
+            <p class="indent-answer">{{ getQ2Answer(visitResultForm.answers?.q2) }}</p>
           </div>
 
           <!-- Review Previous Visit Section -->
-          <div class="record-section">
-            <div class="section-title">ทบทวนการเยี่ยมบ้านครั้งที่ผ่านมา</div>
-            <div class="question-item">
-              <div class="question-text">ใครทำกิจกรรมจากกิจกรรมการเยี่ยมบ้านกับเด็กในสัปดาห์ที่ผ่านมา</div>
-              <div class="answer-text">{{ getQ6Answer(recordData.answers?.q6) }}</div>
-            </div>
-            <div class="question-item">
-              <div class="question-text">ผู้ปกครองทำกิจกรรมกับเด็กบ่อยแค่ไหนในสัปดาห์ที่ผ่านมา</div>
-              <div class="answer-text">{{ getQ8Answer(recordData.answers?.q8) }}</div>
-            </div>
-            <div class="question-item">
-              <div class="question-text">ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</div>
-            </div>
+          <div class="plain-text-section">
+            <p class="section-header-text underline">ทบทวนการเยี่ยมบ้านครั้งที่ผ่านมา</p>
+            <p>3 : ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก</p>
+            <p class="indent-answer">{{ getQ6Answer(visitResultForm.answers?.q6) }}</p>
+            <p>4 : ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน ?</p>
+            <p class="indent-answer">{{ getQ8Answer(visitResultForm.answers?.q4) }}</p>
+            <p>5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
           </div>
 
-          <!-- Activity Review Table -->
-          <div class="record-section">
-            <div class="section-title">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ recordData.monthAge || '-' }} การเยี่ยมบ้าน {{ recordData.time || '-' }}</div>
-            <table class="activity-table">
+          <!-- Activity Review Table (Q5) -->
+          <div class="plain-text-section">
+            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ visitResultForm.time || '-' }}</p>
+            <table class="plain-table">
               <thead>
                 <tr>
                   <th>ชื่อกิจกรรม</th>
@@ -334,20 +277,62 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(activity, index) in recordData.q5Activities" :key="index">
-                  <td>{{ activity.title || activity.activity || `กิจกรรม ${index + 1}` }}</td>
+                <tr v-for="(activity, index) in visitResultForm.q5Activities" :key="'q5-' + index">
+                  <td>{{ activity.title || `กิจกรรม ${index + 1}` }}</td>
                   <td>{{ activity.objective || '-' }}</td>
-                  <td>{{ getActivityAnswer(recordData.answers?.q5?.[activity.no]) }}</td>
+                  <td>{{ getActivityAnswer(activity.answer) }}</td>
+                </tr>
+                <tr v-if="!visitResultForm.q5Activities || visitResultForm.q5Activities.length === 0">
+                  <td colspan="3" class="text-center text-muted">ไม่มีข้อมูลกิจกรรมทบทวน</td>
                 </tr>
               </tbody>
             </table>
           </div>
+
+          <!-- Additional Info Section -->
+          <div class="plain-text-section">
+            <p>6 : ใครทำกิจกรรมกับเด็ก</p>
+            <p class="indent-answer">{{ getQ6Answer(visitResultForm.answers?.q6) }}</p>
+            <p>7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
+            <p class="indent-answer">{{ visitResultForm.answers?.q7 === 1 ? 'มี' : visitResultForm.answers?.q7 === 3 ? 'ไม่มี' : '-' }}</p>
+            <p>8 : มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างด้วยหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ)</p>
+            <p class="indent-answer">{{ visitResultForm.answers?.q8 === 1 ? 'มี' : visitResultForm.answers?.q8 === 3 ? 'ไม่มี' : '-' }}</p>
+          </div>
+
+          <!-- Current Visit Activities Section (Q9) -->
+          <div v-if="visitResultForm.q9Activities && visitResultForm.q9Activities.length > 0" class="plain-text-section">
+            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ parseInt(visitResultForm.time || 0) + 1 }}</p>
+            <p>โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
+            <table class="plain-table">
+              <thead>
+                <tr>
+                  <th>ชื่อกิจกรรม</th>
+                  <th>จุดประสงค์</th>
+                  <th>คำตอบ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(activity, index) in visitResultForm.q9Activities" :key="'q9-' + index">
+                  <td>{{ activity.title }}</td>
+                  <td>{{ activity.objective || '-' }}</td>
+                  <td>{{ getActivityAnswer(activity.answer) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Appointment Section -->
+          <div class="plain-text-section">
+            <p>10 : นัดหมายการเยี่ยมบ้านครั้งต่อไป วันที่ {{ visitResultForm.appointment?.date || '-' }} เวลา {{ visitResultForm.appointment?.time || '-' }} น.</p>
+            <p>เวลาสิ้นสุดการเยี่ยมบ้าน {{ visitResultForm.endTime || '-' }} น.</p>
+            <p v-if="visitResultForm.note">บันทึกผู้เยี่ยมบ้าน - {{ visitResultForm.note }}</p>
+          </div>
         </div>
       </div>
 
-      <div v-else class="loading-record">
-        <i class="fas fa-spinner fa-spin"></i>
-        <p>กำลังโหลดข้อมูล...</p>
+      <div v-else class="empty-answers">
+        <i class="fas fa-clipboard-question"></i>
+        <p>ยังไม่มีข้อมูลการตอบคำถาม</p>
       </div>
 
       <template #modal-footer="{ cancel }">
@@ -355,27 +340,35 @@
           <i class="fas fa-times"></i>
           ปิด
         </b-button>
+        <b-button variant="primary" @click="downloadPDF" :disabled="!visitResultForm || loadingPDF">
+          <i class="fas fa-download"></i>
+          {{ loadingPDF ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF' }}
+        </b-button>
       </template>
     </b-modal>
   </div>
 </template>
 
 <script>
+import { formatVisitDate } from '~/utils/dateHelpers'
 import { PARTICIPANT_OPTIONS, ACTIVITY_ANSWER_OPTIONS } from '~/utils/surveyHelpers'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 export default {
   layout: 'admin',
   middleware: 'auth',
   data() {
     return {
+      loading: true,
       filters: {
-        team: 'songkhla',
+        team: 'all',
         subdistrict: 'all',
         visitor: 'all'
       },
       teamOptions: [
-        { value: 'songkhla', text: 'สงขลา' },
-        { value: 'all', text: '--ทั้งหมด--' }
+        { value: 'all', text: '--ทั้งหมด--' },
+        { value: 'songkhla', text: 'สงขลา' }
       ],
       subdistrictOptions: [
         { value: 'all', text: '--ทั้งหมด--' }
@@ -384,21 +377,25 @@ export default {
         { value: 'all', text: '--ทั้งหมด--' }
       ],
       showVisitHistoryModal: false,
+      showVisitResultModal: false,
       visitHistoryForm: {
         childName: '',
         visitorName: '',
+        stid: '',
         visits: []
       },
-      showPhotoModal: false,
-      photoModalData: {
+      visitResultForm: {
         childName: '',
+        visitorName: '',
+        visitNumber: null,
         visitDate: '',
-        images: []
+        visitTime: '',
+        endTime: '',
+        answers: {},
+        q5Activities: [],
+        q9Activities: [],
+        appointment: {}
       },
-      loadingPhotos: false,
-      showRecordModal: false,
-      recordData: null,
-      loadingRecord: false,
       tableFields: [
         {
           key: 'visitorName',
@@ -426,129 +423,68 @@ export default {
           thClass: 'table-header'
         }
       ],
-      tableData: [
-        {
-          visitorName: 'วิลาวัณย์ จุลพงค์',
-          childName: 'กรณ์รณัฐ นาวารี',
-          lastVisitDate: 'พ. 25 มกราคม 2566',
-          lastVisitTime: '15.00',
-          visitNumber: 8,
-          nextVisitDate: 'พ. 01 กุมภาพันธ์ 2566',
-          nextVisitTime: '15.00',
-          postponeCount: 1,
-          isPostponed: true
-        },
-        {
-          visitorName: 'สาวิตรี ราชเล็ก',
-          childName: 'ธนัชญา เปล้าแก้ว',
-          lastVisitDate: 'อา. 26 มีนาคม 2566',
-          lastVisitTime: '14.00',
-          visitNumber: 16,
-          nextVisitDate: 'อา. 02 เมษายน 2566',
-          nextVisitTime: '10.00',
-          postponeCount: 9,
-          isPostponed: true
-        },
-        {
-          visitorName: 'ดวงทิพย์ ด่าจํานงค์',
-          childName: 'จิรดา เขียนปัญญา',
-          lastVisitDate: 'อ. 18 เมษายน 2566',
-          lastVisitTime: '16.00',
-          visitNumber: 19,
-          nextVisitDate: 'จ. 24 เมษายน 2566',
-          nextVisitTime: '16.00',
-          postponeCount: 2,
-          isPostponed: true
-        },
-        {
-          visitorName: 'น.ส.อาซีซะ ยะลาหะ',
-          childName: 'เด็กชายภาคิน สุขศรี',
-          lastVisitDate: 'จ. 01 พฤษภาคม 2566',
-          lastVisitTime: '16.30',
-          visitNumber: 4,
-          nextVisitDate: 'อา. 07 พฤษภาคม 2566',
-          nextVisitTime: '16.30',
-          postponeCount: 1,
-          isPostponed: true
-        },
-        {
-          visitorName: 'สาวิตรี ราชเล็ก',
-          childName: 'ชนากานต์ ขาวชู',
-          lastVisitDate: 'อ. 20 มิถุนายน 2566',
-          lastVisitTime: '17.00',
-          visitNumber: 28,
-          nextVisitDate: 'พฤ. 29 มิถุนายน 2566',
-          nextVisitTime: '17.00',
-          postponeCount: 7,
-          isPostponed: true
-        },
-        {
-          visitorName: 'ณณัชชา จิตรสุวรรณ์',
-          childName: 'ณัฐณิชา มรรคาเขต',
-          lastVisitDate: 'จ. 26 มิถุนายน 2566',
-          lastVisitTime: '17.30',
-          visitNumber: 28,
-          nextVisitDate: 'จ. 03 กรกฎาคม 2566',
-          nextVisitTime: '17.30',
-          postponeCount: 2,
-          isPostponed: true
-        },
-        {
-          visitorName: 'น.ส.ซารีนา คือเระ',
-          childName: 'นิชานันท์ อ่อนเกลี้ยง',
-          lastVisitDate: 'จ. 10 กรกฎาคม 2566',
-          lastVisitTime: '15.30',
-          visitNumber: 28,
-          nextVisitDate: 'ส. 15 กรกฎาคม 2566',
-          nextVisitTime: '15.30',
-          postponeCount: 2,
-          isPostponed: true
-        }
-      ]
+      tableData: [],
+      rawTableData: [], // เก็บข้อมูลดิบจาก API สำหรับ filter ที่ frontend
+      dataFetched: false, // flag เพื่อตรวจสอบว่าดึงข้อมูลแล้วหรือยัง
+      homevisitResultData: [], // เก็บข้อมูลจาก gethomevisit_result_data API สำหรับ modal
+      loadingPDF: false,
+      loadingVisitResult: false
     }
   },
-  mounted() {
+  async mounted() {
+    // Load html2pdf.js from CDN
+    if (process.client && !window.html2pdf) {
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+      script.onload = () => {
+        console.log('html2pdf.js loaded')
+      }
+      document.head.appendChild(script)
+    }
+
+    // Load data from APIs
+    await this.fetchAmphoeOptions()
+    await this.fetchVisitorOptions()
+    await this.fetchTableData()
+    await this.fetchHomevisitResultData()
+    
     // Initialize Select2 for dropdowns
     this.$nextTick(() => {
       if (this.$select2) {
         if (this.$refs.teamSelect) {
           this.$select2.init(this.$refs.teamSelect)
           window.$(this.$refs.teamSelect).on('change', () => {
-            this.filters.team = window.$(this.$refs.teamSelect).val()
+            const newVal = window.$(this.$refs.teamSelect).val()
+            if (this.filters.team !== newVal) {
+              this.filters.team = newVal
+              this.filterTableData()
+            }
           })
         }
         if (this.$refs.subdistrictSelect) {
           this.$select2.init(this.$refs.subdistrictSelect)
           window.$(this.$refs.subdistrictSelect).on('change', () => {
-            this.filters.subdistrict = window.$(this.$refs.subdistrictSelect).val()
+            const newVal = window.$(this.$refs.subdistrictSelect).val()
+            if (this.filters.subdistrict !== newVal) {
+              this.filters.subdistrict = newVal
+              this.filterTableData()
+            }
           })
         }
         if (this.$refs.visitorSelect) {
           this.$select2.init(this.$refs.visitorSelect)
           window.$(this.$refs.visitorSelect).on('change', () => {
-            this.filters.visitor = window.$(this.$refs.visitorSelect).val()
+            const newVal = window.$(this.$refs.visitorSelect).val()
+            if (this.filters.visitor !== newVal) {
+              this.filters.visitor = newVal
+              this.filterTableData()
+            }
           })
         }
       }
     })
   },
-  watch: {
-    'filters.team'(newVal) {
-      if (this.$refs.teamSelect && window.$) {
-        window.$(this.$refs.teamSelect).val(newVal).trigger('change')
-      }
-    },
-    'filters.subdistrict'(newVal) {
-      if (this.$refs.subdistrictSelect && window.$) {
-        window.$(this.$refs.subdistrictSelect).val(newVal).trigger('change')
-      }
-    },
-    'filters.visitor'(newVal) {
-      if (this.$refs.visitorSelect && window.$) {
-        window.$(this.$refs.visitorSelect).val(newVal).trigger('change')
-      }
-    }
-  },
+  watch: {},
   beforeDestroy() {
     // Destroy Select2 instances
     if (this.$select2) {
@@ -567,229 +503,269 @@ export default {
     }
   },
   methods: {
-    viewHistory(item) {
-      // Create mock visit history data
-      const mockVisits = []
-      const totalVisits = item.visitNumber || 8
-      
-      for (let i = totalVisits; i >= 1; i--) {
-        const visitDate = new Date()
-        visitDate.setDate(visitDate.getDate() - (totalVisits - i) * 21)
-        
-        const day = visitDate.getDate()
-        const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 
-                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
-        const month = monthNames[visitDate.getMonth()]
-        const year = visitDate.getFullYear() + 543
-        
-        const times = ['10:00', '14:00', '15:00', '16:00', '17:00']
-        const randomTime = times[Math.floor(Math.random() * times.length)]
-        
-        mockVisits.push({
-          visitNumber: i,
-          visitorName: item.visitorName,
-          date: `พ. ${day} ${month} ${year}`,
-          time: randomTime
-        })
+    // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
+    async fetchAmphoeOptions() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getamphoe.php')
+        if (response.statusCode === 200 && response.results) {
+          this.subdistrictOptions = [
+            { value: 'all', text: '--ทั้งหมด--' },
+            ...response.results.map(item => ({
+              value: item.amp_code,
+              text: item.amp_nameT
+            }))
+          ]
+        }
+      } catch (error) {
+        console.error('Error fetching amphoe options:', error)
       }
+    },
+    
+    // ดึงข้อมูลผู้เยี่ยมบ้านสำหรับ dropdown
+    async fetchVisitorOptions() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getuser.php')
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          // กรองเฉพาะผู้เยี่ยมบ้าน (level_input === '3' = staff)
+          const homeVisitors = response.results.filter(item => 
+            item.level_input === '3' || item.level === 'staff'
+          )
+          
+          this.visitorOptions = [
+            { value: 'all', text: '--ทั้งหมด--' },
+            ...homeVisitors.map(item => ({
+              value: item.username || item.user_id || item.id,
+              text: `${item.fname || ''} ${item.lname || ''}`.trim() || item.username
+            }))
+          ]
+        }
+      } catch (error) {
+        console.error('Error fetching visitor options:', error)
+      }
+    },
+    
+    // ดึงข้อมูลตารางผลการเยี่ยมบ้าน (ดึงครั้งเดียวจาก API แล้ว filter ที่ frontend)
+    async fetchTableData() {
+      this.loading = true
+      try {
+        if (!this.dataFetched) {
+          const url = `/api/parenting2025_census/get/homevisit/sup/gethomevisit_result.php`
+          const response = await this.$axios.$get(url)
+          
+          const isSuccess = response.message === 'success' || response.statusCode === 200
+          if (isSuccess && response.results) {
+            // สร้าง lookup map: username -> ชื่อเต็ม จาก visitorOptions
+            const visitorNameMap = {}
+            this.visitorOptions.forEach(opt => {
+              if (opt.value !== 'all') {
+                visitorNameMap[opt.value] = opt.text
+              }
+            })
+            
+            this.rawTableData = response.results.map((item, index) => ({
+              id: `${item.stid}-${index}`,
+              stid: item.stid,
+              recby: item.recby,
+              ampCode: item.amp_code,
+              visitorName: visitorNameMap[item.recby] || item.recby || '-',
+              childName: item.fullname_visit || `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
+              lastVisitDate: item.date_visit || '-',
+              lastVisitTime: item.timeStart || '-',
+              visitNumber: parseInt(item.maxvisit) || parseInt(item.time_visit) || 0,
+              nextVisitDate: item.q10_appDate || '-',
+              nextVisitTime: item.q10_appTime || '-',
+              postponeCount: parseInt(item.cnt_app) || 0,
+              isPostponed: (parseInt(item.cnt_app) || 0) > 0,
+              recStatus: item.recStatus,
+              tamCode: item.tam_code,
+              prefix: item.prefix
+            }))
+            this.dataFetched = true
+          } else {
+            this.rawTableData = []
+          }
+        }
+        
+        this.filterTableData()
+      } catch (error) {
+        console.error('Error fetching table data:', error)
+        this.tableData = []
+        this.rawTableData = []
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // Filter ข้อมูลที่ frontend โดยไม่ต้องยิง API
+    filterTableData() {
+      let filtered = [...this.rawTableData]
+      
+      // Filter ตามอำเภอ
+      if (this.filters.subdistrict && this.filters.subdistrict !== 'all') {
+        filtered = filtered.filter(item => item.ampCode === this.filters.subdistrict)
+      }
+      
+      // Filter ตามผู้เยี่ยมบ้าน
+      if (this.filters.visitor && this.filters.visitor !== 'all') {
+        filtered = filtered.filter(item => item.recby === this.filters.visitor)
+      }
+      
+      this.tableData = filtered
+    },
+    
+    // ดึงข้อมูล gethomevisit_result_data สำหรับใช้ใน modal
+    async fetchHomevisitResultData() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/sup/gethomevisit_result_data.php')
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          this.homevisitResultData = response.results
+        }
+      } catch (error) {
+        console.error('Error fetching homevisit result data:', error)
+      }
+    },
+    
+    viewHistory(item) {
+      // Filter ข้อมูลจาก homevisitResultData ตาม stid (child ID)
+      const childVisits = this.homevisitResultData.filter(visit => visit.stid === item.stid)
+      
+      // Sort by time_visit descending (ล่าสุดก่อน)
+      childVisits.sort((a, b) => parseInt(b.time_visit) - parseInt(a.time_visit))
+      
+      // Map to visits format
+      const visits = childVisits.map(visit => ({
+        id: `${visit.stid}-${visit.time_visit}`,
+        visitNumber: parseInt(visit.time_visit) || 1,
+        date: visit.date_visit || '-',
+        time: visit.timeStart || '-',
+        synced: visit.recStatus === '1',
+        approved: visit.recStatus === '1',
+        rawData: visit
+      }))
       
       this.visitHistoryForm = {
         childName: item.childName,
         visitorName: item.visitorName,
-        visits: mockVisits
+        stid: item.stid,
+        visits: visits
       }
       
       this.showVisitHistoryModal = true
     },
-    resetVisitHistoryForm() {
-      this.visitHistoryForm = {
-        childName: '',
-        visitorName: '',
-        visits: []
+    
+    async viewVisitResult(visit) {
+      const raw = visit.rawData
+      if (!raw) {
+        this.$toast?.error('ไม่พบข้อมูลการเยี่ยมบ้าน')
+        return
       }
-    },
-    closeModal() {
-      this.showVisitHistoryModal = false
-      this.resetVisitHistoryForm()
-    },
-    async viewSurvey(visit) {
-      try {
-        this.loadingRecord = true
-        this.showRecordModal = true
-        this.recordData = null
-
-        // For mock data, use visit data
-        const mockActivities = this.generateMockActivities([], 44, 2)
-        this.recordData = {
-          childName: this.visitHistoryForm.childName,
-          visitorName: this.visitHistoryForm.visitorName,
-          visitDate: visit.date,
-          visitNumber: visit.visitNumber,
-          startTime: visit.time,
-          monthAge: 44,
-          time: 2,
-          answers: {
-            q1: 1, // Mock: ได้
-            q2: 1, // Mock: ได้
-            q6: 1, // Mock: แม่
-            q8: 3, // Mock: ทำบ้างเป็นบางวัน (3-4 วัน)
-            q5: {
-              '1': 1, // ทำได้เอง
-              '2': 1, // ทำได้เอง
-              '3': 1, // ทำได้เอง
-              '4': 2, // ทำได้บ้าง
-              '5': 1, // ทำได้เอง
-              '6': 2, // ทำได้บ้าง
-              '7': 1, // ทำได้เอง
-              '8': 1, // ทำได้เอง
-              '9': 2, // ทำได้บ้าง
-              '10': 1 // ทำได้เอง
-            }
-          },
-          q5Activities: mockActivities
-        }
-      } catch (error) {
-        console.error('Error loading record:', error)
-        this.$toast.error('ไม่สามารถโหลดข้อมูลได้')
-        this.recordData = null
-      } finally {
-        this.loadingRecord = false
-      }
-    },
-    async viewPhotos(visit) {
-      try {
-        this.loadingPhotos = true
-        this.showPhotoModal = true
-        
-        // Set basic info
-        this.photoModalData = {
-          childName: this.visitHistoryForm.childName,
-          visitDate: visit.date,
-          images: []
-        }
-
-        // For mock data, show empty state
-        this.photoModalData.images = []
-      } catch (error) {
-        console.error('Error loading photos:', error)
-        this.$toast.error('ไม่สามารถโหลดรูปภาพได้')
-        this.photoModalData.images = []
-      } finally {
-        this.loadingPhotos = false
-      }
-    },
-    closePhotoModal() {
-      this.showPhotoModal = false
-      this.photoModalData = {
-        childName: '',
-        visitDate: '',
-        images: []
-      }
-      this.onNestedModalHidden()
-    },
-    closeRecordModal() {
-      this.showRecordModal = false
-      this.recordData = null
-      this.onNestedModalHidden()
-    },
-    generateMockActivities(existingActivities, monthAge, time) {
-      const mockActivities = [
-        {
-          no: '1',
-          title: 'จิ๊กซอว์ 16 - ปลา',
-          objective: 'เด็กวางจิ๊กซอว์เข้าด้วยกันเพื่อประกอบเป็นรูปปลา และพูดเกี่ยวกับปลา',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '2',
-          title: 'ของเล่นร้อยเชือก 1 - เชือกร้อยลูกปัด',
-          objective: 'เด็กร้อยคอขวดหรือลูกปัดตามลำดับสี – สีแดง เหลือง แดง เหลือง',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '3',
-          title: 'เกมแอคชั่น 5 - อะไรหายไป',
-          objective: 'เด็กบอกชื่อสิ่งของที่หายไป',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '4',
-          title: 'บล็อกไม้ - สร้างหอคอย',
-          objective: 'เด็กวางบล็อกไม้ซ้อนกันเป็นหอคอยสูง 8 ชั้น',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '5',
-          title: 'หนังสือภาพ - เล่านิทาน',
-          objective: 'เด็กเล่าเรื่องจากภาพในหนังสือได้อย่างน้อย 3 หน้า',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '6',
-          title: 'ดินน้ำมัน - ปั้นรูปสัตว์',
-          objective: 'เด็กปั้นดินน้ำมันเป็นรูปสัตว์ที่รู้จักได้อย่างน้อย 2 ชนิด',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '7',
-          title: 'สีเทียน - วาดรูป',
-          objective: 'เด็กใช้สีเทียนวาดรูปตามจินตนาการและบอกเล่าเรื่องราว',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '8',
-          title: 'ลูกบอล - โยนรับ',
-          objective: 'เด็กโยนลูกบอลและรับได้อย่างน้อย 3 ครั้งติดต่อกัน',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '9',
-          title: 'ตัวต่อ - ต่อรถ',
-          objective: 'เด็กต่อตัวต่อเป็นรูปรถและบอกชื่อส่วนประกอบ',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '10',
-          title: 'เกมจับคู่ - รูปภาพกับคำ',
-          objective: 'เด็กจับคู่รูปภาพกับคำศัพท์ที่เกี่ยวข้องได้อย่างน้อย 5 คู่',
-          month_age: monthAge || 44,
-          time: time || 2
-        }
-      ]
-
-      // Merge existing activities with mock activities
-      const result = [...existingActivities]
-      const existingNos = existingActivities.map(a => String(a.no))
       
-      for (let i = 0; i < mockActivities.length && result.length < 10; i++) {
-        if (!existingNos.includes(mockActivities[i].no)) {
-          result.push(mockActivities[i])
+      try {
+        this.loadingVisitResult = true
+        this.showVisitResultModal = true
+        
+        // ดึงข้อมูลกิจกรรมจาก IndexedDB เพื่อ map ชื่อกิจกรรม
+        let activitiesMap = {}
+        try {
+          let allActivities = await this.$indexedDB.getActivities()
+          
+          // ถ้าไม่มีใน IndexedDB ให้ดึงจาก API
+          if (!allActivities || allActivities.length === 0) {
+            const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getobjective.php')
+            if (response && response.results && response.results.length > 0) {
+              await this.$indexedDB.clearActivities()
+              await this.$indexedDB.addActivities(response.results)
+              allActivities = response.results
+            }
+          }
+          
+          if (allActivities && allActivities.length > 0) {
+            allActivities.forEach(act => {
+              activitiesMap[String(act.no)] = {
+                title: act.title || act.objective || `กิจกรรม ${act.no}`,
+                objective: act.objective || '-'
+              }
+            })
+          }
+        } catch (err) {
+          console.warn('ไม่สามารถโหลดข้อมูลกิจกรรม:', err)
         }
+        
+        // สร้าง q5 activities จาก q51_name - q55_name และ q51 - q55
+        const q5Activities = []
+        for (let i = 1; i <= 5; i++) {
+          const activityNo = raw[`q5${i}_name`]
+          const activityAnswer = raw[`q5${i}`]
+          if (activityNo) {
+            const actInfo = activitiesMap[String(activityNo)] || {}
+            q5Activities.push({
+              no: activityNo,
+              title: actInfo.title || `กิจกรรม ${activityNo}`,
+              objective: actInfo.objective || '-',
+              answer: activityAnswer
+            })
+          }
+        }
+        
+        // สร้าง q9 activities จาก q91_name - q95_name และ q91 - q95
+        const q9Activities = []
+        for (let i = 1; i <= 5; i++) {
+          const activityNo = raw[`q9${i}_name`]
+          const activityAnswer = raw[`q9${i}`]
+          if (activityNo) {
+            const actInfo = activitiesMap[String(activityNo)] || {}
+            q9Activities.push({
+              no: activityNo,
+              title: actInfo.title || `กิจกรรม ${activityNo}`,
+              objective: actInfo.objective || '-',
+              answer: activityAnswer
+            })
+          }
+        }
+        
+        this.visitResultForm = {
+          childName: raw.fullname_visit || this.visitHistoryForm.childName,
+          visitorName: this.visitHistoryForm.visitorName,
+          visitNumber: raw.time_visit || 1,
+          visitDate: raw.date_visit || '-',
+          visitTime: raw.timeStart || '-',
+          endTime: raw.timeEnd || '-',
+          monthAge: raw.month_age || null,
+          time: raw.time_visit,
+          note: raw.note || '',
+          answers: {
+            q1: parseInt(raw.q1) || null,
+            q1_des: raw.q1_des || '',
+            q2: parseInt(raw.q2) || null,
+            q2_des: raw.q2_des || '',
+            q3: raw.q3 || '',
+            q3_des: raw.q3_des || '',
+            q4: parseInt(raw.q4) || null,
+            q6: parseInt(raw.q6) || null,
+            q6_des: raw.q6_des || '',
+            q7: parseInt(raw.q7) || null,
+            q71: raw.q71 || '',
+            q71_des: raw.q71_des || '',
+            q8: parseInt(raw.q8) || null
+          },
+          q5Activities: q5Activities,
+          q9Activities: q9Activities,
+          appointment: {
+            date: raw.q10_appDate || '',
+            time: raw.q10_appTime || ''
+          }
+        }
+      } catch (error) {
+        console.error('Error loading visit result:', error)
+        this.$toast?.error('ไม่สามารถโหลดข้อมูลได้')
+      } finally {
+        this.loadingVisitResult = false
       }
-
-      // Fill remaining slots if needed
-      while (result.length < 10) {
-        const index = result.length + 1
-        result.push({
-          no: String(index),
-          title: `กิจกรรม ${index}`,
-          objective: `จุดประสงค์ของกิจกรรม ${index}`,
-          month_age: monthAge || 44,
-          time: time || 2
-        })
-      }
-
-      return result.slice(0, 10)
     },
+    
+    // Helper methods for Q&A display
     getQ1Answer(value) {
       if (value === 1) return 'ได้'
       if (value === 2) return 'ทำบ้าง'
@@ -823,11 +799,215 @@ export default {
       const option = ACTIVITY_ANSWER_OPTIONS.find(opt => opt.value === Number(value))
       return option ? option.label : '-'
     },
+    
+    async downloadPDF() {
+      if (!this.visitResultForm) {
+        this.$toast?.error('ไม่พบข้อมูลที่จะสร้าง PDF')
+        return
+      }
+      
+      try {
+        this.loadingPDF = true
+        
+        await this.$nextTick()
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        const originalElement = document.getElementById('visit-result-pdf-content')
+        if (!originalElement) {
+          this.$toast?.error('ไม่พบข้อมูลที่จะสร้าง PDF')
+          return
+        }
+        
+        // A4 dimensions in mm
+        const A4_WIDTH_MM = 210
+        const A4_HEIGHT_MM = 297
+        const MARGIN_MM = 15
+        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
+        
+        // Create a container for PDF generation with fixed width
+        const pdfContainer = document.createElement('div')
+        pdfContainer.id = 'pdf-gen-container'
+        pdfContainer.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: 680px;
+          background: white;
+          padding: 30px;
+          font-family: 'Kanit', 'Sarabun', Arial, sans-serif;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #000000;
+        `
+        
+        // Clone content
+        pdfContainer.innerHTML = originalElement.innerHTML
+        document.body.appendChild(pdfContainer)
+        
+        // Apply inline styles
+        const applyStyles = (container) => {
+          const recordHeader = container.querySelector('.record-header')
+          if (recordHeader) {
+            recordHeader.style.cssText = 'text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #3551a4;'
+          }
+          
+          const recordTitle = container.querySelector('.record-title')
+          if (recordTitle) {
+            recordTitle.style.cssText = 'font-size: 18px; font-weight: bold; color: #3551a4; margin: 0;'
+          }
+          
+          container.querySelectorAll('p').forEach(p => {
+            p.style.cssText = 'margin: 6px 0; font-size: 14px; line-height: 1.6; color: #000000;'
+          })
+          
+          container.querySelectorAll('.section-header-text').forEach(h => {
+            h.style.cssText = 'font-weight: bold; color: #000000; margin-top: 15px; margin-bottom: 10px;'
+          })
+          
+          container.querySelectorAll('.indent-answer').forEach(a => {
+            a.style.cssText = 'padding-left: 30px; color: #333333; margin: 6px 0;'
+          })
+          
+          container.querySelectorAll('table').forEach(table => {
+            table.style.cssText = 'width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;'
+          })
+          
+          container.querySelectorAll('th').forEach(th => {
+            th.style.cssText = 'border: 1px solid #333; padding: 8px; text-align: left; font-weight: bold; background-color: #f0f0f0;'
+          })
+          
+          container.querySelectorAll('td').forEach(td => {
+            td.style.cssText = 'border: 1px solid #333; padding: 8px; text-align: left;'
+          })
+          
+          container.querySelectorAll('.plain-text-section').forEach(section => {
+            section.style.cssText = 'margin-bottom: 15px;'
+          })
+        }
+        
+        applyStyles(pdfContainer)
+        
+        // Wait for styles to apply
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Capture as canvas
+        const canvas = await html2canvas(pdfContainer, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: 680,
+          windowWidth: 680
+        })
+        
+        // Clean up container
+        document.body.removeChild(pdfContainer)
+        
+        // Calculate dimensions for PDF
+        const imgWidth = CONTENT_WIDTH_MM
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
+        
+        // Create PDF
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        })
+        
+        // Calculate number of pages needed
+        const totalPages = Math.ceil(imgHeight / pageHeight)
+        
+        // For each page, create a slice of the canvas
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) {
+            pdf.addPage()
+          }
+          
+          // Calculate the portion of the image to show on this page
+          const sourceY = (page * pageHeight * canvas.width) / imgWidth
+          const sourceHeight = Math.min(
+            (pageHeight * canvas.width) / imgWidth,
+            canvas.height - sourceY
+          )
+          
+          // Create a temporary canvas for this page's content
+          const pageCanvas = document.createElement('canvas')
+          pageCanvas.width = canvas.width
+          pageCanvas.height = sourceHeight
+          
+          const ctx = pageCanvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+          
+          // Draw the portion of the original canvas
+          ctx.drawImage(
+            canvas,
+            0, sourceY, canvas.width, sourceHeight,
+            0, 0, canvas.width, sourceHeight
+          )
+          
+          // Calculate the height for this slice in mm
+          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
+          
+          // Add image to PDF
+          pdf.addImage(
+            pageCanvas.toDataURL('image/jpeg', 0.95),
+            'JPEG',
+            MARGIN_MM,
+            MARGIN_MM,
+            imgWidth,
+            sliceHeight
+          )
+        }
+        
+        // Download PDF
+        const filename = `แบบบันทึก_${this.visitResultForm.childName}_ครั้งที่${this.visitResultForm.visitNumber}.pdf`
+        pdf.save(filename)
+        
+        this.$toast?.success('ดาวน์โหลด PDF สำเร็จ')
+      } catch (error) {
+        console.error('Error generating PDF:', error)
+        this.$toast?.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
+        
+        // Clean up on error
+        const container = document.getElementById('pdf-gen-container')
+        if (container) {
+          document.body.removeChild(container)
+        }
+      } finally {
+        this.loadingPDF = false
+      }
+    },
+    
+    resetVisitHistoryForm() {
+      this.visitHistoryForm = {
+        childName: '',
+        visitorName: '',
+        stid: '',
+        visits: []
+      }
+    },
+    resetVisitResultForm() {
+      this.visitResultForm = {
+        childName: '',
+        visitorName: '',
+        visitNumber: null,
+        visitDate: '',
+        visitTime: '',
+        endTime: '',
+        answers: {},
+        q5Activities: [],
+        q9Activities: [],
+        appointment: {}
+      }
+    },
+    formatVisitDate(dateStr) {
+      return formatVisitDate(dateStr)
+    },
     onNestedModalShown() {
-      // จัดการ z-index เมื่อ nested modal เปิด
       this.$nextTick(() => {
-        // หา nested modal
-        const nestedModal = document.getElementById('photoModal') || document.getElementById('recordModal')
+        const nestedModal = document.getElementById('visitResultModal')
         if (nestedModal) {
           const modalElement = nestedModal.closest('.modal')
           if (modalElement) {
@@ -835,12 +1015,9 @@ export default {
           }
         }
         
-        // จัดการ backdrop ทั้งหมด
         const backdrops = document.querySelectorAll('.modal-backdrop')
         if (backdrops.length >= 2) {
-          // Backdrop แรก (parent modal)
           backdrops[backdrops.length - 2].style.zIndex = '1055'
-          // Backdrop ที่สอง (nested modal)
           backdrops[backdrops.length - 1].style.zIndex = '1065'
         } else if (backdrops.length === 1) {
           backdrops[0].style.zIndex = '1055'
@@ -848,17 +1025,14 @@ export default {
       })
     },
     onNestedModalHidden() {
-      // จัดการ backdrop เมื่อปิด nested modal
+      this.resetVisitResultForm()
+      
       this.$nextTick(() => {
-        // รอให้ Bootstrap Vue จัดการ backdrop เสร็จก่อน
         setTimeout(() => {
           const backdrops = document.querySelectorAll('.modal-backdrop')
           
-          // ถ้ายังมี parent modal เปิดอยู่ (visit history modal)
           if (this.showVisitHistoryModal) {
-            // ถ้ามี backdrop มากกว่า 1 ตัว แสดงว่ายังมี backdrop ของ nested modal ค้างอยู่
             if (backdrops.length > 1) {
-              // ลบ backdrop ที่มี z-index สูงสุด (ของ nested modal)
               backdrops.forEach((backdrop) => {
                 if (parseInt(backdrop.style.zIndex) === 1065 || backdrop.style.zIndex === '1065') {
                   backdrop.remove()
@@ -866,13 +1040,11 @@ export default {
               })
             }
             
-            // ปรับ z-index ของ parent modal backdrop ให้ถูกต้อง
             const remainingBackdrops = document.querySelectorAll('.modal-backdrop')
             if (remainingBackdrops.length > 0) {
               remainingBackdrops[0].style.zIndex = '1055'
             }
             
-            // ปรับ z-index ของ parent modal
             const parentModal = document.getElementById('visitHistoryModal')
             if (parentModal) {
               const modalElement = parentModal.closest('.modal')
@@ -896,6 +1068,9 @@ export default {
 }
 
 .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
   border-bottom: 2px solid #e9ecef;
@@ -911,7 +1086,7 @@ export default {
 .filters-section {
   display: flex;
   gap: 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
   flex-wrap: wrap;
 }
 
@@ -958,17 +1133,71 @@ export default {
   right: 8px;
 }
 
-.note-section {
-  margin-bottom: 1rem;
-  color: #6c757d;
-  font-size: 0.9rem;
-}
-
 .table-container {
   background: white;
   border-radius: 0.5rem;
   overflow: hidden;
-  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Skeleton Loading Styles */
+.skeleton-table {
+  background: white;
+}
+
+.skeleton-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.skeleton-table th {
+  background-color: #3551a4;
+  color: white;
+  font-weight: 500;
+  text-align: center;
+  padding: 1rem;
+  border: none;
+}
+
+.skeleton-row td {
+  padding: 1rem;
+  vertical-align: middle;
+  text-align: center;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.skeleton-cell {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text {
+  height: 20px;
+  width: 80%;
+  margin: 0 auto;
+}
+
+.skeleton-text-short {
+  height: 16px;
+  width: 60%;
+  margin: 0 auto;
+}
+
+.skeleton-button {
+  height: 36px;
+  width: 140px;
+  margin: 0 auto;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 ::v-deep .admin-table {
@@ -990,7 +1219,6 @@ export default {
 
 ::v-deep .admin-table tbody tr:hover {
   background-color: #f8f9fa;
-  transition: none;
 }
 
 ::v-deep .admin-table tbody td {
@@ -1003,7 +1231,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  text-align: left;
 }
 
 .visit-date {
@@ -1025,7 +1252,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  text-align: left;
 }
 
 .next-visit-info.postponed {
@@ -1054,7 +1280,7 @@ export default {
   border-radius: 0.375rem;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: none;
+  transition: background-color 0.2s;
 }
 
 .btn-history:hover {
@@ -1087,32 +1313,136 @@ export default {
   padding: 0;
 }
 
-.close-button {
-  background: transparent;
-  border: none;
-  color: white;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-button:hover {
-  opacity: 0.8;
-}
-
+/* 95% Modal */
 ::v-deep .modal-95percent {
   max-width: 95vw !important;
   width: 95vw !important;
   margin: 2.5vh auto !important;
 }
 
+/* Nested Modal Styles */
+::v-deep #visitHistoryModal {
+  z-index: 1060 !important;
+}
+
+::v-deep #visitHistoryModal .modal-dialog {
+  z-index: 1060 !important;
+}
+
+::v-deep #visitResultModal {
+  z-index: 1070 !important;
+}
+
+::v-deep #visitResultModal .modal-dialog {
+  z-index: 1070 !important;
+}
+
+::v-deep .modal-backdrop {
+  z-index: 1040;
+}
+
+::v-deep body.modal-open #visitHistoryModal ~ .modal-backdrop {
+  z-index: 1055 !important;
+}
+
+::v-deep body.modal-open #visitResultModal ~ .modal-backdrop {
+  z-index: 1065 !important;
+}
+
+::v-deep .nested-modal-level-2 {
+  z-index: 1070 !important;
+}
+
+::v-deep .nested-modal-level-2 .modal-dialog {
+  z-index: 1070 !important;
+  position: relative;
+}
+
+::v-deep .modal-95percent .modal-dialog {
+  max-width: 95vw !important;
+  width: 95vw !important;
+  height: 95vh !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+::v-deep .modal-95percent .modal-content {
+  height: 95vh !important;
+  border-radius: 0.5rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid #dee2e6 !important;
+  box-shadow: none !important;
+}
+
+::v-deep .modal-95percent .modal-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 1.5rem !important;
+}
+
+::v-deep .modal-95percent .modal-header {
+  flex-shrink: 0 !important;
+}
+
+::v-deep .modal-95percent .modal-footer {
+  flex-shrink: 0 !important;
+}
+
+.patient-info-bar {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: black;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.patient-info-bar i {
+  font-size: 1.5rem;
+  color: black;
+}
+
+.patient-name-large {
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: black;
+}
+
+.patient-nickname-badge {
+  font-size: 1.05rem;
+  font-weight: 300;
+  color: black;
+  margin-left: 0.5rem;
+}
+
+/* Visit History Table */
 .visit-history-table-container {
   overflow-x: auto;
   max-height: calc(100vh - 250px);
   overflow-y: auto;
+}
+
+.visit-history-table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.visit-history-table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.visit-history-table-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.visit-history-table-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 .visit-history-table {
@@ -1138,23 +1468,16 @@ export default {
 }
 
 .visit-history-table th.col-visit-number {
-  width: 10%;
-}
-
-.visit-history-table th.col-visitor {
-  width: 20%;
-}
-
-.visit-history-table th.col-time {
   width: 25%;
 }
 
-.visit-history-table th.col-record {
-  width: 22.5%;
+.visit-history-table th.col-date-time {
+  width: 40%;
 }
 
-.visit-history-table th.col-photos {
-  width: 22.5%;
+.visit-history-table th.col-action {
+  width: 35%;
+  text-align: center;
 }
 
 .visit-history-table tbody tr {
@@ -1175,31 +1498,72 @@ export default {
   vertical-align: middle;
 }
 
-.btn-survey {
-  background: #28a745;
+.visit-history-table td.col-visit-number {
+  width: 25%;
+}
+
+.visit-history-table td.col-date-time {
+  width: 40%;
+}
+
+.visit-history-table td.col-action {
+  width: 35%;
+  text-align: center;
+}
+
+.visit-number-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.visit-number-badge {
+  background: #3551a4;
   color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 0.5rem;
-  font-size: 0.95rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 1rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  cursor: pointer;
-  transition: none;
-  display: inline-flex;
+  display: inline-block;
+}
+
+.date-time-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.visit-date-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #2c3e50;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.btn-survey:hover {
-  background: #218838;
-}
-
-.btn-survey i {
+.visit-date-text i {
+  color: #3551a4;
   font-size: 1rem;
 }
 
-.btn-photos {
-  background: #6c757d;
+.visit-time-text {
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.visit-time-text i {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.btn-view-result {
+  background: #17a2b8;
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
@@ -1213,11 +1577,11 @@ export default {
   gap: 0.5rem;
 }
 
-.btn-photos:hover {
-  background: #5a6268;
+.btn-view-result:hover {
+  background: #138496;
 }
 
-.btn-photos i {
+.btn-view-result i {
   font-size: 1rem;
 }
 
@@ -1239,154 +1603,42 @@ export default {
   margin: 0;
 }
 
-@media (max-width: 768px) {
-  .admin-visit-results {
-    padding: 1rem;
-  }
-
-  .filters-section {
-    flex-direction: column;
-  }
-
-  .filter-group {
-    width: 100%;
-  }
-
-  .visit-history-table-container {
-    max-height: calc(100vh - 200px);
-  }
-  
-  .visit-history-table {
-    font-size: 0.9rem;
-  }
-  
-  .visit-history-table th,
-  .visit-history-table td {
-    padding: 0.75rem 1rem;
-  }
+.empty-answers {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6c757d;
 }
 
-/* Photo View Modal Styles */
-.photo-view-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.empty-answers i {
+  font-size: 5.5rem;
+  color: #dee2e6;
+  margin-bottom: 1.5rem;
 }
 
-.patient-info-bar-small {
-  background: linear-gradient(135deg, #3551a4, #2c4088);
-  padding: 1rem 1.35rem;
-  border-radius: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: white;
-  font-size: 1.15rem;
-  font-weight: 500;
+.empty-answers p {
+  font-size: 1.35rem;
+  font-weight: 300;
+  margin: 0;
 }
 
-.patient-info-bar-small i {
-  font-size: 1.5rem;
-}
-
-.patient-info-bar-small .badge {
-  margin-left: auto;
-  font-size: 0.95rem;
-  padding: 0.4rem 0.75rem;
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.loading-photos {
+.loading-record {
   text-align: center;
   padding: 3rem 2rem;
   color: #6c757d;
 }
 
-.loading-photos i {
+.loading-record i {
   font-size: 3rem;
   margin-bottom: 1rem;
   color: #3551a4;
 }
 
-.loading-photos p {
+.loading-record p {
   font-size: 1.2rem;
   margin: 0;
 }
 
-.dual-image-container {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 2rem;
-  margin-top: 1.5rem;
-}
-
-.image-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.image-section h6 {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #2c3e50;
-  text-align: center;
-  padding: 0.5rem;
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  border-radius: 0.5rem;
-}
-
-.current-image-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.image-preview-large {
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  border-radius: 0.75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  background: #f8f9fa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-}
-
-.image-preview-large img {
-  width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: 400px;
-  display: block;
-  object-fit: contain;
-}
-
-.no-image-section {
-  text-align: center;
-  padding: 3rem 2rem;
-  background: #f8f9fa;
-  border-radius: 0.75rem;
-  color: #6c757d;
-}
-
-.no-image-section i {
-  font-size: 4rem;
-  color: #dee2e6;
-  margin-bottom: 1rem;
-}
-
-.no-image-section p {
-  font-size: 1.2rem;
-  font-weight: 400;
-  margin: 0;
-}
-
-/* Visit Record Modal Styles */
+/* PDF Style Modal - Record Modal Dialog */
 ::v-deep .record-modal-dialog {
   width: 95vw;
   max-width: 95vw;
@@ -1448,165 +1700,130 @@ export default {
 }
 
 .record-title {
-  font-size: 1.3rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 700;
   color: #3551a4;
 }
 
-.record-section {
+/* Plain Text Format Styles */
+.plain-text-section {
   margin-bottom: 1.5rem;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
-.section-title {
-  font-size: 1.1rem;
+.plain-text-section p {
+  margin: 0.5rem 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #2c3e50;
+}
+
+.section-header-text {
   font-weight: 600;
-  color: #3551a4;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #dee2e6;
-}
-
-.info-row-single {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.info-label {
-  font-weight: 500;
-  color: #495057;
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-
-.info-value {
-  font-size: 0.95rem;
   color: #2c3e50;
-  font-weight: 400;
+  margin-top: 1rem !important;
+  margin-bottom: 0.75rem !important;
 }
 
-.question-item {
-  margin-bottom: 1rem;
-  padding: 0.75rem;
+.section-header-text.underline {
+  text-decoration: underline;
 }
 
-.question-text {
-  font-weight: 500;
+.indent-answer {
+  padding-left: 2rem;
   color: #2c3e50;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
 }
 
-.answer-text {
-  font-size: 1rem;
-  color: #2c3e50;
-  padding-left: 1rem;
-}
-
-.activity-table {
+.plain-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0.75rem;
-  font-size: 0.9rem;
-}
-
-.activity-table thead {
-  background: #3551a4;
-  color: white;
-}
-
-.activity-table th {
-  padding: 0.5rem;
-  text-align: left;
-  font-weight: 500;
-  border: 1px solid #dee2e6;
-}
-
-.activity-table td {
-  padding: 0.5rem;
-  border: 1px solid #dee2e6;
-  vertical-align: top;
-}
-
-.activity-table tbody tr:nth-child(even) {
-  background: #f8f9fa;
-}
-
-.loading-record {
-  text-align: center;
-  padding: 3rem 2rem;
-  color: #6c757d;
-}
-
-.loading-record i {
-  font-size: 3rem;
   margin-bottom: 1rem;
-  color: #3551a4;
+  font-size: 13px;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
-.loading-record p {
-  font-size: 1.2rem;
-  margin: 0;
+.plain-table thead {
+  background: transparent;
 }
 
-/* Nested Modal Styles */
-/* First level modal (visit history) */
-::v-deep #visitHistoryModal {
-  z-index: 1060 !important;
+.plain-table th {
+  padding: 0.6rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid #2c3e50;
+  color: #2c3e50;
+  line-height: 1.6;
 }
 
-::v-deep #visitHistoryModal .modal-dialog {
-  z-index: 1060 !important;
+.plain-table td {
+  padding: 0.6rem 0.5rem;
+  border: 1px solid #2c3e50;
+  vertical-align: top;
+  color: #2c3e50;
+  line-height: 1.6;
 }
 
-/* Second level modals (photo/record - nested) */
-::v-deep #photoModal,
-::v-deep #recordModal {
-  z-index: 1070 !important;
+.plain-table tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
-::v-deep #photoModal .modal-dialog,
-::v-deep #recordModal .modal-dialog {
-  z-index: 1070 !important;
-}
-
-/* Backdrop management for nested modals */
-::v-deep .modal-backdrop {
-  z-index: 1040;
-}
-
-/* When visit history modal is open */
-::v-deep body.modal-open #visitHistoryModal ~ .modal-backdrop {
-  z-index: 1055 !important;
-}
-
-/* When both modals are open - nested modal backdrop */
-::v-deep body.modal-open #photoModal ~ .modal-backdrop,
-::v-deep body.modal-open #recordModal ~ .modal-backdrop {
-  z-index: 1065 !important;
-}
-
-/* Ensure nested modal appears above parent */
-::v-deep .nested-modal-level-2 {
-  z-index: 1070 !important;
-}
-
-::v-deep .nested-modal-level-2 .modal-dialog {
-  z-index: 1070 !important;
-  position: relative;
+/* Print styles for A4 */
+@media print {
+  .visit-record-content {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 1.5rem;
+  }
 }
 
 @media (max-width: 768px) {
-  .dual-image-container {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+  .admin-visit-results {
+    padding: 1rem;
   }
 
-  .image-preview-large {
-    max-height: 300px;
+  .filters-section {
+    flex-direction: column;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .visit-history-table-container {
+    max-height: calc(100vh - 200px);
+  }
+  
+  .visit-history-table {
+    font-size: 0.9rem;
+  }
+  
+  .visit-history-table th,
+  .visit-history-table td {
+    padding: 0.75rem 1rem;
+  }
+  
+  .visit-number-badge {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+  }
+  
+  .date-time-info {
+    gap: 0.3rem;
+  }
+  
+  .visit-date-text,
+  .visit-time-text {
+    font-size: 0.9rem;
+  }
+  
+  .btn-view-result {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
   }
 }
 </style>
-

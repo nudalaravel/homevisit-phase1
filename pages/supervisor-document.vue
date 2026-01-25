@@ -255,6 +255,8 @@
 
 <script>
 import { numberToThaiWords } from '~/utils/helpers'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 export default {
   layout: 'supervisor',
@@ -324,15 +326,7 @@ export default {
     }
   },
   async mounted() {
-    // Load html2pdf.js from CDN
-    if (process.client && !window.html2pdf) {
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-      script.onload = () => {
-        console.log('html2pdf.js loaded')
-      }
-      document.head.appendChild(script)
-    }
+    // jsPDF and html2canvas imported directly, no need for CDN
 
     // Fetch data from API
     await this.fetchVisitorOptions()
@@ -549,21 +543,6 @@ export default {
       this.receiptData = null
     },
     async downloadPDF() {
-      // ตรวจสอบว่า html2pdf.js โหลดแล้วหรือยัง
-      if (!window.html2pdf) {
-        this.$toast.warning('กำลังโหลดระบบสร้าง PDF กรุณารอสักครู่...')
-        // รอให้ script โหลดเสร็จ (max 5 วินาที)
-        let attempts = 0
-        while (!window.html2pdf && attempts < 50) {
-          await new Promise(resolve => setTimeout(resolve, 100))
-          attempts++
-        }
-        if (!window.html2pdf) {
-          this.$toast.error('ไม่สามารถโหลดระบบสร้าง PDF ได้ กรุณารีเฟรชหน้าเว็บ')
-          return
-        }
-      }
-
       if (!this.receiptData) {
         this.$toast.error('ไม่พบข้อมูลใบสำคัญรับเงิน')
         return
@@ -572,53 +551,94 @@ export default {
       try {
         this.loadingPDF = true
         
-        // รอให้ Vue render เสร็จ
         await this.$nextTick()
+        await new Promise(resolve => setTimeout(resolve, 300))
         
-        // รอ 1 frame เพิ่มเติมเพื่อให้แน่ใจว่า DOM update เสร็จ
-        await new Promise(resolve => requestAnimationFrame(resolve))
-        
-        // เพิ่ม delay เล็กน้อยเพื่อให้ content stabilize (สำคัญสำหรับ html2canvas)
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const element = document.getElementById('receipt-content')
-        if (!element) {
+        const originalElement = document.getElementById('receipt-content')
+        if (!originalElement) {
           this.$toast.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
         }
 
-        // ตรวจสอบ visibility
-        if (!element.offsetHeight || element.offsetHeight < 100) {
-          console.warn('Element may not be fully visible. Height:', element.offsetHeight)
-          await new Promise(resolve => setTimeout(resolve, 500))
+        const A4_WIDTH_MM = 210
+        const A4_HEIGHT_MM = 297
+        const MARGIN_MM = 10
+        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
+        
+        const pdfContainer = document.createElement('div')
+        pdfContainer.id = 'pdf-gen-container'
+        pdfContainer.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: 680px;
+          background: white;
+          padding: 20px;
+          font-family: 'Kanit', 'Sarabun', Arial, sans-serif;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #000000;
+        `
+        
+        pdfContainer.innerHTML = originalElement.innerHTML
+        document.body.appendChild(pdfContainer)
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const canvas = await html2canvas(pdfContainer, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: 680,
+          windowWidth: 680
+        })
+        
+        document.body.removeChild(pdfContainer)
+        
+        const imgWidth = CONTENT_WIDTH_MM
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        })
+        
+        const totalPages = Math.ceil(imgHeight / pageHeight)
+        
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage()
+          
+          const sourceY = (page * pageHeight * canvas.width) / imgWidth
+          const sourceHeight = Math.min(
+            (pageHeight * canvas.width) / imgWidth,
+            canvas.height - sourceY
+          )
+          
+          const pageCanvas = document.createElement('canvas')
+          pageCanvas.width = canvas.width
+          pageCanvas.height = sourceHeight
+          
+          const ctx = pageCanvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
+          
+          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
+          pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', MARGIN_MM, MARGIN_MM, imgWidth, sliceHeight)
         }
-
-        // ตรวจสอบว่า element มี content จริง
-        if (!element.innerText || element.innerText.trim().length < 50) {
-          console.warn('PDF element may be empty:', element.innerText)
-          this.$toast.warning('กำลังรอข้อมูล...')
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-
-        const opt = {
-          margin: [5, 5, 5, 5],
-          filename: `ใบสำคัญรับเงิน_${this.receiptData.visitorName || 'unknown'}_${this.receiptData.formattedDate || 'date'}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { 
-            scale: 2, 
-            useCORS: true,
-            logging: true,
-            allowTaint: true,
-            backgroundColor: '#ffffff'  // กำหนด background ให้ชัดเจน
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        }
-
-        await window.html2pdf().set(opt).from(element).save()
+        
+        const filename = `ใบสำคัญรับเงิน_${this.receiptData.visitorName || 'unknown'}_${this.receiptData.formattedDate || 'date'}.pdf`
+        pdf.save(filename)
+        
         this.$toast.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
         this.$toast.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
+        const container = document.getElementById('pdf-gen-container')
+        if (container) document.body.removeChild(container)
       } finally {
         this.loadingPDF = false
       }
