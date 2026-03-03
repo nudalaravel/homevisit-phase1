@@ -30,6 +30,7 @@ export const THAI_MONTHS_SHORT = [
   "ธ.ค.",
 ];
 
+/** Abbreviated Thai month names without trailing period (e.g. "ม.ค", "ก.พ") — NOTE: despite the name, these are NOT full month names; see THAI_MONTHS_LONG for full names */
 export const THAI_MONTHS_FULL = [
   "ม.ค",
   "ก.พ",
@@ -83,4 +84,23 @@ export const VALIDATION_RULES = {
   maxNicknameLength: 50,
   minPhoneDigits: 9,
   maxAddressLength: 500,
+};
+
+/** Full Thai month names (e.g. "มกราคม", "กุมภาพันธ์") — these are the actual full-length names */
+export const THAI_MONTHS_LONG = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+];
+
+export const THAI_DAYS_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+
+export const CAREGIVER_LABELS = {
+  '1': 'แม่',
+  '2': 'พ่อ',
+  '3': 'ย่า/ยาย',
+  '4': 'ปู่/ตา',
+  '5': 'พี่น้อง',
+  '6': 'ลุง/ป้า/น้ำ/อา',
+  '7': 'ญาติคนอื่น',
+  '8': 'ไม่ใช่ญาติ'
 };

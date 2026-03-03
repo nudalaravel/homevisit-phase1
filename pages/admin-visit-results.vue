@@ -250,9 +250,9 @@
           <div class="plain-text-section">
             <p class="section-header-text">การเยี่ยมบ้าน</p>
             <p>1 : ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
-            <p class="indent-answer">{{ getQ1Answer(visitResultForm.answers?.q1) }}</p>
+            <p class="indent-answer">{{ getParticipationAnswer(visitResultForm.answers?.q1) }}</p>
             <p>2 : เด็กสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
-            <p class="indent-answer">{{ getQ2Answer(visitResultForm.answers?.q2) }}</p>
+            <p class="indent-answer">{{ getParticipationAnswer(visitResultForm.answers?.q2) }}</p>
           </div>
 
           <!-- Review Previous Visit Section -->
@@ -352,8 +352,7 @@
 <script>
 import { formatVisitDate } from '~/utils/dateHelpers'
 import { PARTICIPANT_OPTIONS, ACTIVITY_ANSWER_OPTIONS } from '~/utils/surveyHelpers'
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
+import { generatePDFFromElement } from '~/utils/pdfHelpers'
 
 export default {
   layout: 'admin',
@@ -442,11 +441,15 @@ export default {
       document.head.appendChild(script)
     }
 
-    // Load data from APIs
-    await this.fetchAmphoeOptions()
-    await this.fetchVisitorOptions()
-    await this.fetchTableData()
-    await this.fetchHomevisitResultData()
+    // Load data from APIs (options in parallel, then dependent calls)
+    await Promise.all([
+      this.fetchAmphoeOptions(),
+      this.fetchVisitorOptions()
+    ])
+    await Promise.all([
+      this.fetchTableData(),
+      this.fetchHomevisitResultData()
+    ])
     
     // Initialize Select2 for dropdowns
     this.$nextTick(() => {
@@ -766,13 +769,10 @@ export default {
     },
     
     // Helper methods for Q&A display
-    getQ1Answer(value) {
-      if (value === 1) return 'ได้'
-      if (value === 2) return 'ทำบ้าง'
-      if (value === 3) return 'ไม่ได้'
-      return '-'
-    },
-    getQ2Answer(value) {
+    /**
+     * แปลงค่าตอบ 1/2/3 เป็น ได้/ทำบ้าง/ไม่ได้ (ใช้ได้กับ Q1 และ Q2)
+     */
+    getParticipationAnswer(value) {
       if (value === 1) return 'ได้'
       if (value === 2) return 'ทำบ้าง'
       if (value === 3) return 'ไม่ได้'
@@ -812,169 +812,53 @@ export default {
         await this.$nextTick()
         await new Promise(resolve => setTimeout(resolve, 300))
         
-        const originalElement = document.getElementById('visit-result-pdf-content')
-        if (!originalElement) {
+        const element = document.getElementById('visit-result-pdf-content')
+        if (!element) {
           this.$toast?.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
         }
         
-        // A4 dimensions in mm
-        const A4_WIDTH_MM = 210
-        const A4_HEIGHT_MM = 297
-        const MARGIN_MM = 15
-        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
+        const filename = `แบบบันทึก_${this.visitResultForm.childName}_ครั้งที่${this.visitResultForm.visitNumber}.pdf`
         
-        // Create a container for PDF generation with fixed width
-        const pdfContainer = document.createElement('div')
-        pdfContainer.id = 'pdf-gen-container'
-        pdfContainer.style.cssText = `
-          position: absolute;
-          left: -9999px;
-          top: 0;
-          width: 680px;
-          background: white;
-          padding: 30px;
-          font-family: 'Kanit', 'Sarabun', Arial, sans-serif;
-          font-size: 14px;
-          line-height: 1.6;
-          color: #000000;
-        `
-        
-        // Clone content
-        pdfContainer.innerHTML = originalElement.innerHTML
-        document.body.appendChild(pdfContainer)
-        
-        // Apply inline styles
+        // Custom inline styles for PDF rendering
         const applyStyles = (container) => {
           const recordHeader = container.querySelector('.record-header')
           if (recordHeader) {
             recordHeader.style.cssText = 'text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #3551a4;'
           }
-          
           const recordTitle = container.querySelector('.record-title')
           if (recordTitle) {
             recordTitle.style.cssText = 'font-size: 18px; font-weight: bold; color: #3551a4; margin: 0;'
           }
-          
           container.querySelectorAll('p').forEach(p => {
             p.style.cssText = 'margin: 6px 0; font-size: 14px; line-height: 1.6; color: #000000;'
           })
-          
           container.querySelectorAll('.section-header-text').forEach(h => {
             h.style.cssText = 'font-weight: bold; color: #000000; margin-top: 15px; margin-bottom: 10px;'
           })
-          
           container.querySelectorAll('.indent-answer').forEach(a => {
             a.style.cssText = 'padding-left: 30px; color: #333333; margin: 6px 0;'
           })
-          
           container.querySelectorAll('table').forEach(table => {
             table.style.cssText = 'width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;'
           })
-          
           container.querySelectorAll('th').forEach(th => {
             th.style.cssText = 'border: 1px solid #333; padding: 8px; text-align: left; font-weight: bold; background-color: #f0f0f0;'
           })
-          
           container.querySelectorAll('td').forEach(td => {
             td.style.cssText = 'border: 1px solid #333; padding: 8px; text-align: left;'
           })
-          
           container.querySelectorAll('.plain-text-section').forEach(section => {
             section.style.cssText = 'margin-bottom: 15px;'
           })
         }
         
-        applyStyles(pdfContainer)
-        
-        // Wait for styles to apply
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        // Capture as canvas
-        const canvas = await html2canvas(pdfContainer, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          width: 680,
-          windowWidth: 680
-        })
-        
-        // Clean up container
-        document.body.removeChild(pdfContainer)
-        
-        // Calculate dimensions for PDF
-        const imgWidth = CONTENT_WIDTH_MM
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
-        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
-        
-        // Create PDF
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        })
-        
-        // Calculate number of pages needed
-        const totalPages = Math.ceil(imgHeight / pageHeight)
-        
-        // For each page, create a slice of the canvas
-        for (let page = 0; page < totalPages; page++) {
-          if (page > 0) {
-            pdf.addPage()
-          }
-          
-          // Calculate the portion of the image to show on this page
-          const sourceY = (page * pageHeight * canvas.width) / imgWidth
-          const sourceHeight = Math.min(
-            (pageHeight * canvas.width) / imgWidth,
-            canvas.height - sourceY
-          )
-          
-          // Create a temporary canvas for this page's content
-          const pageCanvas = document.createElement('canvas')
-          pageCanvas.width = canvas.width
-          pageCanvas.height = sourceHeight
-          
-          const ctx = pageCanvas.getContext('2d')
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
-          
-          // Draw the portion of the original canvas
-          ctx.drawImage(
-            canvas,
-            0, sourceY, canvas.width, sourceHeight,
-            0, 0, canvas.width, sourceHeight
-          )
-          
-          // Calculate the height for this slice in mm
-          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
-          
-          // Add image to PDF
-          pdf.addImage(
-            pageCanvas.toDataURL('image/jpeg', 0.95),
-            'JPEG',
-            MARGIN_MM,
-            MARGIN_MM,
-            imgWidth,
-            sliceHeight
-          )
-        }
-        
-        // Download PDF
-        const filename = `แบบบันทึก_${this.visitResultForm.childName}_ครั้งที่${this.visitResultForm.visitNumber}.pdf`
-        pdf.save(filename)
+        await generatePDFFromElement(element, filename, { margin: 15, applyStyles })
         
         this.$toast?.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
         this.$toast?.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
-        
-        // Clean up on error
-        const container = document.getElementById('pdf-gen-container')
-        if (container) {
-          document.body.removeChild(container)
-        }
       } finally {
         this.loadingPDF = false
       }
@@ -1140,65 +1024,7 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Skeleton Loading Styles */
-.skeleton-table {
-  background: white;
-}
-
-.skeleton-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.skeleton-table th {
-  background-color: #3551a4;
-  color: white;
-  font-weight: 500;
-  text-align: center;
-  padding: 1rem;
-  border: none;
-}
-
-.skeleton-row td {
-  padding: 1rem;
-  vertical-align: middle;
-  text-align: center;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.skeleton-cell {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: skeleton-loading 1.5s infinite;
-  border-radius: 4px;
-}
-
-.skeleton-text {
-  height: 20px;
-  width: 80%;
-  margin: 0 auto;
-}
-
-.skeleton-text-short {
-  height: 16px;
-  width: 60%;
-  margin: 0 auto;
-}
-
-.skeleton-button {
-  height: 36px;
-  width: 140px;
-  margin: 0 auto;
-}
-
-@keyframes skeleton-loading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
+/* Skeleton Loading: uses global styles from ~/assets/css/main.css */
 
 ::v-deep .admin-table {
   margin-bottom: 0;

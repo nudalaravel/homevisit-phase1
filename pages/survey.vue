@@ -865,6 +865,11 @@ export default {
       activities: [], // สำหรับ q9 (กิจกรรมครั้งนี้)
       q5Activities: [], // สำหรับ q5 (กิจกรรมครั้งที่แล้ว)
       
+      // Timestamps สำหรับ Q5/Q9 activities
+      // เก็บเวลาที่ user ตอบแต่ละกิจกรรม { activityId: { first: 'YYYY-MM-DD HH:mm:ss', last: 'YYYY-MM-DD HH:mm:ss' } }
+      q5Timestamps: {},
+      q9Timestamps: {},
+      
       // Flag to indicate if this is a synced survey (use existing activity IDs)
       isSyncedSurvey: false,
       
@@ -1572,6 +1577,14 @@ export default {
         this.newAppointment = survey.newAppointment
       }
       
+      // โหลด timestamps สำหรับ Q5/Q9
+      if (survey.q5Timestamps) {
+        this.q5Timestamps = survey.q5Timestamps
+      }
+      if (survey.q9Timestamps) {
+        this.q9Timestamps = survey.q9Timestamps
+      }
+      
       if (survey.q5Activities && Array.isArray(survey.q5Activities)) {
         // โหลด q5Activities จาก survey ที่บันทึกไว้
         // แต่ถ้าเป็น empty array ให้ปล่อยไว้เพื่อให้ loadActivities() โหลดใหม่จาก previous survey
@@ -1916,6 +1929,8 @@ export default {
           surveyImages: this.surveyImages,
           surveyImageKeys: this.surveyImageKeys,
           q5Activities: this.q5Activities,
+          q5Timestamps: this.q5Timestamps,
+          q9Timestamps: this.q9Timestamps,
           completed: isCompleted,
           synced: shouldResetSync ? false : (existingSurvey?.synced || false),
           approve_status: existingSurvey?.approve_status || 0
@@ -1955,6 +1970,19 @@ export default {
     // จัดการคำตอบกิจกรรมคำถามที่ 5
     setQ5Answer(activityId, answer) {
       this.$set(this.answers.q5, activityId, answer)
+      
+      // บันทึก timestamp สำหรับ Q5
+      const now = this.generateTimestamp()
+      if (!this.q5Timestamps[activityId]) {
+        // ครั้งแรก — บันทึกทั้ง first และ last
+        this.$set(this.q5Timestamps, activityId, { first: now, last: now })
+      } else {
+        // ครั้งต่อไป — อัพเดตเฉพาะ last
+        this.$set(this.q5Timestamps, activityId, {
+          ...this.q5Timestamps[activityId],
+          last: now
+        })
+      }
     },
     
     async nextQ5Activity() {
@@ -1986,6 +2014,19 @@ export default {
     // จัดการคำตอบกิจกรรมคำถามที่ 9
     setActivityAnswer(activityId, answer) {
       this.$set(this.answers.q9, activityId, answer)
+      
+      // บันทึก timestamp สำหรับ Q9
+      const now = this.generateTimestamp()
+      if (!this.q9Timestamps[activityId]) {
+        // ครั้งแรก — บันทึกทั้ง first และ last
+        this.$set(this.q9Timestamps, activityId, { first: now, last: now })
+      } else {
+        // ครั้งต่อไป — อัพเดตเฉพาะ last
+        this.$set(this.q9Timestamps, activityId, {
+          ...this.q9Timestamps[activityId],
+          last: now
+        })
+      }
     },
     
     async nextActivity() {
@@ -2591,8 +2632,8 @@ export default {
         localStorage.removeItem('surveyPatient')
         localStorage.removeItem('surveyEdit')
         
-        // เด้งกลับหน้าแรก
-        this.$router.push('/')
+        // เด้งกลับหน้าแรกพร้อมเปิด modal นัดหมาย
+        this.$router.push({ path: '/', query: { openBooking: this.visitorData.stid } })
         return
       }
       
@@ -3232,6 +3273,22 @@ export default {
     getMonthName(monthValue) {
       const month = this.monthOptions.find(m => m.value === monthValue)
       return month ? month.text : ''
+    },
+    
+    /**
+     * สร้าง timestamp ปัจจุบันในรูปแบบ "YYYY-MM-DD HH:mm:ss"
+     * ใช้สำหรับบันทึกเวลาที่ user ตอบ Q5/Q9 activities
+     * @returns {string} Timestamp string
+     */
+    generateTimestamp() {
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      const hours = String(now.getHours()).padStart(2, '0')
+      const minutes = String(now.getMinutes()).padStart(2, '0')
+      const seconds = String(now.getSeconds()).padStart(2, '0')
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
     },
     
     /**

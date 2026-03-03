@@ -400,9 +400,9 @@
         <div class="plain-text-section">
           <p class="section-header-text">การเยี่ยมบ้าน</p>
           <p>1 : ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
-          <p class="indent-answer">{{ getQ1Answer(recordData.answers?.q1) }}</p>
+          <p class="indent-answer">{{ getParticipationAnswer(recordData.answers?.q1) }}</p>
           <p>2 : เด็กสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
-          <p class="indent-answer">{{ getQ2Answer(recordData.answers?.q2) }}</p>
+          <p class="indent-answer">{{ getParticipationAnswer(recordData.answers?.q2) }}</p>
         </div>
 
         <!-- Review Previous Visit Section -->
@@ -571,7 +571,6 @@ export default {
       showRecordModal: false,
       recordData: null,
       loadingRecord: false,
-      loadingPDF: false,
       latestApprovalsData: [],
       approvalHistoryFields: [
         {
@@ -1142,13 +1141,10 @@ export default {
       const match = visitDateStr.match(/\((\d+)\)/)
       return match ? match[1] : '-'
     },
-    getQ1Answer(value) {
-      if (value === 1) return 'ได้'
-      if (value === 2) return 'ทำบ้าง'
-      if (value === 3) return 'ไม่ได้'
-      return '-'
-    },
-    getQ2Answer(value) {
+    /**
+     * แปลงค่าตอบ 1/2/3 เป็น ได้/ทำบ้าง/ไม่ได้ (ใช้ได้กับ Q1 และ Q2)
+     */
+    getParticipationAnswer(value) {
       if (value === 1) return 'ได้'
       if (value === 2) return 'ทำบ้าง'
       if (value === 3) return 'ไม่ได้'

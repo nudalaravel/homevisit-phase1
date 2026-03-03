@@ -1318,6 +1318,21 @@ export default function ({ app, store, $axios }, inject) {
     }
 
     /**
+     * สร้าง timestamp ปัจจุบันในรูปแบบ "YYYY-MM-DD HH:mm:ss"
+     * @returns {string} Timestamp string
+     */
+    generateCurrentTimestamp() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      const hours = String(now.getHours()).padStart(2, "0");
+      const minutes = String(now.getMinutes()).padStart(2, "0");
+      const seconds = String(now.getSeconds()).padStart(2, "0");
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    /**
      * Format datetime string to time format for API (HH.MM น.)
      * @param {string} datetimeStr - Datetime string in format "YYYY-MM-DD HH:mm:ss" or "HH:MM น."
      * @returns {string} Time in format "HH.MM น." or empty string
@@ -1786,6 +1801,16 @@ export default function ({ app, store, $axios }, inject) {
                   "q93",
                   "q94",
                   "q95",
+                  "q51_time_last",
+                  "q52_time_last",
+                  "q53_time_last",
+                  "q54_time_last",
+                  "q55_time_last",
+                  "q91_time_last",
+                  "q92_time_last",
+                  "q93_time_last",
+                  "q94_time_last",
+                  "q95_time_last",
                   "q10_appDate",
                   "q10_appTime",
                   "timeEnd",
@@ -1850,6 +1875,18 @@ export default function ({ app, store, $axios }, inject) {
                   q9ActivityNames[2] ? String(survey.answers?.q9?.[q9ActivityNames[2]] ?? "") : "",
                   q9ActivityNames[3] ? String(survey.answers?.q9?.[q9ActivityNames[3]] ?? "") : "",
                   q9ActivityNames[4] ? String(survey.answers?.q9?.[q9ActivityNames[4]] ?? "") : "",
+                  // q5x_time_last: เวลาอัพเดตล่าสุดของกิจกรรมข้อ 5 (ทบทวนครั้งก่อน) — ดึงจาก IndexedDB survey_progress
+                  survey.q5Timestamps?.[q5ActivityNames[0]]?.last || (q5ActivityNames[0] && survey.answers?.q5?.[q5ActivityNames[0]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[1]]?.last || (q5ActivityNames[1] && survey.answers?.q5?.[q5ActivityNames[1]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[2]]?.last || (q5ActivityNames[2] && survey.answers?.q5?.[q5ActivityNames[2]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[3]]?.last || (q5ActivityNames[3] && survey.answers?.q5?.[q5ActivityNames[3]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[4]]?.last || (q5ActivityNames[4] && survey.answers?.q5?.[q5ActivityNames[4]] != null ? this.generateCurrentTimestamp() : ""),
+                  // q9x_time_last: เวลาอัพเดตล่าสุดของกิจกรรมข้อ 9 (ครั้งนี้) — ดึงจาก IndexedDB survey_progress
+                  survey.q9Timestamps?.[q9ActivityNames[0]]?.last || (q9ActivityNames[0] && survey.answers?.q9?.[q9ActivityNames[0]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[1]]?.last || (q9ActivityNames[1] && survey.answers?.q9?.[q9ActivityNames[1]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[2]]?.last || (q9ActivityNames[2] && survey.answers?.q9?.[q9ActivityNames[2]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[3]]?.last || (q9ActivityNames[3] && survey.answers?.q9?.[q9ActivityNames[3]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[4]]?.last || (q9ActivityNames[4] && survey.answers?.q9?.[q9ActivityNames[4]] != null ? this.generateCurrentTimestamp() : ""),
                   q10_appDate,
                   q10_appTime,
                   // timeEnd: เวลาที่ user กรอกว่าจบกิจกรรม (user input - format YYYY-MM-DD HH:mm:ss)
@@ -1922,6 +1959,26 @@ export default function ({ app, store, $axios }, inject) {
                   "q93",
                   "q94",
                   "q95",
+                  "q51_time_first",
+                  "q52_time_first",
+                  "q53_time_first",
+                  "q54_time_first",
+                  "q55_time_first",
+                  "q51_time_last",
+                  "q52_time_last",
+                  "q53_time_last",
+                  "q54_time_last",
+                  "q55_time_last",
+                  "q91_time_first",
+                  "q92_time_first",
+                  "q93_time_first",
+                  "q94_time_first",
+                  "q95_time_first",
+                  "q91_time_last",
+                  "q92_time_last",
+                  "q93_time_last",
+                  "q94_time_last",
+                  "q95_time_last",
                   "q10_appDate",
                   "q10_appTime",
                   "timeEnd",
@@ -2009,6 +2066,30 @@ export default function ({ app, store, $axios }, inject) {
                   q9ActivityNames[2] ? String(survey.answers?.q9?.[q9ActivityNames[2]] ?? "") : "",
                   q9ActivityNames[3] ? String(survey.answers?.q9?.[q9ActivityNames[3]] ?? "") : "",
                   q9ActivityNames[4] ? String(survey.answers?.q9?.[q9ActivityNames[4]] ?? "") : "",
+                  // q5x_time_first: เวลาบันทึกครั้งแรกของกิจกรรมข้อ 5 (ทบทวนครั้งก่อน) — ดึงจาก IndexedDB survey_progress
+                  survey.q5Timestamps?.[q5ActivityNames[0]]?.first || (q5ActivityNames[0] && survey.answers?.q5?.[q5ActivityNames[0]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[1]]?.first || (q5ActivityNames[1] && survey.answers?.q5?.[q5ActivityNames[1]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[2]]?.first || (q5ActivityNames[2] && survey.answers?.q5?.[q5ActivityNames[2]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[3]]?.first || (q5ActivityNames[3] && survey.answers?.q5?.[q5ActivityNames[3]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[4]]?.first || (q5ActivityNames[4] && survey.answers?.q5?.[q5ActivityNames[4]] != null ? this.generateCurrentTimestamp() : ""),
+                  // q5x_time_last: เวลาอัพเดตล่าสุดของกิจกรรมข้อ 5 — ครั้งแรก first = last
+                  survey.q5Timestamps?.[q5ActivityNames[0]]?.last || (q5ActivityNames[0] && survey.answers?.q5?.[q5ActivityNames[0]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[1]]?.last || (q5ActivityNames[1] && survey.answers?.q5?.[q5ActivityNames[1]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[2]]?.last || (q5ActivityNames[2] && survey.answers?.q5?.[q5ActivityNames[2]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[3]]?.last || (q5ActivityNames[3] && survey.answers?.q5?.[q5ActivityNames[3]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q5Timestamps?.[q5ActivityNames[4]]?.last || (q5ActivityNames[4] && survey.answers?.q5?.[q5ActivityNames[4]] != null ? this.generateCurrentTimestamp() : ""),
+                  // q9x_time_first: เวลาบันทึกครั้งแรกของกิจกรรมข้อ 9 (ครั้งนี้) — ดึงจาก IndexedDB survey_progress
+                  survey.q9Timestamps?.[q9ActivityNames[0]]?.first || (q9ActivityNames[0] && survey.answers?.q9?.[q9ActivityNames[0]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[1]]?.first || (q9ActivityNames[1] && survey.answers?.q9?.[q9ActivityNames[1]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[2]]?.first || (q9ActivityNames[2] && survey.answers?.q9?.[q9ActivityNames[2]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[3]]?.first || (q9ActivityNames[3] && survey.answers?.q9?.[q9ActivityNames[3]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[4]]?.first || (q9ActivityNames[4] && survey.answers?.q9?.[q9ActivityNames[4]] != null ? this.generateCurrentTimestamp() : ""),
+                  // q9x_time_last: เวลาอัพเดตล่าสุดของกิจกรรมข้อ 9 — ครั้งแรก first = last
+                  survey.q9Timestamps?.[q9ActivityNames[0]]?.last || (q9ActivityNames[0] && survey.answers?.q9?.[q9ActivityNames[0]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[1]]?.last || (q9ActivityNames[1] && survey.answers?.q9?.[q9ActivityNames[1]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[2]]?.last || (q9ActivityNames[2] && survey.answers?.q9?.[q9ActivityNames[2]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[3]]?.last || (q9ActivityNames[3] && survey.answers?.q9?.[q9ActivityNames[3]] != null ? this.generateCurrentTimestamp() : ""),
+                  survey.q9Timestamps?.[q9ActivityNames[4]]?.last || (q9ActivityNames[4] && survey.answers?.q9?.[q9ActivityNames[4]] != null ? this.generateCurrentTimestamp() : ""),
                   q10_appDate,
                   q10_appTime,
                   // timeEnd: เวลาที่ user กรอกว่าจบกิจกรรม (user input - format YYYY-MM-DD HH:mm:ss)

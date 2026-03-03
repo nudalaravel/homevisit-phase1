@@ -98,6 +98,8 @@
 </template>
 
 <script>
+import { formatApiDate } from '~/utils/dateHelpers'
+
 export default {
   layout: 'admin',
   middleware: 'auth',
@@ -148,29 +150,7 @@ export default {
       }
     },
     
-    // แปลงวันที่จาก API format (YYYY-MM-DD) เป็น Thai format
-    formatApiDate(dateStr) {
-      if (!dateStr) return '-'
-      try {
-        const date = new Date(dateStr)
-        if (isNaN(date.getTime())) return dateStr
-        
-        const thaiMonths = [
-          'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-          'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-        ]
-        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
-        
-        const day = date.getDate()
-        const monthName = thaiMonths[date.getMonth()]
-        const year = date.getFullYear() + 543
-        const dayName = thaiDays[date.getDay()]
-        
-        return `${dayName} ${day.toString().padStart(2, '0')} ${monthName} ${year}`
-      } catch (e) {
-        return dateStr
-      }
-    },
+    formatApiDate,
     
     // Toggle ใบสำคัญรับเงิน - บัญชี (doc1_app)
     async toggleAccountReceipt(item, event) {
@@ -339,43 +319,7 @@ export default {
   cursor: pointer;
 }
 
-/* Skeleton Loading */
-.skeleton-row {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.skeleton-cell {
-  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
-  height: 20px;
-}
-
-.skeleton-text {
-  width: 80%;
-}
-
-.skeleton-small {
-  width: 50px;
-  margin: 0 auto;
-}
-
-.skeleton-checkbox {
-  width: 20px;
-  height: 20px;
-  margin: 0 auto;
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+/* Skeleton Loading: uses global styles from ~/assets/css/main.css */
 
 @media (max-width: 768px) {
   .admin-document {
