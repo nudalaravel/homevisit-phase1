@@ -259,8 +259,8 @@
 </template>
 
 <script>
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
+import { generatePDFFromHTML, imageToBase64 } from '~/utils/pdfHelpers'
+import { CAREGIVER_LABELS } from '~/utils/constants'
 
 export default {
   layout: 'supervisor',
@@ -573,16 +573,7 @@ export default {
       let questionNumber = 1
       
       // Get q0 answer label (now numbered as 1)
-      const q0Labels = {
-        '1': 'แม่',
-        '2': 'พ่อ',
-        '3': 'ย่า/ยาย',
-        '4': 'ปู่/ตา',
-        '5': 'พี่น้อง',
-        '6': 'ลุง/ป้า/น้ำ/อา',
-        '7': 'ญาติคนอื่น',
-        '8': 'ไม่ใช่ญาติ'
-      }
+      const q0Labels = CAREGIVER_LABELS
       
       if (data.q0) {
         answers.push({
@@ -660,28 +651,7 @@ export default {
           await document.fonts.ready
         }
         
-        // Helper function to convert image URL to base64
-        const imageToBase64 = async (url) => {
-          try {
-            const response = await fetch(url, { mode: 'cors' })
-            const blob = await response.blob()
-            return new Promise((resolve, reject) => {
-              const reader = new FileReader()
-              reader.onloadend = () => resolve(reader.result)
-              reader.onerror = reject
-              reader.readAsDataURL(blob)
-            })
-          } catch (error) {
-            console.error('Error converting image to base64:', error)
-            return null
-          }
-        }
-        
         const data = this.observationData
-        const q0Labels = {
-          '1': 'แม่', '2': 'พ่อ', '3': 'ย่า/ยาย', '4': 'ปู่/ตา',
-          '5': 'พี่น้อง', '6': 'ลุง/ป้า/น้ำ/อา', '7': 'ญาติคนอื่น', '8': 'ไม่ใช่ญาติ'
-        }
         
         let pic1Base64 = null
         let pic2Base64 = null
@@ -700,7 +670,7 @@ export default {
             
             <div style="margin-bottom: 15px;">
               <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">การสังเกต</p>
-              <p>ผู้ดูแลหลัก : ${q0Labels[data?.q0] || data?.q0 || '-'}</p>
+              <p>ผู้ดูแลหลัก : ${CAREGIVER_LABELS[data?.q0] || data?.q0 || '-'}</p>
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -733,53 +703,8 @@ export default {
         
         html += `</div>`
         
-        const container = document.createElement('div')
-        container.innerHTML = html
-        container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 680px; background: white;'
-        document.body.appendChild(container)
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const canvas = await html2canvas(container, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          width: 680,
-          windowWidth: 680
-        })
-        
-        document.body.removeChild(container)
-        
-        const A4_WIDTH_MM = 210
-        const A4_HEIGHT_MM = 297
-        const MARGIN_MM = 10
-        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
-        
-        const imgWidth = CONTENT_WIDTH_MM
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
-        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
-        
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-        const totalPages = Math.ceil(imgHeight / pageHeight)
-        
-        for (let page = 0; page < totalPages; page++) {
-          if (page > 0) pdf.addPage()
-          const sourceY = (page * pageHeight * canvas.width) / imgWidth
-          const sourceHeight = Math.min((pageHeight * canvas.width) / imgWidth, canvas.height - sourceY)
-          const pageCanvas = document.createElement('canvas')
-          pageCanvas.width = canvas.width
-          pageCanvas.height = sourceHeight
-          const ctx = pageCanvas.getContext('2d')
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
-          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
-          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
-          pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', MARGIN_MM, MARGIN_MM, imgWidth, sliceHeight)
-        }
-        
         const filename = `แบบสังเกตผู้เยี่ยมบ้าน_${this.visitResultForm.childName || 'observation'}_${data?.date_visit || 'pdf'}.pdf`
-        pdf.save(filename)
+        await generatePDFFromHTML(html, filename)
         
         this.$toast?.success?.('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
@@ -878,17 +803,7 @@ export default {
     
     // Get Q0 label for caregiver
     getQ0Label(value) {
-      const labels = {
-        '1': 'แม่',
-        '2': 'พ่อ',
-        '3': 'ย่า/ยาย',
-        '4': 'ปู่/ตา',
-        '5': 'พี่น้อง',
-        '6': 'ลุง/ป้า/น้ำ/อา',
-        '7': 'ญาติคนอื่น',
-        '8': 'ไม่ใช่ญาติ'
-      }
-      return labels[value] || value || '-'
+      return CAREGIVER_LABELS[value] || value || '-'
     },
     
     // Handle image load error
@@ -950,79 +865,7 @@ export default {
   margin: 0;
 }
 
-/* Skeleton Loading Styles */
-.skeleton-table {
-  width: 100%;
-}
-
-.skeleton-table table {
-  width: 100%;
-  margin-bottom: 0;
-}
-
-.skeleton-table thead th {
-  background-color: #3551a4;
-  color: white;
-  font-weight: 500;
-  text-align: center;
-  padding: 1rem;
-  font-size: 0.9rem;
-}
-
-.skeleton-row {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.skeleton-row:nth-child(even) {
-  background-color: #f8f9fa;
-}
-
-.skeleton-row td {
-  padding: 1rem;
-  vertical-align: middle;
-}
-
-.skeleton-cell {
-  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-
-.skeleton-text {
-  height: 18px;
-  width: 80%;
-}
-
-.skeleton-text-short {
-  height: 18px;
-  width: 50%;
-}
-
-.skeleton-badge {
-  height: 24px;
-  width: 60px;
-  margin: 0 auto;
-  border-radius: 0.375rem;
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
+/* Skeleton Loading: uses global styles from ~/assets/css/main.css */
 
 .table-container {
   background: white;

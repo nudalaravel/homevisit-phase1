@@ -211,8 +211,8 @@
 
 <script>
 import { numberToThaiWords } from '~/utils/helpers'
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
+import { formatApiDate } from '~/utils/dateHelpers'
+import { generatePDFFromElement } from '~/utils/pdfHelpers'
 
 export default {
   layout: 'admin',
@@ -320,29 +320,7 @@ export default {
       }
     },
     
-    // แปลงวันที่จาก API format (YYYY-MM-DD) เป็น Thai format
-    formatApiDate(dateStr) {
-      if (!dateStr) return '-'
-      try {
-        const date = new Date(dateStr)
-        if (isNaN(date.getTime())) return dateStr
-        
-        const thaiMonths = [
-          'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-          'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-        ]
-        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
-        
-        const day = date.getDate()
-        const monthName = thaiMonths[date.getMonth()]
-        const year = date.getFullYear() + 543
-        const dayName = thaiDays[date.getDay()]
-        
-        return `${dayName} ${day.toString().padStart(2, '0')} ${monthName} ${year}`
-      } catch (e) {
-        return dateStr
-      }
-    },
+    formatApiDate,
     
     // Receipt Methods
     getAmountInWords(amount) {
@@ -384,91 +362,19 @@ export default {
         await this.$nextTick()
         await new Promise(resolve => setTimeout(resolve, 300))
         
-        const originalElement = document.getElementById('receipt-content')
-        if (!originalElement) {
+        const element = document.getElementById('receipt-content')
+        if (!element) {
           this.$toast.error('ไม่พบข้อมูลที่จะสร้าง PDF')
           return
         }
 
-        const A4_WIDTH_MM = 210
-        const A4_HEIGHT_MM = 297
-        const MARGIN_MM = 10
-        const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2)
-        
-        const pdfContainer = document.createElement('div')
-        pdfContainer.id = 'pdf-gen-container'
-        pdfContainer.style.cssText = `
-          position: absolute;
-          left: -9999px;
-          top: 0;
-          width: 680px;
-          background: white;
-          padding: 20px;
-          font-family: 'Kanit', 'Sarabun', Arial, sans-serif;
-          font-size: 14px;
-          line-height: 1.6;
-          color: #000000;
-        `
-        
-        pdfContainer.innerHTML = originalElement.innerHTML
-        document.body.appendChild(pdfContainer)
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const canvas = await html2canvas(pdfContainer, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          width: 680,
-          windowWidth: 680
-        })
-        
-        document.body.removeChild(pdfContainer)
-        
-        const imgWidth = CONTENT_WIDTH_MM
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
-        const pageHeight = A4_HEIGHT_MM - (MARGIN_MM * 2)
-        
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        })
-        
-        const totalPages = Math.ceil(imgHeight / pageHeight)
-        
-        for (let page = 0; page < totalPages; page++) {
-          if (page > 0) pdf.addPage()
-          
-          const sourceY = (page * pageHeight * canvas.width) / imgWidth
-          const sourceHeight = Math.min(
-            (pageHeight * canvas.width) / imgWidth,
-            canvas.height - sourceY
-          )
-          
-          const pageCanvas = document.createElement('canvas')
-          pageCanvas.width = canvas.width
-          pageCanvas.height = sourceHeight
-          
-          const ctx = pageCanvas.getContext('2d')
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
-          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight)
-          
-          const sliceHeight = (sourceHeight * imgWidth) / canvas.width
-          pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', MARGIN_MM, MARGIN_MM, imgWidth, sliceHeight)
-        }
-        
         const filename = `ใบสำคัญรับเงิน_${this.receiptData.visitorName}_${this.receiptData.formattedDate}.pdf`
-        pdf.save(filename)
+        await generatePDFFromElement(element, filename)
         
         this.$toast.success('ดาวน์โหลด PDF สำเร็จ')
       } catch (error) {
         console.error('Error generating PDF:', error)
         this.$toast.error('เกิดข้อผิดพลาดในการสร้าง PDF: ' + (error.message || 'Unknown error'))
-        const container = document.getElementById('pdf-gen-container')
-        if (container) document.body.removeChild(container)
       } finally {
         this.loadingPDF = false
       }
@@ -837,67 +743,6 @@ export default {
   display: inline-block;
 }
 
-/* Skeleton Loading */
-.skeleton-table {
-  width: 100%;
-}
-
-.admin-table-skeleton {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.admin-table-skeleton th {
-  background-color: #3551a4;
-  color: white;
-  font-weight: 500;
-  text-align: center;
-  padding: 1rem;
-  border: none;
-}
-
-.skeleton-row {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.skeleton-row td {
-  padding: 1rem;
-  text-align: center;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.skeleton-cell {
-  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
-  height: 20px;
-}
-
-.skeleton-text {
-  width: 150px;
-  margin: 0 auto;
-}
-
-.skeleton-small {
-  width: 60px;
-  margin: 0 auto;
-}
-
-.skeleton-button {
-  width: 110px;
-  height: 35px;
-  margin: 0 auto;
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+/* Skeleton Loading: uses global styles from ~/assets/css/main.css */
 </style>
 

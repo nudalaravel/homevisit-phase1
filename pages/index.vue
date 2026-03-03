@@ -805,6 +805,21 @@ export default {
     // เริ่มต้นระบบ
     await this.initializeSystem()
     
+    // ตรวจสอบ query param openBooking — เปิด modal นัดหมายอัตโนมัติ (จาก Q1=ไม่ได้)
+    const openBookingStid = this.$route.query.openBooking
+    if (openBookingStid) {
+      // ลบ query param ออกเพื่อไม่ให้เปิดซ้ำเมื่อ refresh
+      this.$router.replace({ query: {} })
+      
+      // หา visitor จาก stid
+      const targetVisitor = this.visitors.find(v => v.stid === openBookingStid)
+      if (targetVisitor) {
+        // รอให้ render เสร็จก่อนเปิด modal
+        await this.$nextTick()
+        this.scheduleAppointment(targetVisitor)
+      }
+    }
+    
     // รอรับการแจ้งเตือนเมื่อซิงค์เสร็จ
     this.$nuxt.$on('sync-completed', this.handleSyncCompleted)
     
@@ -1126,7 +1141,43 @@ export default {
           // ตรวจสอบว่า time_visit >= 2 แต่ไม่มีข้อมูลครั้งที่แล้ว
           const needsPreviousVisit = parseInt(timeVisit) >= 2 && !previousCompletedSurvey
           
-          return prepareVisitorData(visitor, booking, completedSurveys, allSurveys)
+          const result = prepareVisitorData(visitor, booking, completedSurveys, allSurveys)
+          
+          // คำนวณ month_age/time ด้วย calculateMonthAgeAndTime() ให้ตรงกับ modal นัดหมาย
+          if (visitor.month_birth && visitor.year_birth && booking?.appointmentDate) {
+            const appointmentDate = new Date(booking.appointmentDate)
+            const birthDay = parseInt(visitor.day_birth) || 1
+            
+            let previousBooking = null
+            if (booking.time_visit > 1) {
+              // หา survey ครั้งก่อนหน้า เพื่อใช้เป็น existingBooking
+              const prevTimeVisit = booking.time_visit - 1
+              const prevSurvey = completedSurveys.find(s => 
+                String(s.time_visit) === String(prevTimeVisit) && s.completed
+              )
+              
+              if (prevSurvey && prevSurvey.appointmentDate) {
+                previousBooking = {
+                  appointmentDate: new Date(prevSurvey.appointmentDate),
+                  month_age: Number(prevSurvey.month_age),
+                  time: Number(prevSurvey.time)
+                }
+              }
+            }
+            
+            const calculated = calculateMonthAgeAndTime(
+              parseInt(visitor.month_birth),
+              parseInt(visitor.year_birth),
+              birthDay,
+              appointmentDate,
+              previousBooking
+            )
+            
+            result.month_age = calculated.monthAge
+            result.time = calculated.timeActivity
+          }
+          
+          return result
         })
         
         this.visitors = await Promise.all(visitorPromises)

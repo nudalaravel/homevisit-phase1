@@ -99,6 +99,9 @@
 </template>
 
 <script>
+import { formatApiDate } from '~/utils/dateHelpers'
+import { THAI_MONTHS_LONG, THAI_DAYS_SHORT, BUDDHIST_ERA_OFFSET } from '~/utils/constants'
+
 export default {
   layout: 'admin',
   middleware: 'auth',
@@ -164,29 +167,7 @@ export default {
       }
     },
     
-    // แปลงวันที่จาก API format (YYYY-MM-DD) เป็น Thai format
-    formatApiDate(dateStr) {
-      if (!dateStr) return '-'
-      try {
-        const date = new Date(dateStr)
-        if (isNaN(date.getTime())) return dateStr
-        
-        const thaiMonths = [
-          'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-          'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-        ]
-        const thaiDays = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
-        
-        const day = date.getDate()
-        const monthName = thaiMonths[date.getMonth()]
-        const year = date.getFullYear() + 543
-        const dayName = thaiDays[date.getDay()]
-        
-        return `${dayName} ${day.toString().padStart(2, '0')} ${monthName} ${year}`
-      } catch (e) {
-        return dateStr
-      }
-    },
+    formatApiDate,
     
     viewPaymentHistory(item) {
       // Mock data for payment history - should be replaced with actual data
@@ -247,41 +228,16 @@ export default {
       const parts = paymentDate.split(' ')
       if (parts.length < 4) return paymentDate
       
-      const dayAbbr = parts[0]
       const day = parseInt(parts[1])
       const month = parts[2]
       const year = parts[3]
       
-      // Map Thai month names to numbers
-      const monthMap = {
-        'มกราคม': 1,
-        'กุมภาพันธ์': 2,
-        'มีนาคม': 3,
-        'เมษายน': 4,
-        'พฤษภาคม': 5,
-        'มิถุนายน': 6,
-        'กรกฎาคม': 7,
-        'สิงหาคม': 8,
-        'กันยายน': 9,
-        'ตุลาคม': 10,
-        'พฤศจิกายน': 11,
-        'ธันวาคม': 12
-      }
-      
-      // Map day abbreviations to day of week (0 = Sunday, 1 = Monday, etc.)
-      const dayAbbrMap = {
-        'อา.': 0,
-        'จ.': 1,
-        'อ.': 2,
-        'พ.': 3,
-        'พฤ.': 4,
-        'ศ.': 5,
-        'ส.': 6
-      }
+      // Find month number from shared constants
+      const monthNum = THAI_MONTHS_LONG.indexOf(month) + 1
+      if (monthNum === 0) return paymentDate
       
       // Convert BE year to CE year
-      const ceYear = parseInt(year) - 543
-      const monthNum = monthMap[month] || 1
+      const ceYear = parseInt(year) - BUDDHIST_ERA_OFFSET
       
       // Create date object
       const paymentDateObj = new Date(ceYear, monthNum - 1, day)
@@ -289,17 +245,12 @@ export default {
       
       // Get new date components
       const newDay = paymentDateObj.getDate()
-      const newMonthNum = paymentDateObj.getMonth() + 1
-      const newYear = paymentDateObj.getFullYear() + 543 // Convert back to BE
+      const newMonthNum = paymentDateObj.getMonth()
+      const newYear = paymentDateObj.getFullYear() + BUDDHIST_ERA_OFFSET
       const newDayOfWeek = paymentDateObj.getDay()
       
-      // Find month name
-      const monthNames = Object.keys(monthMap)
-      const newMonth = monthNames[newMonthNum - 1] || month
-      
-      // Find day abbreviation
-      const dayAbbrs = Object.keys(dayAbbrMap)
-      const newDayAbbr = dayAbbrs[newDayOfWeek] || dayAbbr
+      const newMonth = THAI_MONTHS_LONG[newMonthNum] || month
+      const newDayAbbr = THAI_DAYS_SHORT[newDayOfWeek] || ''
       
       return `${newDayAbbr} ${newDay} ${newMonth} ${newYear}`
     },
@@ -507,62 +458,6 @@ export default {
   }
 }
 
-/* Skeleton Loading */
-.skeleton-table {
-  width: 100%;
-}
-
-.admin-table-skeleton {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.admin-table-skeleton th {
-  background-color: #3551a4;
-  color: white;
-  font-weight: 500;
-  text-align: center;
-  padding: 1rem;
-  border: none;
-}
-
-.skeleton-row {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.skeleton-row td {
-  padding: 1rem;
-  text-align: center;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.skeleton-cell {
-  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
-  height: 20px;
-}
-
-.skeleton-text {
-  width: 120px;
-  margin: 0 auto;
-}
-
-.skeleton-button {
-  width: 90px;
-  height: 35px;
-  margin: 0 auto;
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+/* Skeleton Loading: uses global styles from ~/assets/css/main.css */
 </style>
 

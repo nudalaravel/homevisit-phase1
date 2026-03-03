@@ -1,9 +1,33 @@
 import {
   THAI_MONTHS_SHORT,
   THAI_MONTHS_FULL,
+  THAI_MONTHS_LONG,
+  THAI_DAYS_SHORT,
   BUDDHIST_ERA_OFFSET,
   DAYS_IN_MONTH,
 } from "./constants";
+
+/**
+ * Format API date (YYYY-MM-DD) to Thai format with day name
+ * @param {string} dateStr - Date string from API (YYYY-MM-DD)
+ * @returns {string} Formatted Thai date e.g. "จ. 01 มกราคม 2569"
+ */
+export function formatApiDate(dateStr) {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return dateStr
+
+    const day = date.getDate()
+    const monthName = THAI_MONTHS_LONG[date.getMonth()]
+    const year = date.getFullYear() + BUDDHIST_ERA_OFFSET
+    const dayName = THAI_DAYS_SHORT[date.getDay()]
+
+    return `${dayName} ${day.toString().padStart(2, '0')} ${monthName} ${year}`
+  } catch (e) {
+    return dateStr
+  }
+}
 
 /**
  * Get Thai month name (short version)
@@ -70,11 +94,12 @@ export function formatAppointmentDateShort(dateStr) {
   if (!dateStr) return "";
 
   const date = new Date(dateStr);
+  const dayName = THAI_DAYS_SHORT[date.getDay()];
   const day = date.getDate();
   const month = getThaiMonthFull(date.getMonth());
   const year = (date.getFullYear() + BUDDHIST_ERA_OFFSET).toString().slice(-2);
 
-  return `อา. ${day} ${month}. ${year}`;
+  return `${dayName} ${day} ${month}. ${year}`;
 }
 
 /**

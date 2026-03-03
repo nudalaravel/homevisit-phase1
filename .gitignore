@@ -1,8 +1,11 @@
 node_modules
 *.md
 .history
+.history/
 .history/*
 .agent
 .agent/*
 .dist
 .dist/*
+.nuxt
+.nuxt/*

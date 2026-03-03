@@ -451,61 +451,6 @@ export default {
   }
 }
 
-/* Skeleton Loading */
-.skeleton-table {
-  width: 100%;
-}
-
-.admin-table-skeleton {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.admin-table-skeleton th {
-  background-color: #3551a4;
-  color: white;
-  font-weight: 500;
-  text-align: center;
-  padding: 1rem;
-  border: none;
-}
-
-.skeleton-row {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.skeleton-row td {
-  padding: 1rem;
-  text-align: center;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.skeleton-cell {
-  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
-  height: 20px;
-}
-
-.skeleton-text {
-  width: 150px;
-  margin: 0 auto;
-}
-
-.skeleton-small {
-  width: 60px;
-  margin: 0 auto;
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+/* Skeleton Loading: uses global styles from ~/assets/css/main.css */
 </style>
 
