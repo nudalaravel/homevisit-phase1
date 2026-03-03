@@ -1,14 +1,14 @@
-export { default as EditPatientModal } from '../../components/EditPatientModal.vue'
-export { default as FailedSyncManager } from '../../components/FailedSyncManager.vue'
-export { default as Loading } from '../../components/Loading.vue'
-export { default as OnlineStatus } from '../../components/OnlineStatus.vue'
-export { default as PatientListItem } from '../../components/PatientListItem.vue'
-export { default as StorageStatus } from '../../components/StorageStatus.vue'
-export { default as Toast } from '../../components/Toast.vue'
-export { default as VisitRecordModal } from '../../components/VisitRecordModal.vue'
-export { default as ActivityQuestionStep } from '../../components/survey/ActivityQuestionStep.vue'
-export { default as ImageUploadStep } from '../../components/survey/ImageUploadStep.vue'
-export { default as QuestionStep } from '../../components/survey/QuestionStep.vue'
+export const EditPatientModal = () => import('../..\\components\\EditPatientModal.vue' /* webpackChunkName: "components/edit-patient-modal" */).then(c => wrapFunctional(c.default || c))
+export const FailedSyncManager = () => import('../..\\components\\FailedSyncManager.vue' /* webpackChunkName: "components/failed-sync-manager" */).then(c => wrapFunctional(c.default || c))
+export const Loading = () => import('../..\\components\\Loading.vue' /* webpackChunkName: "components/loading" */).then(c => wrapFunctional(c.default || c))
+export const OnlineStatus = () => import('../..\\components\\OnlineStatus.vue' /* webpackChunkName: "components/online-status" */).then(c => wrapFunctional(c.default || c))
+export const PatientListItem = () => import('../..\\components\\PatientListItem.vue' /* webpackChunkName: "components/patient-list-item" */).then(c => wrapFunctional(c.default || c))
+export const StorageStatus = () => import('../..\\components\\StorageStatus.vue' /* webpackChunkName: "components/storage-status" */).then(c => wrapFunctional(c.default || c))
+export const Toast = () => import('../..\\components\\Toast.vue' /* webpackChunkName: "components/toast" */).then(c => wrapFunctional(c.default || c))
+export const VisitRecordModal = () => import('../..\\components\\VisitRecordModal.vue' /* webpackChunkName: "components/visit-record-modal" */).then(c => wrapFunctional(c.default || c))
+export const ActivityQuestionStep = () => import('../..\\components\\survey\\ActivityQuestionStep.vue' /* webpackChunkName: "components/activity-question-step" */).then(c => wrapFunctional(c.default || c))
+export const ImageUploadStep = () => import('../..\\components\\survey\\ImageUploadStep.vue' /* webpackChunkName: "components/image-upload-step" */).then(c => wrapFunctional(c.default || c))
+export const QuestionStep = () => import('../..\\components\\survey\\QuestionStep.vue' /* webpackChunkName: "components/question-step" */).then(c => wrapFunctional(c.default || c))
 
 // nuxt/nuxt.js#8607
 function wrapFunctional(options) {

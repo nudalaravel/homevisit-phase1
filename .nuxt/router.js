@@ -4,20 +4,20 @@ import { normalizeURL, decode } from 'ufo'
 import { interopDefault } from './utils'
 import scrollBehavior from './router.scrollBehavior.js'
 
-const _2b2e6090 = () => interopDefault(import('../pages/admin-document.vue' /* webpackChunkName: "pages/admin-document" */))
-const _2f5b490e = () => interopDefault(import('../pages/admin-payment.vue' /* webpackChunkName: "pages/admin-payment" */))
-const _255d76c0 = () => interopDefault(import('../pages/admin-payment-history.vue' /* webpackChunkName: "pages/admin-payment-history" */))
-const _854d9aaa = () => interopDefault(import('../pages/admin-receipt.vue' /* webpackChunkName: "pages/admin-receipt" */))
-const _3be2b8b2 = () => interopDefault(import('../pages/admin-visit-results.vue' /* webpackChunkName: "pages/admin-visit-results" */))
-const _681781da = () => interopDefault(import('../pages/login.vue' /* webpackChunkName: "pages/login" */))
-const _7177685a = () => interopDefault(import('../pages/supervisor-booking.vue' /* webpackChunkName: "pages/supervisor-booking" */))
-const _7eeec80e = () => interopDefault(import('../pages/supervisor-dashboard.vue' /* webpackChunkName: "pages/supervisor-dashboard" */))
-const _5afbc511 = () => interopDefault(import('../pages/supervisor-document.vue' /* webpackChunkName: "pages/supervisor-document" */))
-const _692c97ac = () => interopDefault(import('../pages/supervisor-report.vue' /* webpackChunkName: "pages/supervisor-report" */))
-const _301f8350 = () => interopDefault(import('../pages/supervisor-survey.vue' /* webpackChunkName: "pages/supervisor-survey" */))
-const _6c8958e2 = () => interopDefault(import('../pages/supervisor-survey-backup.vue' /* webpackChunkName: "pages/supervisor-survey-backup" */))
-const _4510288e = () => interopDefault(import('../pages/survey.vue' /* webpackChunkName: "pages/survey" */))
-const _c320427a = () => interopDefault(import('../pages/index.vue' /* webpackChunkName: "pages/index" */))
+const _11942510 = () => interopDefault(import('..\\pages\\admin-document.vue' /* webpackChunkName: "pages/admin-document" */))
+const _228a85b9 = () => interopDefault(import('..\\pages\\admin-payment.vue' /* webpackChunkName: "pages/admin-payment" */))
+const _1a313e00 = () => interopDefault(import('..\\pages\\admin-payment-history.vue' /* webpackChunkName: "pages/admin-payment-history" */))
+const _10dd462a = () => interopDefault(import('..\\pages\\admin-receipt.vue' /* webpackChunkName: "pages/admin-receipt" */))
+const _dce3c432 = () => interopDefault(import('..\\pages\\admin-visit-results.vue' /* webpackChunkName: "pages/admin-visit-results" */))
+const _7d8427cc = () => interopDefault(import('..\\pages\\login.vue' /* webpackChunkName: "pages/login" */))
+const _48cc8993 = () => interopDefault(import('..\\pages\\supervisor-booking.vue' /* webpackChunkName: "pages/supervisor-booking" */))
+const _8142d464 = () => interopDefault(import('..\\pages\\supervisor-dashboard.vue' /* webpackChunkName: "pages/supervisor-dashboard" */))
+const _0a7b3f51 = () => interopDefault(import('..\\pages\\supervisor-document.vue' /* webpackChunkName: "pages/supervisor-document" */))
+const _7d02be6a = () => interopDefault(import('..\\pages\\supervisor-report.vue' /* webpackChunkName: "pages/supervisor-report" */))
+const _3c8ee4e0 = () => interopDefault(import('..\\pages\\supervisor-survey.vue' /* webpackChunkName: "pages/supervisor-survey" */))
+const _e3e37d62 = () => interopDefault(import('..\\pages\\supervisor-survey-backup.vue' /* webpackChunkName: "pages/supervisor-survey-backup" */))
+const _adc26d0e = () => interopDefault(import('..\\pages\\survey.vue' /* webpackChunkName: "pages/survey" */))
+const _10d36dfa = () => interopDefault(import('..\\pages\\index.vue' /* webpackChunkName: "pages/index" */))
 
 const emptyFn = () => {}
 
@@ -32,59 +32,59 @@ export const routerOptions = {
 
   routes: [{
     path: "/admin-document",
-    component: _2b2e6090,
+    component: _11942510,
     name: "admin-document"
   }, {
     path: "/admin-payment",
-    component: _2f5b490e,
+    component: _228a85b9,
     name: "admin-payment"
   }, {
     path: "/admin-payment-history",
-    component: _255d76c0,
+    component: _1a313e00,
     name: "admin-payment-history"
   }, {
     path: "/admin-receipt",
-    component: _854d9aaa,
+    component: _10dd462a,
     name: "admin-receipt"
   }, {
     path: "/admin-visit-results",
-    component: _3be2b8b2,
+    component: _dce3c432,
     name: "admin-visit-results"
   }, {
     path: "/login",
-    component: _681781da,
+    component: _7d8427cc,
     name: "login"
   }, {
     path: "/supervisor-booking",
-    component: _7177685a,
+    component: _48cc8993,
     name: "supervisor-booking"
   }, {
     path: "/supervisor-dashboard",
-    component: _7eeec80e,
+    component: _8142d464,
     name: "supervisor-dashboard"
   }, {
     path: "/supervisor-document",
-    component: _5afbc511,
+    component: _0a7b3f51,
     name: "supervisor-document"
   }, {
     path: "/supervisor-report",
-    component: _692c97ac,
+    component: _7d02be6a,
     name: "supervisor-report"
   }, {
     path: "/supervisor-survey",
-    component: _301f8350,
+    component: _3c8ee4e0,
     name: "supervisor-survey"
   }, {
     path: "/supervisor-survey-backup",
-    component: _6c8958e2,
+    component: _e3e37d62,
     name: "supervisor-survey-backup"
   }, {
     path: "/survey",
-    component: _4510288e,
+    component: _adc26d0e,
     name: "survey"
   }, {
     path: "/",
-    component: _c320427a,
+    component: _10d36dfa,
     name: "index"
   }],
 
