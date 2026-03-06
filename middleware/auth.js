@@ -104,13 +104,25 @@ export default function ({ store, redirect, route, app }) {
 
   // Level-based routing logic - STRICT separation
   if (userLevel === 1) {
-    // Level 1 users (Admin) - STRICTLY can only access admin pages
-    // Block all supervisor and level 3 pages
-    if (!isAdminPage) {
-      console.log(
-        "Auth middleware: Level 1 user attempting to access non-admin page, redirecting to admin-payment"
-      );
-      return redirect("/admin-payment");
+    // Level 1 users (Admin) - can access admin pages OR supervisor pages when in supervisor mode
+    const activeMode = process.client ? localStorage.getItem('admin_active_mode') : null
+    
+    if (activeMode === 'supervisor') {
+      // Admin in supervisor mode - allow supervisor pages, block level 3 pages
+      if (!isSupervisorPage && !isAdminPage) {
+        console.log(
+          "Auth middleware: Level 1 user in supervisor mode accessing level 3 page, redirecting to supervisor-dashboard"
+        );
+        return redirect("/supervisor-dashboard");
+      }
+    } else {
+      // Admin in normal mode - STRICTLY admin pages only
+      if (!isAdminPage) {
+        console.log(
+          "Auth middleware: Level 1 user attempting to access non-admin page, redirecting to admin-payment"
+        );
+        return redirect("/admin-payment");
+      }
     }
   } else if (userLevel === 2) {
     // Level 2 users (Supervisor) - STRICTLY can only access supervisor pages

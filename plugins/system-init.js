@@ -1302,7 +1302,7 @@ export default function ({ app, store, $axios }, inject) {
             image: base64Image,
             picname: picname,
             stid: stid,
-            time: timeActivity,
+            time_visit: timeActivity,
           }
         );
 

@@ -75,6 +75,14 @@
           <span v-if="!sidebarCollapsed">การจัดการเอกสารรับเงิน</span>
         </nuxt-link>
       </nav>
+
+      <!-- Switch Back to Admin (only for admin users who switched) -->
+      <div v-if="isAdminSwitched" class="switch-mode-section">
+        <div class="switch-mode-btn" @click="switchToAdmin" :title="sidebarCollapsed ? 'กลับไปหน้า Admin' : ''">
+          <i class="fas fa-exchange-alt"></i>
+          <span v-if="!sidebarCollapsed">กลับไปหน้า Admin</span>
+        </div>
+      </div>
     </aside>
 
     <!-- Main Content Area -->
@@ -90,12 +98,16 @@
 export default {
   data() {
     return {
-      sidebarCollapsed: false
+      sidebarCollapsed: false,
+      isAdminSwitched: false
     }
   },
   mounted() {
-    // โหลดค่าจาก cookie เมื่อ component mount
     this.loadSidebarState()
+    // ตรวจสอบว่าเป็น admin ที่สลับโหมดมาหรือไม่
+    if (process.client) {
+      this.isAdminSwitched = localStorage.getItem('admin_active_mode') === 'supervisor'
+    }
   },
   methods: {
     loadSidebarState() {
@@ -150,6 +162,7 @@ export default {
 
       if (result.isConfirmed) {
         try {
+          localStorage.removeItem('admin_active_mode')
           if (this.$offlineAuth) {
             await this.$offlineAuth.logout()
           } else {
@@ -161,6 +174,10 @@ export default {
           this.$router.push('/login')
         }
       }
+    },
+    switchToAdmin() {
+      localStorage.removeItem('admin_active_mode')
+      this.$router.push('/admin-payment')
     }
   }
 }
@@ -450,5 +467,40 @@ export default {
     justify-content: center;
     padding: 1rem 0.5rem;
   }
+}
+
+/* Switch Mode Section */
+.switch-mode-section {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.switch-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  color: #ffd700;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.15s;
+}
+
+.switch-mode-btn:hover {
+  background-color: rgba(255, 215, 0, 0.15);
+}
+
+.switch-mode-btn i {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-collapsed .switch-mode-btn {
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  gap: 0;
 }
 </style>

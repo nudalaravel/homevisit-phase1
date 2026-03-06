@@ -158,14 +158,7 @@ export default {
           thClass: 'table-header previous-docs-header'
         }
       ],
-      tableData: [
-        {
-          visitorName: 'น.ส.ลีเยาะ กาลาแต',
-          installment: 12,
-          amount: '50.00',
-          hasPreviousDocs: true
-        }
-      ],
+      tableData: [],
       paymentDate: {
         day: '',
         month: '',
@@ -198,6 +191,9 @@ export default {
       return Array.from({ length: daysInMonth }, (_, i) => i + 1)
     }
   },
+  async mounted() {
+    await this.fetchTableData()
+  },
   watch: {
     'paymentDate.month'() {
       this.adjustDayIfNeeded()
@@ -207,6 +203,30 @@ export default {
     }
   },
   methods: {
+    async fetchTableData() {
+      this.loading = true
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/admin/getpayment.php')
+
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          this.tableData = response.results.map(item => ({
+            visitorName: (item.col5 || item.VendorName || '').trim(),
+            installment: item.transfIns,
+            amount: item.Amount || '0.00',
+            hasPreviousDocs: item.transfStatus === '1' || item.transfStatus === 1
+          }))
+        } else {
+          this.tableData = []
+        }
+      } catch (error) {
+        console.error('Error fetching payment data:', error)
+        this.tableData = []
+        this.$toast?.error('ไม่สามารถโหลดข้อมูลได้')
+      } finally {
+        this.loading = false
+      }
+    },
     // Convert Buddhist Era (BE) to Common Era (CE)
     beToCe(beYear) {
       return beYear - 543
