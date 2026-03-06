@@ -8,22 +8,6 @@
     <!-- Filters -->
     <div class="filters-section">
       <div class="filter-group">
-        <label class="filter-label">ทีม</label>
-        <select
-          v-model="filters.team"
-          class="filter-select select2"
-          ref="teamSelect"
-        >
-          <option
-            v-for="(option, index) in teamOptions"
-            :key="'team-' + index"
-            :value="option.value"
-          >
-            {{ option.text }}
-          </option>
-        </select>
-      </div>
-      <div class="filter-group">
         <label class="filter-label">ตำบล</label>
         <select
           v-model="filters.subdistrict"
@@ -361,14 +345,9 @@ export default {
     return {
       loading: true,
       filters: {
-        team: 'all',
         subdistrict: 'all',
         visitor: 'all'
       },
-      teamOptions: [
-        { value: 'all', text: '--ทั้งหมด--' },
-        { value: 'songkhla', text: 'สงขลา' }
-      ],
       subdistrictOptions: [
         { value: 'all', text: '--ทั้งหมด--' }
       ],
@@ -454,16 +433,7 @@ export default {
     // Initialize Select2 for dropdowns
     this.$nextTick(() => {
       if (this.$select2) {
-        if (this.$refs.teamSelect) {
-          this.$select2.init(this.$refs.teamSelect)
-          window.$(this.$refs.teamSelect).on('change', () => {
-            const newVal = window.$(this.$refs.teamSelect).val()
-            if (this.filters.team !== newVal) {
-              this.filters.team = newVal
-              this.filterTableData()
-            }
-          })
-        }
+
         if (this.$refs.subdistrictSelect) {
           this.$select2.init(this.$refs.subdistrictSelect)
           window.$(this.$refs.subdistrictSelect).on('change', () => {
@@ -491,10 +461,6 @@ export default {
   beforeDestroy() {
     // Destroy Select2 instances
     if (this.$select2) {
-      if (this.$refs.teamSelect && window.$) {
-        window.$(this.$refs.teamSelect).off('change')
-        this.$select2.destroy(this.$refs.teamSelect)
-      }
       if (this.$refs.subdistrictSelect && window.$) {
         window.$(this.$refs.subdistrictSelect).off('change')
         this.$select2.destroy(this.$refs.subdistrictSelect)

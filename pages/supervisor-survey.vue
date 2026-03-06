@@ -57,19 +57,31 @@
         </div>
         <div class="form-group">
           <label class="form-label">วันที่เข้าเยี่ยมบ้าน</label>
-          <select
-            v-model="form.visitDate"
-            class="form-select select2"
-            ref="visitDateSelect"
-          >
-            <option
-              v-for="option in visitDateOptions"
-              :key="option.value"
-              :value="option.value"
+          <div class="visit-date-row">
+            <select
+              v-model="form.visitDate"
+              class="form-select select2"
+              ref="visitDateSelect"
             >
-              {{ option.text }}
-            </option>
-          </select>
+              <option
+                v-for="option in visitDateOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.text }}
+              </option>
+            </select>
+            <button
+              v-if="childLocation"
+              type="button"
+              class="btn-map"
+              @click="openChildMap"
+              title="เปิดแผนที่นำทาง"
+            >
+              <i class="fas fa-map-marker-alt"></i>
+              <span>แผนที่เด็ก</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -97,24 +109,33 @@
           </div>
           
           <!-- กิจกรรมเริ่มเวลา (free text) -->
-          <div class="fixed-form-row">
-            <label class="fixed-label">กิจกรรมเริ่มเวลา :</label>
+          <div class="fixed-form-row" :class="{ 'has-error': validationErrors.timeStart }">
+            <label class="fixed-label">กิจกรรมเริ่มเวลา : <span class="required-mark">*</span></label>
             <input 
               v-model="fixForm.timeStart"
               type="text"
               class="form-control fixed-input"
+              :class="{ 'is-invalid': validationErrors.timeStart }"
               placeholder="เช่น 09.00 น."
             />
+            <div v-if="validationErrors.timeStart" class="error-message">
+              <i class="fas fa-exclamation-circle"></i> กรุณากรอกเวลาเริ่มต้น
+            </div>
           </div>
           
           <!-- กิจกรรมสิ้นสุดเวลา (free text) -->
-          <div class="fixed-form-row">
-            <label class="fixed-label">กิจกรรมสิ้นสุดเวลา :</label>
+          <div class="fixed-form-row" :class="{ 'has-error': validationErrors.timeEnd }">
+            <label class="fixed-label">กิจกรรมสิ้นสุดเวลา : <span class="required-mark">*</span></label>
             <input 
               v-model="fixForm.timeEnd"
               type="text"
               class="form-control fixed-input"
-              placeholder="เช่น 10.00 น." />
+              :class="{ 'is-invalid': validationErrors.timeEnd }"
+              placeholder="เช่น 10.00 น."
+            />
+            <div v-if="validationErrors.timeEnd" class="error-message">
+              <i class="fas fa-exclamation-circle"></i> กรุณากรอกเวลาสิ้นสุด
+            </div>
           </div>
           
           <!-- ผู้ดูแลหลัก (q0 - styled like other questions) -->
@@ -281,6 +302,10 @@
         <!-- Image Upload Section -->
         <div class="question-section">
           <h4 class="question-title">รูปภาพการเยี่ยมบ้าน</h4>
+          <div v-if="loadingImage" class="image-loading-overlay">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>กำลังประมวลผลรูปภาพ...</span>
+          </div>
           
           <!-- Image 1 -->
           <div class="image-upload-block">
@@ -380,6 +405,8 @@
 </template>
 
 <script>
+import { convertToWebP } from '~/utils/imageHelpers'
+
 export default {
   layout: 'supervisor',
   middleware: 'auth',
@@ -418,6 +445,9 @@ export default {
         image1: null,
         image2: null
       },
+      loadingImage: false,
+      loadingMap: false,
+      childLocation: null, // { lat, lon }
       // API Data
       visitorOptions: [
         { value: null, text: '--เลือก--' }
@@ -720,6 +750,18 @@ export default {
       // Validate q0 (ผู้ดูแลหลัก - required)
       if (!this.fixForm.q0) {
         this.$set(this.validationErrors, 'q0', true)
+        missingCount++
+      }
+      
+      // Validate timeStart (required)
+      if (!this.fixForm.timeStart || this.fixForm.timeStart.trim() === '') {
+        this.$set(this.validationErrors, 'timeStart', true)
+        missingCount++
+      }
+      
+      // Validate timeEnd (required)
+      if (!this.fixForm.timeEnd || this.fixForm.timeEnd.trim() === '') {
+        this.$set(this.validationErrors, 'timeEnd', true)
         missingCount++
       }
       
@@ -1038,18 +1080,78 @@ export default {
         this.$refs[refName].click()
       }
     },
-    handleFileInput(event, index) {
-      const file = event.target.files[0]
-      if (file) {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          if (index === 0) {
-            this.images.image1 = e.target.result
-          } else {
-            this.images.image2 = e.target.result
-          }
+    async openChildMap() {
+      if (!this.childLocation) return
+      const { lat, lon } = this.childLocation
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`
+      window.open(mapsUrl, '_blank')
+    },
+    async fetchChildLocation(stid) {
+      if (!stid) {
+        this.childLocation = null
+        return
+      }
+
+      this.loadingMap = true
+      try {
+        const response = await this.$axios.$get(
+          '/api/parenting2025_census/get/homevisit/getchildsample.php',
+          { params: { stid } }
+        )
+
+        const result = response?.results?.[0]
+        const lat = result?.latitude
+        const lon = result?.longitude
+
+        if (lat && lon && lat !== '0' && lon !== '0') {
+          this.childLocation = { lat, lon }
+        } else {
+          this.childLocation = null
         }
-        reader.readAsDataURL(file)
+      } catch (error) {
+        console.error('Error fetching child location:', error)
+        this.childLocation = null
+      } finally {
+        this.loadingMap = false
+      }
+    },
+    async handleFileInput(event, index) {
+      const file = event.target.files[0]
+      if (!file) return
+
+      // ตรวจสอบประเภทไฟล์
+      if (!file.type.startsWith('image/')) {
+        this.$toast.error('กรุณาเลือกไฟล์รูปภาพเท่านั้น')
+        return
+      }
+
+      // ตรวจสอบขนาดไฟล์ สูงสุด 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        this.$toast.error('ไฟล์รูปภาพมีขนาดใหญ่เกินไป (สูงสุด 10MB)')
+        return
+      }
+
+      this.loadingImage = true
+      try {
+        // แปลงเป็น WebP และปรับขนาด
+        const webpImage = await convertToWebP(file, 1000, 1000, 0.90)
+
+        if (index === 0) {
+          this.images.image1 = webpImage
+        } else {
+          this.images.image2 = webpImage
+        }
+        this.$toast.success(`อัพโหลดรูปภาพที่ ${index + 1} สำเร็จ`)
+      } catch (error) {
+        console.error('Error processing image:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ')
+      } finally {
+        this.loadingImage = false
+        // Reset file input
+        const refName = `fileInput${index}`
+        if (this.$refs[refName]) {
+          this.$refs[refName].value = ''
+        }
       }
     },
     removeImage(index) {
@@ -1276,7 +1378,7 @@ export default {
             image: base64Image,
             picname: picname,
             stid: stid,
-            time: String(timeVisit)
+            time_visit: String(timeVisit)
           }
         )
         
@@ -1346,6 +1448,8 @@ export default {
       if (this.$refs.childSelect && window.$) {
         window.$(this.$refs.childSelect).val(newVal).trigger('change.select2')
       }
+      // ดึงพิกัดเด็กเมื่อเลือกเด็กใหม่
+      this.fetchChildLocation(newVal)
     },
     'form.visitDate'(newVal) {
       if (this.$refs.visitDateSelect && window.$) {
@@ -1532,6 +1636,41 @@ export default {
   font-weight: 500;
   color: #495057;
   font-size: 0.95rem;
+}
+
+.visit-date-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.visit-date-row .form-select {
+  flex: 1;
+}
+
+.btn-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.btn-map:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.btn-map:disabled {
+  background-color: #94d3a2;
+  cursor: not-allowed;
 }
 
 .form-select,
@@ -1871,5 +2010,24 @@ export default {
 .remove-image-btn:hover {
   background-color: #dc3545;
   transform: scale(1.1);
+}
+
+.image-loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  color: #4a5568;
+  font-size: 0.95rem;
+}
+
+.image-loading-overlay i {
+  font-size: 1.25rem;
+  color: #3551a4;
 }
 </style>
