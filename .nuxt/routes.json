@@ -77,13 +77,6 @@
     "_name": "_301f8350"
   },
   {
-    "name": "supervisor-survey-backup",
-    "path": "/supervisor-survey-backup",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/supervisor-survey-backup.vue",
-    "chunkName": "pages/supervisor-survey-backup",
-    "_name": "_6c8958e2"
-  },
-  {
     "name": "survey",
     "path": "/survey",
     "component": "/Users/exd/Documents/works/riped-v2/pages/survey.vue",
