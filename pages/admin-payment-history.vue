@@ -66,7 +66,19 @@
       body-class="payment-history-modal-body"
     >
       <div v-if="paymentHistoryData" class="payment-history-table-container">
-        <table class="payment-history-table">
+        <!-- Loading -->
+        <div v-if="paymentHistoryData.loading" class="text-center py-4">
+          <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+          <p class="mt-2">กำลังโหลดข้อมูล...</p>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="!paymentHistoryData.records || paymentHistoryData.records.length === 0" class="text-center py-4">
+          <p>ไม่พบข้อมูลประวัติการจ่ายเงิน</p>
+        </div>
+
+        <!-- Table -->
+        <table v-else class="payment-history-table">
           <thead>
             <tr>
               <th class="col-child-name">ชื่อนามสกุลเด็ก</th>
@@ -100,7 +112,6 @@
 
 <script>
 import { formatApiDate } from '~/utils/dateHelpers'
-import { THAI_MONTHS_LONG, THAI_DAYS_SHORT, BUDDHIST_ERA_OFFSET } from '~/utils/constants'
 
 export default {
   layout: 'admin',
@@ -169,94 +180,70 @@ export default {
     
     formatApiDate,
     
-    viewPaymentHistory(item) {
-      // Mock data for payment history - should be replaced with actual data
-      // Generate mock records based on the payment date
-      const mockRecords = this.generateMockPaymentHistory(item.paymentDate)
-      
+    async viewPaymentHistory(item) {
+      this.showPaymentHistoryModal = true
       this.paymentHistoryData = {
         paymentDate: item.paymentDate,
         amount: item.amount,
-        records: mockRecords
+        records: [],
+        loading: true
       }
-      this.showPaymentHistoryModal = true
+
+      try {
+        const paymentDate = item.rawPaymentDate || item.paymentDate
+        const response = await this.$axios.$get(
+          '/api/parenting2025_census/get/homevisit/admin/gethomevisitpayment_history.php',
+          { params: { paymentDate } }
+        )
+
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results && response.results.length > 0) {
+          this.paymentHistoryData.records = response.results.map(record => ({
+            childName: `${record.fname_ch || ''} ${record.lname_ch || ''}`.trim() || '-',
+            visitNumber: record.time_visit || '-',
+            visitDate: record.payment_date ? this.formatApiDate(record.payment_date) : '-',
+            paymentStatus: record.payment_status || '-'
+          }))
+        } else {
+          this.paymentHistoryData.records = []
+        }
+      } catch (error) {
+        console.error('Error fetching payment history:', error)
+        this.$toast?.error('ไม่สามารถโหลดประวัติการจ่ายเงินได้')
+        this.paymentHistoryData.records = []
+      } finally {
+        this.paymentHistoryData.loading = false
+      }
     },
     closePaymentHistoryModal() {
       this.showPaymentHistoryModal = false
       this.paymentHistoryData = null
     },
-    generateMockPaymentHistory(paymentDate) {
-      // Generate mock payment history records
-      // In real implementation, this should fetch from API/IndexedDB
-      const mockChildren = [
-        { name: 'ธีธัช พ่อโคตร', visitNumbers: [117, 116, 115, 114, 113] },
-        { name: 'ทิพากร บุญสอน', visitNumbers: [117, 116, 115] },
-        { name: 'กฤติน วิไลลักษณ์', visitNumbers: [115, 114, 113] },
-        { name: 'กัสฟิยา เอียดวารี', visitNumbers: [112, 111, 110] },
-        { name: 'ชลกนก แกล้วกล้าหาญ', visitNumbers: [109, 108, 107] }
-      ]
-      
-      const records = []
-      
-      // Generate records for each child
-      mockChildren.forEach((child, childIndex) => {
-        child.visitNumbers.forEach((visitNumber, index) => {
-          // Calculate visit date (decreasing from payment date)
-          // Each visit is approximately 6 days apart
-          const daysBefore = (child.visitNumbers.length - index - 1) * 6 + childIndex
-          const visitDate = this.calculateVisitDate(paymentDate, daysBefore)
-          
-          records.push({
-            childName: child.name,
-            visitNumber: visitNumber,
-            visitDate: visitDate,
-            paymentStatus: 'paid'
-          })
+    async downloadExcel(item) {
+      try {
+        const paymentDate = item.rawPaymentDate || item.paymentDate
+        const response = await this.$axios({
+          method: 'GET',
+          url: '/api/parenting2025_census/get/homevisit/admin/getpayment_history.php',
+          params: { paymentDate,mode: 'excel' },
+          responseType: 'blob'
         })
-      })
-      
-      return records.sort((a, b) => {
-        // Sort by child name, then by visit number descending
-        if (a.childName !== b.childName) {
-          return a.childName.localeCompare(b.childName, 'th')
-        }
-        return b.visitNumber - a.visitNumber
-      })
-    },
-    calculateVisitDate(paymentDate, daysBefore) {
-      // Parse payment date and subtract days
-      const parts = paymentDate.split(' ')
-      if (parts.length < 4) return paymentDate
-      
-      const day = parseInt(parts[1])
-      const month = parts[2]
-      const year = parts[3]
-      
-      // Find month number from shared constants
-      const monthNum = THAI_MONTHS_LONG.indexOf(month) + 1
-      if (monthNum === 0) return paymentDate
-      
-      // Convert BE year to CE year
-      const ceYear = parseInt(year) - BUDDHIST_ERA_OFFSET
-      
-      // Create date object
-      const paymentDateObj = new Date(ceYear, monthNum - 1, day)
-      paymentDateObj.setDate(paymentDateObj.getDate() - daysBefore)
-      
-      // Get new date components
-      const newDay = paymentDateObj.getDate()
-      const newMonthNum = paymentDateObj.getMonth()
-      const newYear = paymentDateObj.getFullYear() + BUDDHIST_ERA_OFFSET
-      const newDayOfWeek = paymentDateObj.getDay()
-      
-      const newMonth = THAI_MONTHS_LONG[newMonthNum] || month
-      const newDayAbbr = THAI_DAYS_SHORT[newDayOfWeek] || ''
-      
-      return `${newDayAbbr} ${newDay} ${newMonth} ${newYear}`
-    },
-    downloadExcel(item) {
-      // TODO: Implement Excel download functionality
-      this.$toast.info(`ดาวน์โหลด Excel: ${item.paymentDate}`)
+
+        const blob = new Blob([response.data], {
+          type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `payment_history_${paymentDate}.xlsx`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('Error downloading Excel:', error)
+        this.$toast?.error('ไม่สามารถดาวน์โหลดไฟล์ได้')
+      }
     }
   }
 }

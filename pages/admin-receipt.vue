@@ -335,11 +335,11 @@ export default {
       // Extract date part (remove day abbreviation like "อ." or "พ.")
       const formattedDate = paymentDateStr.replace(/^[^\d]*\s*/, '').trim() || '1 พฤศจิกายน 2566'
       
-      // Mock data for receipt - should be replaced with actual data
+      // ใช้ข้อมูลจาก API
       this.receiptData = {
-        visitorName: item.visitorName || 'ตัวอย่าง',
-        idCard: item.idCard || '1234567890123',
-        address: item.address || 'ที่อยู่ตัวอย่าง',
+        visitorName: item.visitorName || '-',
+        idCard: item.idCard || '-',
+        address: item.address || '-',
         paymentDate: paymentDateStr,
         formattedDate: formattedDate,
         amount: item.amount || '0.00'

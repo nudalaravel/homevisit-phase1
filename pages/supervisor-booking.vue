@@ -1020,11 +1020,7 @@ export default {
           }
         }
       }
-
-      // If no q5 activities or less than 10, generate mock activities
-      if (q5Activities.length < 10) {
-        q5Activities = this.generateMockActivities(q5Activities, survey.month_age, survey.time)
-      }
+      // ใช้ข้อมูลกิจกรรมจริงจาก IndexedDB เท่านั้น (ไม่ใช้ mock)
 
       this.recordData = {
         childName: survey.fullname_visit || item.childName,
@@ -1037,104 +1033,6 @@ export default {
         answers: survey.answers || {},
         q5Activities: q5Activities
       }
-    },
-    generateMockActivities(existingActivities, monthAge, time) {
-      const mockActivities = [
-        {
-          no: '1',
-          title: 'จิ๊กซอว์ 16 - ปลา',
-          objective: 'เด็กวางจิ๊กซอว์เข้าด้วยกันเพื่อประกอบเป็นรูปปลา และพูดเกี่ยวกับปลา',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '2',
-          title: 'ของเล่นร้อยเชือก 1 - เชือกร้อยลูกปัด',
-          objective: 'เด็กร้อยคอขวดหรือลูกปัดตามลำดับสี – สีแดง เหลือง แดง เหลือง',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '3',
-          title: 'เกมแอคชั่น 5 - อะไรหายไป',
-          objective: 'เด็กบอกชื่อสิ่งของที่หายไป',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '4',
-          title: 'บล็อกไม้ - สร้างหอคอย',
-          objective: 'เด็กวางบล็อกไม้ซ้อนกันเป็นหอคอยสูง 8 ชั้น',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '5',
-          title: 'หนังสือภาพ - เล่านิทาน',
-          objective: 'เด็กเล่าเรื่องจากภาพในหนังสือได้อย่างน้อย 3 หน้า',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '6',
-          title: 'ดินน้ำมัน - ปั้นรูปสัตว์',
-          objective: 'เด็กปั้นดินน้ำมันเป็นรูปสัตว์ที่รู้จักได้อย่างน้อย 2 ชนิด',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '7',
-          title: 'สีเทียน - วาดรูป',
-          objective: 'เด็กใช้สีเทียนวาดรูปตามจินตนาการและบอกเล่าเรื่องราว',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '8',
-          title: 'ลูกบอล - โยนรับ',
-          objective: 'เด็กโยนลูกบอลและรับได้อย่างน้อย 3 ครั้งติดต่อกัน',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '9',
-          title: 'ตัวต่อ - ต่อรถ',
-          objective: 'เด็กต่อตัวต่อเป็นรูปรถและบอกชื่อส่วนประกอบ',
-          month_age: monthAge || 44,
-          time: time || 2
-        },
-        {
-          no: '10',
-          title: 'เกมจับคู่ - รูปภาพกับคำ',
-          objective: 'เด็กจับคู่รูปภาพกับคำศัพท์ที่เกี่ยวข้องได้อย่างน้อย 5 คู่',
-          month_age: monthAge || 44,
-          time: time || 2
-        }
-      ]
-
-      // Merge existing activities with mock activities
-      const result = [...existingActivities]
-      const existingNos = existingActivities.map(a => String(a.no))
-      
-      for (let i = 0; i < mockActivities.length && result.length < 10; i++) {
-        if (!existingNos.includes(mockActivities[i].no)) {
-          result.push(mockActivities[i])
-        }
-      }
-
-      // Fill remaining slots if needed
-      while (result.length < 10) {
-        const index = result.length + 1
-        result.push({
-          no: String(index),
-          title: `กิจกรรม ${index}`,
-          objective: `จุดประสงค์ของกิจกรรม ${index}`,
-          month_age: monthAge || 44,
-          time: time || 2
-        })
-      }
-
-      return result.slice(0, 10)
     },
     extractVisitNumber(visitDateStr) {
       // Extract visit number from string like "อ. 20 มิถุนายน 2566 (27)"

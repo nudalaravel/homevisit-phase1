@@ -66,12 +66,15 @@
     "chunkName": "pages/supervisor-survey"
   },
   {
+<<<<<<< HEAD
     "name": "supervisor-survey-backup",
     "path": "/supervisor-survey-backup",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-survey-backup.vue",
     "chunkName": "pages/supervisor-survey-backup"
   },
   {
+=======
+>>>>>>> ea9ff961b8ede665b155913fb4d85c2a88797194
     "name": "survey",
     "path": "/survey",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\survey.vue",

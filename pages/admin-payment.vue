@@ -267,7 +267,7 @@ export default {
         this.paymentDate.day = maxDays.toString()
       }
     },
-    handleSaveAndExport() {
+    async handleSaveAndExport() {
       // Validate date
       if (!this.paymentDate.day || !this.paymentDate.month || !this.paymentDate.year) {
         this.dateError = true
@@ -276,8 +276,42 @@ export default {
       }
 
       this.dateError = false
-      // TODO: Implement save and export functionality
-      this.$toast.success('บันทึกและส่งออกข้อมูลสำเร็จ')
+
+      // Format date: YYYY-MM-DD (convert BE year to CE)
+      const ceYear = this.beToCe(parseInt(this.paymentDate.year))
+      const month = String(this.paymentDate.month).padStart(2, '0')
+      const day = String(this.paymentDate.day).padStart(2, '0')
+      const formattedDate = `${ceYear}-${month}-${day}`
+
+      try {
+        const response = await this.$axios({
+          method: 'POST',
+          url: '/api/parenting2025_census/post/homevisit/payment.php',
+          headers: { 'Content-Type': 'application/json' },
+          data: {
+            paymentDate: formattedDate,
+            dry_run: false
+          },
+          responseType: 'blob'
+        })
+
+        const blob = new Blob([response.data], {
+          type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `payment_${formattedDate}.xlsx`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        this.$toast.success('บันทึกและส่งออกข้อมูลสำเร็จ')
+      } catch (error) {
+        console.error('Error saving and exporting:', error)
+        this.$toast?.error('ไม่สามารถบันทึกและส่งออกข้อมูลได้')
+      }
     }
   }
 }
