@@ -1762,12 +1762,28 @@ export default function ({ app, store, $axios }, inject) {
               console.warn("No newAppointment data found for survey", survey.id);
             }
 
+            // ดึง booking เพื่อเอา date_app_curr (วันนัดหมายล่าสุด) มาใช้เป็น date_visit
+            let bookingDateVisit = null;
+            try {
+              const booking = await app.$indexedDB.getBooking(survey.stid);
+              if (booking && booking.appointmentDate) {
+                bookingDateVisit = booking.appointmentDate;
+              }
+            } catch (e) {
+              console.warn('Cannot get booking for date_visit lookup:', e);
+            }
+            // ลำดับความสำคัญ: booking.appointmentDate (date_app_curr) > survey.appointmentDate > recStart
+            const dateVisitValue = bookingDateVisit
+              || survey.appointmentDate
+              || (survey.recStart ? survey.recStart.split(" ")[0] : new Date().toISOString().split("T")[0]);
+
             if (existingRecord) {
               // มีข้อมูลแล้ว - ใช้ PUT
               const putPayload = {
                 variable: [
                   "recEnd",
                   "timeStart",
+                  "date_visit",
                   "q1",
                   "q1_des",
                   "q2",
@@ -1824,6 +1840,8 @@ export default function ({ app, store, $axios }, inject) {
                   survey.recEnd || "",
                   // timeStart: เวลาที่ user กรอกว่าเริ่มทำกิจกรรม (user input - อาจเป็นค่าว่าง)
                   survey.timeStart ? this.formatTimeForAPI(survey.timeStart) : "",
+                  // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
+                  dateVisitValue,
                   String(survey.answers?.q1 || ""),
                   survey.answers?.q1_des || "",
                   String(survey.answers?.q2 || ""),
@@ -2009,10 +2027,8 @@ export default function ({ app, store, $axios }, inject) {
                   visitor?.fname || "",
                   visitor?.lname || "",
                   survey.fullname_visit || "",
-                  // date_visit: วันที่ทำแบบทดสอบจริง (extract จาก recStart)
-                  survey.recStart
-                    ? survey.recStart.split(" ")[0]
-                    : new Date().toISOString().split("T")[0],
+                  // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
+                  dateVisitValue,
                   // timeStart: เวลาที่ user กรอกว่าเริ่มทำกิจกรรม (user input - อาจเป็นค่าว่าง)
                   survey.timeStart ? this.formatTimeForAPI(survey.timeStart) : "",
                   String(survey.answers?.q1 || ""),
