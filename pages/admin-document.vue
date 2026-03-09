@@ -80,6 +80,7 @@
               <input
                 type="checkbox"
                 :checked="item.account.receipt"
+                :disabled="!item.canEditAdmin"
                 @change="toggleAccountReceipt(item, $event)"
               />
             </td>
@@ -87,6 +88,7 @@
               <input
                 type="checkbox"
                 :checked="item.account.idCard"
+                :disabled="!item.canEditAdmin"
                 @change="toggleAccountIdCard(item, $event)"
               />
             </td>
@@ -135,6 +137,7 @@ export default {
               receipt: item.doc1_app === '1',
               idCard: item.doc2_app === '1'
             },
+            canEditAdmin: item.can_edit_admin === '1',
             // เก็บข้อมูลดิบไว้
             rawData: item
           }))

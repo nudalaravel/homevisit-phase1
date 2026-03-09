@@ -103,12 +103,19 @@
 
         <template #cell(complete)="row">
           <i
-            v-if="row.item.sendReceipt && row.item.sendIdCard"
+            v-if="row.item.isComplete === '2'"
             class="fas fa-check-circle text-success"
+            title="เอกสารล่าสุดครบ"
+          ></i>
+          <i
+            v-else-if="row.item.isComplete === '1'"
+            class="fas fa-exclamation-circle text-warning"
+            title="เอกสารไม่ครบ"
           ></i>
           <i
             v-else
             class="fas fa-times-circle text-danger"
+            title="ยังไม่มีเอกสาร"
           ></i>
         </template>
       </b-table>
@@ -421,7 +428,7 @@ export default {
             doc2_date: item.doc2_date || null,
             // can_edit: 0 = บล็อคไม่ให้แก้ไข, 1 = แก้ไขได้
             canEdit: item.can_edit === '1' || item.can_edit === 1,
-            isComplete: item.doc1 === '1' && item.doc2 === '1',
+            isComplete: String(item.isComplete),
             rawData: item
           }))
 
@@ -644,6 +651,22 @@ export default {
       }
     },
   
+    async refreshItemCanEdit(item) {
+      try {
+        const url = `/api/parenting2025_census/get/homevisit/gethomevisitpayment.php?no=${item.no}`
+        const response = await this.$axios.$get(url)
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results && response.results.length > 0) {
+          const freshData = response.results[0]
+          item.canEdit = freshData.can_edit === '1' || freshData.can_edit === 1
+          item.isComplete = String(freshData.isComplete)
+          item.sendReceipt = freshData.doc1 === '1'
+          item.sendIdCard = freshData.doc2 === '1'
+        }
+      } catch (error) {
+        console.error('Error refreshing item can_edit:', error)
+      }
+    },
     async toggleSendReceipt(item, event) {
       const newValue = event.target.checked
       
@@ -665,6 +688,9 @@ export default {
         this.$toast.success(
           `${newValue ? 'ส่ง' : 'ยกเลิกการส่ง'}ใบสำคัญรับเงิน: ${item.visitorName}`
         )
+
+        // Re-fetch เพื่ออัปเดต can_edit
+        await this.refreshItemCanEdit(item)
       } catch (error) {
         console.error('Error updating doc1:', error)
         // revert checkbox
@@ -693,6 +719,9 @@ export default {
         this.$toast.success(
           `${newValue ? 'ส่ง' : 'ยกเลิกการส่ง'}สำเนาบัตรประชาชน: ${item.visitorName}`
         )
+
+        // Re-fetch เพื่ออัปเดต can_edit
+        await this.refreshItemCanEdit(item)
       } catch (error) {
         console.error('Error updating doc2:', error)
         // revert checkbox

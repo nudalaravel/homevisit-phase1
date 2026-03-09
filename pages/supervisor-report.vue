@@ -281,7 +281,7 @@ export default {
         },
         {
           key: 'observationCount',
-          label: 'จำนวนการสังเกตฯ',
+          label: 'จำนวนการเยี่ยมบ้าน',
           thClass: 'table-header'
         }
       ],
