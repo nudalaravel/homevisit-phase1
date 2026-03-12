@@ -40,6 +40,7 @@
               <td><div class="skeleton-cell skeleton-text-short"></div></td>
               <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-text"></div></td>
+              <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-badge"></div></td>
               <td><div class="skeleton-cell skeleton-checkbox"></div></td>
               <td><div class="skeleton-cell skeleton-checkbox"></div></td>
@@ -69,6 +70,10 @@
           {{ row.item.visitorName }}
         </template>
 
+        <template #cell(dateSubmit)="row">
+          {{ row.item.dateSubmit }}
+        </template>
+
         <template #cell(latestPayment)="row">
           <div class="payment-info">
             {{ row.item.paymentDate }}<br />
@@ -88,7 +93,7 @@
             type="checkbox"
             :checked="row.item.sendReceipt"
             :disabled="!row.item.canEdit"
-            @change="toggleSendReceipt(row.item, $event)"
+            @click.prevent="toggleSendReceipt(row.item)"
           />
         </template>
 
@@ -97,7 +102,7 @@
             type="checkbox"
             :checked="row.item.sendIdCard"
             :disabled="!row.item.canEdit"
-            @change="toggleSendIdCard(row.item, $event)"
+            @click.prevent="toggleSendIdCard(row.item)"
           />
         </template>
 
@@ -105,7 +110,7 @@
           <i
             v-if="row.item.isComplete === '2'"
             class="fas fa-check-circle text-success"
-            title="เอกสารล่าสุดครบ"
+            title="ส่วนกลางได้รับเอกสาร"
           ></i>
           <i
             v-else-if="row.item.isComplete === '1'"
@@ -182,7 +187,7 @@
             <tbody>
               <tr>
                 <td class="text-center" style="font-size: 14px;">1</td>
-                <td colspan="2" style="font-size: 14px;">ค่าตอบแทนผู้เยี่ยมบ้าน หรือ home visitor เพื่อทำกิจกรรมเยี่ยมบ้าน</td>
+                <td colspan="2" style="font-size: 14px;">ค่าตอบแทนผู้เยี่ยมบ้าน หรือ home visitor <br>เพื่อทำกิจกรรมเยี่ยมบ้าน ประจำเดือน ____________________</td>
                 <td class="text-right" style="font-size: 14px;">{{ receiptData.amount }} บาท</td>
               </tr>
               <tr class="summary-row">
@@ -197,11 +202,11 @@
           </table>
 
           <!-- Remark/Certification -->
-          <div class="remark">
+          <!-- <div class="remark">
             ข้าพเจ้าขอรับรองว่ารายจ่ายข้างต้นได้จ่ายไปในงานโครงการที่ได้รับทุนสนับสนุน<br/>
             จากกองทุนเพื่อความเสมอภาคทางการศึกษา (กสศ.) โดยแท้จริง<br/>
             ทั้งนี้ไม่สามารถเรียกใบเสร็จรับเงินได้
-          </div>
+          </div> -->
 
           <!-- Signatures -->
           <div class="signature-section">
@@ -224,7 +229,7 @@
           </div>
 
           <!-- Bottom Review/Approve -->
-          <div class="bottom-section">
+          <!-- <div class="bottom-section">
             <div class="bottom-block text-center">
               <div class="bottom-label">
                 ตรวจสอบโดย <span class="bottom-line"></span>
@@ -241,7 +246,7 @@
                 วันที่ ( ____ / ____ / ____ )
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
       </div>
 
@@ -289,6 +294,11 @@ export default {
           thClass: 'table-header'
         },
         {
+          key: 'dateSubmit',
+          label: 'วันที่บันทึกการจ่าย',
+          thClass: 'table-header'
+        },
+        {
           key: 'latestPayment',
           label: 'จ่ายงวดล่าสุด(บาท)',
           thClass: 'table-header'
@@ -310,7 +320,7 @@ export default {
         },
         {
           key: 'complete',
-          label: 'เอกสารล่าสุดครบ',
+          label: 'ส่วนกลางได้รับเอกสาร',
           thClass: 'table-header'
         }
       ],
@@ -414,6 +424,7 @@ export default {
             no: item.no,
             username: item.VendorID,
             visitorName: item.VendorName || `${item.fname || ''} ${item.lname || ''}`.trim(),
+            dateSubmit: this.formatApiDate(item.dateSubmit),
             paymentDate: this.formatApiDate(item.paymentDate),
             installment: item.transfIns || '-',
             amount: item.Amount || '0.00',
@@ -658,17 +669,15 @@ export default {
         const isSuccess = response.message === 'success' || response.statusCode === 200
         if (isSuccess && response.results && response.results.length > 0) {
           const freshData = response.results[0]
-          item.canEdit = freshData.can_edit === '1' || freshData.can_edit === 1
-          item.isComplete = String(freshData.isComplete)
-          item.sendReceipt = freshData.doc1 === '1'
-          item.sendIdCard = freshData.doc2 === '1'
+          // อัพเดทเฉพาะ canEdit — isComplete คำนวณจาก client state โดย updateIsComplete()
+          this.$set(item, 'canEdit', freshData.can_edit === '1' || freshData.can_edit === 1)
         }
       } catch (error) {
         console.error('Error refreshing item can_edit:', error)
       }
     },
-    async toggleSendReceipt(item, event) {
-      const newValue = event.target.checked
+    async toggleSendReceipt(item) {
+      const newValue = !item.sendReceipt
       
       try {
         const payload = {
@@ -684,7 +693,9 @@ export default {
           payload
         )
         
-        item.sendReceipt = newValue
+        this.$set(item, 'sendReceipt', newValue)
+        // อัพเดท isComplete จาก client state ทันที
+        this.updateIsComplete(item)
         this.$toast.success(
           `${newValue ? 'ส่ง' : 'ยกเลิกการส่ง'}ใบสำคัญรับเงิน: ${item.visitorName}`
         )
@@ -693,13 +704,11 @@ export default {
         await this.refreshItemCanEdit(item)
       } catch (error) {
         console.error('Error updating doc1:', error)
-        // revert checkbox
-        event.target.checked = !newValue
         this.$toast.error('เกิดข้อผิดพลาดในการบันทึก')
       }
     },
-    async toggleSendIdCard(item, event) {
-      const newValue = event.target.checked
+    async toggleSendIdCard(item) {
+      const newValue = !item.sendIdCard
       
       try {
         const payload = {
@@ -715,7 +724,9 @@ export default {
           payload
         )
         
-        item.sendIdCard = newValue
+        this.$set(item, 'sendIdCard', newValue)
+        // อัพเดท isComplete จาก client state ทันที
+        this.updateIsComplete(item)
         this.$toast.success(
           `${newValue ? 'ส่ง' : 'ยกเลิกการส่ง'}สำเนาบัตรประชาชน: ${item.visitorName}`
         )
@@ -724,9 +735,17 @@ export default {
         await this.refreshItemCanEdit(item)
       } catch (error) {
         console.error('Error updating doc2:', error)
-        // revert checkbox
-        event.target.checked = !newValue
         this.$toast.error('เกิดข้อผิดพลาดในการบันทึก')
+      }
+    },
+    // คำนวณ isComplete จาก client state (doc1 + doc2)
+    updateIsComplete(item) {
+      if (item.sendReceipt && item.sendIdCard) {
+        this.$set(item, 'isComplete', '2') // ครบทั้งคู่
+      } else if (item.sendReceipt || item.sendIdCard) {
+        this.$set(item, 'isComplete', '1') // มีอันเดียว
+      } else {
+        this.$set(item, 'isComplete', '0') // ยังไม่มี
       }
     }
   }

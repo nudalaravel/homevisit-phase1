@@ -132,7 +132,7 @@
             <tbody>
               <tr>
                 <td class="text-center" style="font-size: 14px;">1</td>
-                <td colspan="2" style="font-size: 14px;">ค่าตอบแทนผู้เยี่ยมบ้าน หรือ home visitor <br>เพื่อทำกิจกรรมเยี่ยมบ้าน
+                <td colspan="2" style="font-size: 14px;">ค่าตอบแทนผู้เยี่ยมบ้าน หรือ home visitor <br>เพื่อทำกิจกรรมเยี่ยมบ้าน ประจำเดือน ____________________
 </td>
                 <td class="text-right" style="font-size: 14px;">{{ receiptData.amount }} บาท</td>
               </tr>
@@ -147,11 +147,11 @@
           </table>
 
           <!-- Remark/Certification -->
-          <div class="remark">
+          <!-- <div class="remark">
             ข้าพเจ้าขอรับรองว่ารายจ่ายข้างต้นได้จ่ายไปในงานโครงการที่ได้รับทุนสนับสนุน<br/>
             จากกองทุนเพื่อความเสมอภาคทางการศึกษา (กสศ.) โดยแท้จริง<br/>
             ทั้งนี้ไม่สามารถเรียกใบเสร็จรับเงินได้
-          </div>
+          </div> -->
 
           <!-- Signatures -->
           <div class="signature-section">
@@ -174,7 +174,7 @@
           </div>
 
           <!-- Bottom Review/Approve -->
-          <div class="bottom-section">
+          <!-- <div class="bottom-section">
             <div class="bottom-block text-center">
               <div class="bottom-label">
                 ตรวจสอบโดย <span class="bottom-line"></span>
@@ -191,7 +191,7 @@
                 วันที่ ( ____ / ____ / ____ )
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
       </div>
 

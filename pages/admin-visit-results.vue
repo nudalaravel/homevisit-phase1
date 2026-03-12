@@ -227,7 +227,7 @@
           <div class="plain-text-section">
             <p>ชื่อ-นามสกุลของเด็ก : {{ visitResultForm.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatVisitDate(visitResultForm.visitDate) }}</span></p>
             <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ visitResultForm.visitNumber || '-' }}</span></p>
-            <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ visitResultForm.visitTime || '-' }} น.</p>
+            <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ visitResultForm.visitTime || '-' }}</p>
           </div>
 
           <!-- Home Visit Section -->
@@ -235,8 +235,10 @@
             <p class="section-header-text">การเยี่ยมบ้าน</p>
             <p>1 : ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
             <p class="indent-answer">{{ getParticipationAnswer(visitResultForm.answers?.q1) }}</p>
+            <p v-if="visitResultForm.answers?.q1_des" class="indent-answer text-muted"><em>เหตุผล: {{ visitResultForm.answers.q1_des }}</em></p>
             <p>2 : เด็กสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
             <p class="indent-answer">{{ getParticipationAnswer(visitResultForm.answers?.q2) }}</p>
+            <p v-if="visitResultForm.answers?.q2_des" class="indent-answer text-muted"><em>เหตุผล: {{ visitResultForm.answers.q2_des }}</em></p>
           </div>
 
           <!-- Review Previous Visit Section -->
@@ -244,6 +246,7 @@
             <p class="section-header-text underline">ทบทวนการเยี่ยมบ้านครั้งที่ผ่านมา</p>
             <p>3 : ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก</p>
             <p class="indent-answer">{{ getQ6Answer(visitResultForm.answers?.q6) }}</p>
+            <p v-if="visitResultForm.answers?.q3_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ visitResultForm.answers.q3_des }}</em></p>
             <p>4 : ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน ?</p>
             <p class="indent-answer">{{ getQ8Answer(visitResultForm.answers?.q4) }}</p>
             <p>5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
@@ -277,8 +280,10 @@
           <div class="plain-text-section">
             <p>6 : ใครทำกิจกรรมกับเด็ก</p>
             <p class="indent-answer">{{ getQ6Answer(visitResultForm.answers?.q6) }}</p>
+            <p v-if="visitResultForm.answers?.q6_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ visitResultForm.answers.q6_des }}</em></p>
             <p>7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
             <p class="indent-answer">{{ visitResultForm.answers?.q7 === 1 ? 'มี' : visitResultForm.answers?.q7 === 3 ? 'ไม่มี' : '-' }}</p>
+            <p v-if="visitResultForm.answers?.q71_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ visitResultForm.answers.q71_des }}</em></p>
             <p>8 : มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างด้วยหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ)</p>
             <p class="indent-answer">{{ visitResultForm.answers?.q8 === 1 ? 'มี' : visitResultForm.answers?.q8 === 3 ? 'ไม่มี' : '-' }}</p>
           </div>

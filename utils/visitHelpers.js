@@ -301,34 +301,31 @@ export async function calculateNextAppointment(stid, indexedDB) {
     // 3. คำนวณ time_visit
     const newTimeVisit = completedSurveys.length + 1;
 
-    // 4. หา survey ล่าสุดและคำนวณวันนัดหมายถัดไป (+7 วัน)
-    const lastSurvey = completedSurveys[completedSurveys.length - 1];
+    // 4. หา survey ล่าสุดตาม time_visit (ลำดับการเยี่ยมจริง)
+    // ⚠️ ต้อง sort ตาม time_visit ไม่ใช่ time เพราะ time อาจซ้ำกัน (เช่น 12/1, 13/1, 14/1 ทั้งหมด time=1)
+    const sortedByTimeVisit = [...completedSurveys].sort(
+      (a, b) => (parseInt(a.time_visit) || 0) - (parseInt(b.time_visit) || 0)
+    );
+    const lastSurvey = sortedByTimeVisit[sortedByTimeVisit.length - 1];
     const lastVisitDate = new Date(lastSurvey.timeEnd || lastSurvey.timeStart);
     const nextDate = new Date(lastVisitDate);
     nextDate.setDate(nextDate.getDate() + 7);
 
-    // 5. คำนวณ month_age และ time
-    const birthYear = parseInt(visitor.year_birth) - 543;
+    // 5. คำนวณ month_age และ time โดยใช้ calculateMonthAgeAndTime (logic เดียวกับ saveAppointment)
     const birthMonth = parseInt(visitor.month_birth);
-    const calculatedMonthAge =
-      (nextDate.getFullYear() - birthYear) * 12 + (nextDate.getMonth() + 1 - birthMonth);
-
-    const currentTime = parseInt(lastSurvey.time) || 1;
-    let newTime = currentTime + 1;
-    let newMonthAge = lastSurvey.month_age || calculatedMonthAge;
-
-    // ตรวจสอบว่าถ้าครั้งที่ 4 เสร็จแล้ว ให้เพิ่ม month_age และ reset time
-    if (currentTime === 4) {
-      newMonthAge = Math.min((lastSurvey.month_age || 0) + 1, MAX_AGE_MONTHS);
-      newTime = 1;
-    } else if (newTime > MAX_VISIT_TIME) {
-      newTime = MAX_VISIT_TIME;
-    }
-
-    // จำกัด month_age ไม่เกิน 48
-    if (newMonthAge > MAX_AGE_MONTHS) {
-      newMonthAge = MAX_AGE_MONTHS;
-    }
+    const { monthAge, timeActivity } = calculateMonthAgeAndTime(
+      birthMonth,
+      parseInt(visitor.year_birth),
+      parseInt(visitor.day_birth || 1),
+      nextDate,
+      {
+        appointmentDate: lastSurvey.appointmentDate || (lastSurvey.timeStart ? lastSurvey.timeStart.split(' ')[0] : null),
+        month_age: Number(lastSurvey.month_age),
+        time: Number(lastSurvey.time)
+      }
+    );
+    let newMonthAge = monthAge;
+    let newTime = timeActivity;
 
     // 6. ดึง activities
     const activities = await indexedDB.getActivityByMonthAgeAndTime(newMonthAge, newTime);

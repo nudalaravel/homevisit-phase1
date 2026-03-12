@@ -74,6 +74,15 @@
           <i class="fas fa-home"></i>
           <span v-if="!sidebarCollapsed">ผลการเยี่ยมบ้าน</span>
         </nuxt-link>
+        <nuxt-link
+          to="/admin-report"
+          class="nav-item"
+          :class="{ active: isActiveRoute('admin-report') }"
+          :title="sidebarCollapsed ? 'สรุปการสังเกตจากทีมพื้นที่' : ''"
+        >
+          <i class="fas fa-clipboard-list"></i>
+          <span v-if="!sidebarCollapsed">สรุปการสังเกตจากทีมพื้นที่</span>
+        </nuxt-link>
       </nav>
 
       <!-- Switch Mode Button -->

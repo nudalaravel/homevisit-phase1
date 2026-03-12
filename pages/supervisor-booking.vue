@@ -142,7 +142,11 @@
                 <i class="fas fa-edit"></i>
                 แจ้งให้แก้ไข
               </button>
+              <span v-if="row.item.approveStatus === -1" class="badge-correction-pending">
+                <i class="fas fa-clock"></i> รอแก้ไข
+              </span>
               <input
+                v-else
                 type="checkbox"
                 :checked="selectedItems.includes(row.item)"
                 @change="toggleConfirm(row.item, $event)"
@@ -393,7 +397,7 @@
         <div class="plain-text-section">
           <p>ชื่อ-นามสกุลของเด็ก : {{ recordData.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatThaiDate(recordData.visitDate) }}</span></p>
           <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ recordData.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ recordData.visitNumber || '-' }}</span></p>
-          <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ recordData.startTime || '-' }} น.</p>
+          <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ recordData.startTime || '-' }}</p>
         </div>
 
         <!-- Home Visit Section -->
@@ -401,8 +405,10 @@
           <p class="section-header-text">การเยี่ยมบ้าน</p>
           <p>1 : ผู้ปกครองสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
           <p class="indent-answer">{{ getParticipationAnswer(recordData.answers?.q1) }}</p>
+          <p v-if="recordData.answers?.q1_des" class="indent-answer text-muted"><em>เหตุผล: {{ recordData.answers.q1_des }}</em></p>
           <p>2 : เด็กสามารถเข้าร่วมกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</p>
           <p class="indent-answer">{{ getParticipationAnswer(recordData.answers?.q2) }}</p>
+          <p v-if="recordData.answers?.q2_des" class="indent-answer text-muted"><em>เหตุผล: {{ recordData.answers.q2_des }}</em></p>
         </div>
 
         <!-- Review Previous Visit Section -->
@@ -410,6 +416,7 @@
           <p class="section-header-text underline">ทบทวนการเยี่ยมบ้านครั้งที่ผ่านมา</p>
           <p>3 : ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก</p>
           <p class="indent-answer">{{ getQ6Answer(recordData.answers?.q6) }}</p>
+          <p v-if="recordData.answers?.q3_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ recordData.answers.q3_des }}</em></p>
           <p>4 : ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน ?</p>
           <p class="indent-answer">{{ getQ8Answer(recordData.answers?.q8) }}</p>
           <p>5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
@@ -443,8 +450,10 @@
         <div class="plain-text-section">
           <p>6 : ใครทำกิจกรรมกับเด็ก</p>
           <p class="indent-answer">{{ getQ6Answer(recordData.answers?.q6) }}</p>
+          <p v-if="recordData.answers?.q6_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ recordData.answers.q6_des }}</em></p>
           <p>7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
           <p class="indent-answer">{{ recordData.answers?.q7 === 1 ? 'มี' : recordData.answers?.q7 === 3 ? 'ไม่มี' : '-' }}</p>
+          <p v-if="recordData.answers?.q71_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ recordData.answers.q71_des }}</em></p>
           <p>8 : มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างด้วยหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ)</p>
           <p class="indent-answer">{{ recordData.answers?.q8 === 1 ? 'มี' : recordData.answers?.q8 === 3 ? 'ไม่มี' : '-' }}</p>
         </div>
@@ -704,6 +713,7 @@ export default {
     // ดึงข้อมูลตารางผลการเยี่ยมบ้าน
     async fetchTableData() {
       this.loading = true
+      this.selectedItems = [] // เคลียร์รายการที่เลือกเมื่อรีเฟรสข้อมูล
       try {
         const params = new URLSearchParams()
         if (this.filters.subdistrict && this.filters.subdistrict !== 'all') {
@@ -1309,7 +1319,10 @@ export default {
       }
     },
     async handleApprove() {
-      if (this.selectedItems.length === 0) {
+      // กรอง items ที่มี approveStatus === -1 ออก (defense-in-depth)
+      const validItems = this.selectedItems.filter(item => item.approveStatus !== -1)
+      if (validItems.length === 0) {
+        this.$toast.warning('ไม่มีรายการที่สามารถอนุมัติได้')
         return
       }
 
@@ -1900,6 +1913,24 @@ export default {
 
 .btn-request-correction i {
   font-size: 0.85rem;
+}
+
+.badge-correction-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background-color: #fff3cd;
+  color: #856404;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.confirm-status input[type="checkbox"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Status Badges */

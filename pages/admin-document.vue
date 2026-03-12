@@ -13,11 +13,12 @@
           <thead>
             <tr>
               <th rowspan="2" class="table-header">รหัส/ชื่อผู้เยี่ยมบ้าน</th>
+              <th rowspan="2" class="table-header">วันที่บันทึกการจ่าย</th>
               <th rowspan="2" class="table-header">งวด</th>
               <th rowspan="2" class="table-header">จำนวน</th>
               <th rowspan="2" class="table-header">วันที่จ่ายเงิน</th>
               <th colspan="2" class="table-header">ทีมจังหวัด</th>
-              <th colspan="2" class="table-header">บัญชี</th>
+              <th colspan="2" class="table-header">ส่วนกลางได้รับเอกสาร</th>
             </tr>
             <tr>
               <th class="table-header sub-header">ใบสำคัญรับเงิน</th>
@@ -28,6 +29,7 @@
           </thead>
           <tbody>
             <tr v-for="n in 5" :key="'skeleton-' + n" class="skeleton-row">
+              <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-small"></div></td>
               <td><div class="skeleton-cell skeleton-small"></div></td>
@@ -46,11 +48,12 @@
         <thead>
           <tr>
             <th rowspan="2" class="table-header">รหัส/ชื่อผู้เยี่ยมบ้าน</th>
+            <th rowspan="2" class="table-header">วันที่บันทึกการจ่าย</th>
             <th rowspan="2" class="table-header">งวด</th>
             <th rowspan="2" class="table-header">จำนวน</th>
             <th rowspan="2" class="table-header">วันที่จ่ายเงิน</th>
             <th colspan="2" class="table-header">ทีมจังหวัด</th>
-            <th colspan="2" class="table-header">บัญชี</th>
+            <th colspan="2" class="table-header">ส่วนกลางได้รับเอกสาร</th>
           </tr>
           <tr>
             <th class="table-header sub-header">ใบสำคัญรับเงิน</th>
@@ -61,10 +64,11 @@
         </thead>
         <tbody>
           <tr v-if="tableData.length === 0">
-            <td colspan="8" class="text-center text-muted">ไม่พบข้อมูล</td>
+            <td colspan="9" class="text-center text-muted">ไม่พบข้อมูล</td>
           </tr>
           <tr v-for="(item, index) in tableData" :key="item.no || index">
             <td>{{ item.visitorName }}</td>
+            <td class="text-center">{{ item.dateSubmit }}</td>
             <td class="text-center">{{ item.installment }}</td>
             <td class="text-center">{{ item.amount }}</td>
             <td class="text-center">{{ item.paymentDate }}</td>
@@ -126,6 +130,7 @@ export default {
           this.tableData = response.results.map(item => ({
             no: item.no,
             visitorName: item.VendorName || '-',
+            dateSubmit: this.formatApiDate(item.dateSubmit),
             installment: item.transfIns || '-',
             amount: item.Amount || '0.00',
             paymentDate: this.formatApiDate(item.paymentDate),
@@ -155,7 +160,7 @@ export default {
     
     formatApiDate,
     
-    // Toggle ใบสำคัญรับเงิน - บัญชี (doc1_app)
+    // Toggle ใบสำคัญรับเงิน - ส่วนกลางได้รับเอกสาร (doc1_app)
     async toggleAccountReceipt(item, event) {
       const newValue = event.target.checked
       const originalValue = item.account.receipt
@@ -185,7 +190,7 @@ export default {
         )
         
         this.$toast.success(
-          `${newValue ? 'ยืนยัน' : 'ยกเลิก'}ใบสำคัญรับเงิน (บัญชี): ${item.visitorName} งวด ${item.installment}`
+          `${newValue ? 'ยืนยัน' : 'ยกเลิก'}ใบสำคัญรับเงิน (ส่วนกลาง): ${item.visitorName} งวด ${item.installment}`
         )
       } catch (error) {
         console.error('Error updating doc1_app:', error)
@@ -196,7 +201,7 @@ export default {
       }
     },
     
-    // Toggle สำเนาบัตรประชาชน - บัญชี (doc2_app)
+    // Toggle สำเนาบัตรประชาชน - ส่วนกลางได้รับเอกสาร (doc2_app)
     async toggleAccountIdCard(item, event) {
       const newValue = event.target.checked
       const originalValue = item.account.idCard
@@ -226,7 +231,7 @@ export default {
         )
         
         this.$toast.success(
-          `${newValue ? 'ยืนยัน' : 'ยกเลิก'}สำเนาบัตรประชาชน (บัญชี): ${item.visitorName} งวด ${item.installment}`
+          `${newValue ? 'ยืนยัน' : 'ยกเลิก'}สำเนาบัตรประชาชน (ส่วนกลาง): ${item.visitorName} งวด ${item.installment}`
         )
       } catch (error) {
         console.error('Error updating doc2_app:', error)
