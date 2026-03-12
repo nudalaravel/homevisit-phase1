@@ -26,9 +26,8 @@
   {
     "name": "admin-report",
     "path": "/admin-report",
-    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-report.vue",
-    "chunkName": "pages/admin-report",
-    "_name": "_5fd186de"
+    "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-report.vue",
+    "chunkName": "pages/admin-report"
   },
   {
     "name": "admin-visit-results",

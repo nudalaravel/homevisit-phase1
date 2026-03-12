@@ -81,7 +81,7 @@
             <tr>
               <th class="col-child-name">ชื่อ-นามสกุลเด็ก</th>
               <th class="col-last-visit">วันบันทึกการเยี่ยมบ้านล่าสุด</th>
-              <th class="col-observation-count">จำนวนการสังเกต</th>
+              <th class="col-observation-count">จำนวนการเยี่ยมบ้าน</th>
             </tr>
           </thead>
           <tbody>
@@ -281,7 +281,7 @@ export default {
         },
         {
           key: 'observationCount',
-          label: 'จำนวนการเยี่ยมบ้าน',
+          label: 'จำนวนการสังเกตฯ',
           thClass: 'table-header'
         }
       ],
