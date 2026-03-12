@@ -1320,11 +1320,12 @@ export default function ({ app, store }, inject) {
         console.warn(`Duplicates: ${Array.from(new Set(duplicates)).join(", ")}`);
       }
 
-      // Sort by time ascending (เรียงตามครั้งที่เยี่ยม)
+      // Sort by time_visit ascending (เรียงตามลำดับการเยี่ยมจริง)
+      // ⚠️ ต้องใช้ time_visit ไม่ใช่ time เพราะ time คือ "ครั้งที่ในกลุ่มอายุ" ซึ่งอาจซ้ำกัน
       completedSurveys.sort((a, b) => {
-        const timeA = parseInt(a.time) || 0;
-        const timeB = parseInt(b.time) || 0;
-        return timeA - timeB;
+        const tvA = parseInt(a.time_visit) || 0;
+        const tvB = parseInt(b.time_visit) || 0;
+        return tvA - tvB;
       });
 
       resolve(completedSurveys);

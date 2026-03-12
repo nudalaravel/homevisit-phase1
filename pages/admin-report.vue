@@ -2,7 +2,7 @@
   <div class="supervisor-report">
     <!-- Page Header -->
     <div class="page-header">
-      <h1 class="page-title">สรุปการสังเกตผู้เยี่ยมบ้าน</h1>
+      <h1 class="page-title">สรุปการสังเกตจากทีมพื้นที่</h1>
     </div>
 
     <!-- Data Table -->
@@ -263,7 +263,7 @@ import { generatePDFFromHTML, imageToBase64 } from '~/utils/pdfHelpers'
 import { CAREGIVER_LABELS } from '~/utils/constants'
 
 export default {
-  layout: 'supervisor',
+  layout: 'admin',
   middleware: 'auth',
   data() {
     return {

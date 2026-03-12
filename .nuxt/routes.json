@@ -28,6 +28,13 @@
     "_name": "_854d9aaa"
   },
   {
+    "name": "admin-report",
+    "path": "/admin-report",
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-report.vue",
+    "chunkName": "pages/admin-report",
+    "_name": "_5fd186de"
+  },
+  {
     "name": "admin-visit-results",
     "path": "/admin-visit-results",
     "component": "/Users/exd/Documents/works/riped-v2/pages/admin-visit-results.vue",

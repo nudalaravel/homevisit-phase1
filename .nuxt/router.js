@@ -8,6 +8,7 @@ const _2b2e6090 = () => interopDefault(import('../pages/admin-document.vue' /* w
 const _2f5b490e = () => interopDefault(import('../pages/admin-payment.vue' /* webpackChunkName: "pages/admin-payment" */))
 const _255d76c0 = () => interopDefault(import('../pages/admin-payment-history.vue' /* webpackChunkName: "pages/admin-payment-history" */))
 const _854d9aaa = () => interopDefault(import('../pages/admin-receipt.vue' /* webpackChunkName: "pages/admin-receipt" */))
+const _5fd186de = () => interopDefault(import('../pages/admin-report.vue' /* webpackChunkName: "pages/admin-report" */))
 const _3be2b8b2 = () => interopDefault(import('../pages/admin-visit-results.vue' /* webpackChunkName: "pages/admin-visit-results" */))
 const _681781da = () => interopDefault(import('../pages/login.vue' /* webpackChunkName: "pages/login" */))
 const _7177685a = () => interopDefault(import('../pages/supervisor-booking.vue' /* webpackChunkName: "pages/supervisor-booking" */))
@@ -45,6 +46,10 @@ export const routerOptions = {
     path: "/admin-receipt",
     component: _854d9aaa,
     name: "admin-receipt"
+  }, {
+    path: "/admin-report",
+    component: _5fd186de,
+    name: "admin-report"
   }, {
     path: "/admin-visit-results",
     component: _3be2b8b2,

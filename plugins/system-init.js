@@ -1762,20 +1762,31 @@ export default function ({ app, store, $axios }, inject) {
               console.warn("No newAppointment data found for survey", survey.id);
             }
 
-            // ดึง booking เพื่อเอา date_app_curr (วันนัดหมายล่าสุด) มาใช้เป็น date_visit
-            let bookingDateVisit = null;
+            // ดึง booking เพื่อเอา time_app_curr มาใช้เป็น timeStart (fallback)
+            let bookingAppointmentTime = null;
+            let bookingAppointmentDate = null;
             try {
               const booking = await app.$indexedDB.getBooking(survey.stid);
-              if (booking && booking.appointmentDate) {
-                bookingDateVisit = booking.appointmentDate;
+              if (booking) {
+                // ⚠️ booking ใน IndexedDB ใช้ stid เป็น primary key (1 record ต่อเด็ก 1 คน)
+                // ดังนั้น booking นี้อาจเป็นนัดหมายครั้งถัดไปแล้ว (ถ้า user สร้างนัดครั้งใหม่ก่อน sync)
+                // จึงใช้เป็น fallback เท่านั้น ไม่ใช้เป็นค่าหลัก
+                bookingAppointmentDate = booking.appointmentDate || null;
+                bookingAppointmentTime = booking.appointmentTime || null;
               }
             } catch (e) {
               console.warn('Cannot get booking for date_visit lookup:', e);
             }
-            // ลำดับความสำคัญ: booking.appointmentDate (date_app_curr) > survey.appointmentDate > recStart
-            const dateVisitValue = bookingDateVisit
-              || survey.appointmentDate
+            // ลำดับความสำคัญ:
+            // date_visit: survey.appointmentDate (เก็บวันนัดตอนสร้าง survey - ถูกต้องเสมอ)
+            //             > booking.appointmentDate (อาจเป็นนัดครั้งถัดไปแล้ว!)
+            //             > recStart date
+            const dateVisitValue = survey.appointmentDate
+              || bookingAppointmentDate
               || (survey.recStart ? survey.recStart.split(" ")[0] : new Date().toISOString().split("T")[0]);
+
+            // timeStart: ใช้ time_app_curr จาก booking เป็น fallback ถ้า survey ไม่มี timeStart
+            const timeStartValue = survey.timeStart || bookingAppointmentTime || '';
 
             if (existingRecord) {
               // มีข้อมูลแล้ว - ใช้ PUT
@@ -1838,8 +1849,8 @@ export default function ({ app, store, $axios }, inject) {
                 value: [
                   // recEnd: เวลาที่ระบบแก้ไขล่าสุด (system timestamp) - อัปเดตเมื่อมีการแก้ไข
                   survey.recEnd || "",
-                  // timeStart: เวลาที่ user กรอกว่าเริ่มทำกิจกรรม (user input - อาจเป็นค่าว่าง)
-                  survey.timeStart ? this.formatTimeForAPI(survey.timeStart) : "",
+                  // timeStart: ใช้ time_app_curr (วันนัดหมายจริง) เป็นหลัก, fallback เป็น user input
+                  timeStartValue ? this.formatTimeForAPI(timeStartValue) : "",
                   // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
                   dateVisitValue,
                   String(survey.answers?.q1 || ""),
@@ -2029,8 +2040,8 @@ export default function ({ app, store, $axios }, inject) {
                   survey.fullname_visit || "",
                   // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
                   dateVisitValue,
-                  // timeStart: เวลาที่ user กรอกว่าเริ่มทำกิจกรรม (user input - อาจเป็นค่าว่าง)
-                  survey.timeStart ? this.formatTimeForAPI(survey.timeStart) : "",
+                  // timeStart: ใช้ time_app_curr (วันนัดหมายจริง) เป็นหลัก, fallback เป็น user input
+                  timeStartValue ? this.formatTimeForAPI(timeStartValue) : "",
                   String(survey.answers?.q1 || ""),
                   survey.answers?.q1_des || "",
                   String(survey.answers?.q2 || ""),
