@@ -17,14 +17,18 @@ export function calculateNextVisit(
   selectedMonth,
   selectedDay,
   birthMonth,
-  birthYear
+  birthYear,
+  birthDay = 1
 ) {
   const today = new Date();
   let monthAge = calculateMonthAge(
     birthMonth,
     birthYear,
     today.getMonth() + 1,
-    today.getFullYear() + 543
+    today.getFullYear() + 543,
+    48,
+    birthDay,
+    today.getDate()
   );
   let timeActivity = 1;
 

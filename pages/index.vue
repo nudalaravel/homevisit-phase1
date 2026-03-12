@@ -2998,19 +2998,41 @@ export default {
             // Keep existing image if not removed and no new image
             newImageKeys[i] = this.editPhotoForm.currentImageKeys[i] || newImageKeys[i]
             
-            // ตรวจสอบว่าเป็น object format หรือไม่
-            const existingImg = this.editPhotoForm.currentImages[i] || newImages[i]
-            if (typeof existingImg === 'string') {
-              // Convert old format to new format
+            // ⚠️ สำคัญ: ใช้ survey.surveyImages[i] (object เดิมที่มี url) แทน editPhotoForm.currentImages[i] (display string)
+            // เพื่อไม่ให้ url ที่ sync แล้วหายไป
+            const originalImg = survey.surveyImages?.[i]
+            const displayImg = this.editPhotoForm.currentImages[i]
+            
+            if (originalImg && typeof originalImg === 'object' && originalImg.url) {
+              // รูปเดิมที่ sync แล้ว (มี url) - เก็บไว้เหมือนเดิม
+              newImages[i] = originalImg
+            } else if (typeof displayImg === 'string' && (displayImg.startsWith('http://') || displayImg.startsWith('https://'))) {
+              // currentImages เป็น URL (โหลดมาจาก server) - เก็บเป็น object ที่มี url
               newImages[i] = {
-                base64: existingImg,
+                base64: null,
+                url: displayImg,
+                key: `pic${i + 1}`
+              }
+            } else if (typeof displayImg === 'string' && displayImg.startsWith('data:image')) {
+              // currentImages เป็น base64 - ยังไม่ได้ sync
+              newImages[i] = {
+                base64: displayImg,
                 url: null,
                 key: `pic${i + 1}`
               }
+            } else if (originalImg) {
+              // fallback: ใช้ object เดิม
+              newImages[i] = originalImg
             } else {
-              newImages[i] = existingImg
+              newImages[i] = displayImg
             }
           }
+        }
+        
+        // อัพเดท approve_status ถ้าถูกขอให้แก้ไข (approve_status === -1)
+        let updatedApproveStatus = survey.approve_status
+        if (survey.approve_status === -1) {
+          updatedApproveStatus = -2 // แก้ไขแล้ว รอตรวจสอบใหม่
         }
         
         // อัพเดทแบบสอบถามด้วยรหัสรูปภาพใหม่และเปลี่ยนสถานะเป็นยังไม่ sync
@@ -3018,6 +3040,7 @@ export default {
           ...survey,
           surveyImages: newImages.filter(img => img !== null && img !== undefined),
           surveyImageKeys: newImageKeys.filter((key, idx) => newImages[idx] !== null && newImages[idx] !== undefined),
+          approve_status: updatedApproveStatus,
           synced: false, // เปลี่ยนสถานะเป็นยังไม่ sync เพื่อให้อัพเดทขึ้น API ใหม่
           lastUpdated: new Date().toISOString()
         })
@@ -3037,6 +3060,18 @@ export default {
           
           try {
             await this.$systemInit.pushSurveyResultsToAPI()
+            
+            // Sync approve_status ไปที่ API ถ้ามีการเปลี่ยนแปลง
+            if (updatedApproveStatus === -2) {
+              await this.$axios.$put('/api/parenting2025_census/put/homevisit/putdata.php', {
+                variable: ['approve_status'],
+                value: ['-2'],
+                pk: ['stid', 'time_visit'],
+                pkval: [survey.stid, String(survey.time_visit)],
+                tb: 'homevisitor_app'
+              })
+            }
+            
             this.$toast.success('อัพเดทข้อมูลไปยังเซิร์ฟเวอร์สำเร็จ')
             
             // รีเฟรสข้อมูลหลัง sync
