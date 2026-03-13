@@ -241,8 +241,8 @@
             <p v-if="visitResultForm.answers?.q2_des" class="indent-answer text-muted"><em>เหตุผล: {{ visitResultForm.answers.q2_des }}</em></p>
           </div>
 
-          <!-- Review Previous Visit Section -->
-          <div class="plain-text-section">
+          <!-- Review Previous Visit Section (ซ่อนสำหรับการเยี่ยมบ้านครั้งที่ 1) -->
+          <div v-if="parseInt(visitResultForm.visitNumber) !== 1" class="plain-text-section">
             <p class="section-header-text underline">ทบทวนการเยี่ยมบ้านครั้งที่ผ่านมา</p>
             <p>3 : ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก</p>
             <p class="indent-answer">{{ getQ6Answer(visitResultForm.answers?.q6) }}</p>
@@ -252,8 +252,8 @@
             <p>5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
           </div>
 
-          <!-- Activity Review Table (Q5) -->
-          <div class="plain-text-section">
+          <!-- Activity Review Table (Q5) (ซ่อนสำหรับการเยี่ยมบ้านครั้งที่ 1) -->
+          <div v-if="parseInt(visitResultForm.visitNumber) !== 1" class="plain-text-section">
             <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ visitResultForm.time || '-' }}</p>
             <table class="plain-table">
               <thead>
@@ -283,7 +283,7 @@
             <p v-if="visitResultForm.answers?.q6_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ visitResultForm.answers.q6_des }}</em></p>
             <p>7 : มีผู้อื่นร่วมทำกิจกรรมด้วยหรือไม่ (มากกว่า 20 นาที)</p>
             <p class="indent-answer">{{ visitResultForm.answers?.q7 === 1 ? 'มี' : visitResultForm.answers?.q7 === 3 ? 'ไม่มี' : '-' }}</p>
-            <p v-if="visitResultForm.answers?.q71_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ visitResultForm.answers.q71_des }}</em></p>
+            <!-- ซ่อน q71_des ไม่ต้องแสดง -->
             <p>8 : มีเด็กคนอื่นร่วมทำกิจกรรมไปพร้อมกับเด็กกลุ่มตัวอย่างด้วยหรือไม่ (เด็กอายุไม่เกิน 5 ขวบ)</p>
             <p class="indent-answer">{{ visitResultForm.answers?.q8 === 1 ? 'มี' : visitResultForm.answers?.q8 === 3 ? 'ไม่มี' : '-' }}</p>
           </div>
@@ -312,8 +312,8 @@
 
           <!-- Appointment Section -->
           <div class="plain-text-section">
-            <p>10 : นัดหมายการเยี่ยมบ้านครั้งต่อไป วันที่ {{ visitResultForm.appointment?.date || '-' }} เวลา {{ visitResultForm.appointment?.time || '-' }} น.</p>
-            <p>เวลาสิ้นสุดการเยี่ยมบ้าน {{ visitResultForm.endTime || '-' }} น.</p>
+            <p>10 : นัดหมายการเยี่ยมบ้านครั้งต่อไป วันที่ {{ visitResultForm.appointment?.date || '-' }} เวลา {{ visitResultForm.appointment?.time || '-' }}</p>
+            <p>เวลาสิ้นสุดการเยี่ยมบ้าน {{ visitResultForm.endTime || '-' }}</p>
             <p v-if="visitResultForm.note">บันทึกผู้เยี่ยมบ้าน - {{ visitResultForm.note }}</p>
           </div>
         </div>

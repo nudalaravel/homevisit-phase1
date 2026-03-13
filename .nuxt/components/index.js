@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export const EditPatientModal = () => import('../..\\components\\EditPatientModal.vue' /* webpackChunkName: "components/edit-patient-modal" */).then(c => wrapFunctional(c.default || c))
 export const FailedSyncManager = () => import('../..\\components\\FailedSyncManager.vue' /* webpackChunkName: "components/failed-sync-manager" */).then(c => wrapFunctional(c.default || c))
 export const Loading = () => import('../..\\components\\Loading.vue' /* webpackChunkName: "components/loading" */).then(c => wrapFunctional(c.default || c))
@@ -9,6 +10,19 @@ export const VisitRecordModal = () => import('../..\\components\\VisitRecordModa
 export const ActivityQuestionStep = () => import('../..\\components\\survey\\ActivityQuestionStep.vue' /* webpackChunkName: "components/activity-question-step" */).then(c => wrapFunctional(c.default || c))
 export const ImageUploadStep = () => import('../..\\components\\survey\\ImageUploadStep.vue' /* webpackChunkName: "components/image-upload-step" */).then(c => wrapFunctional(c.default || c))
 export const QuestionStep = () => import('../..\\components\\survey\\QuestionStep.vue' /* webpackChunkName: "components/question-step" */).then(c => wrapFunctional(c.default || c))
+=======
+export { default as EditPatientModal } from '../../components/EditPatientModal.vue'
+export { default as FailedSyncManager } from '../../components/FailedSyncManager.vue'
+export { default as Loading } from '../../components/Loading.vue'
+export { default as OnlineStatus } from '../../components/OnlineStatus.vue'
+export { default as PatientListItem } from '../../components/PatientListItem.vue'
+export { default as StorageStatus } from '../../components/StorageStatus.vue'
+export { default as Toast } from '../../components/Toast.vue'
+export { default as VisitRecordModal } from '../../components/VisitRecordModal.vue'
+export { default as ActivityQuestionStep } from '../../components/survey/ActivityQuestionStep.vue'
+export { default as ImageUploadStep } from '../../components/survey/ImageUploadStep.vue'
+export { default as QuestionStep } from '../../components/survey/QuestionStep.vue'
+>>>>>>> 5a7c6c2222cfe45ec07a5dfbb0791a05faadcfa2
 
 // nuxt/nuxt.js#8607
 function wrapFunctional(options) {

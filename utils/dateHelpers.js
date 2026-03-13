@@ -164,6 +164,8 @@ export function toGregorianYear(buddhistYear) {
  * @param {number} selectedMonth - Selected month
  * @param {number} selectedYear - Selected year (Buddhist)
  * @param {number} maxAge - Maximum age in months (default 48)
+ * @param {number} birthDay - Birth day (default 1)
+ * @param {number} selectedDay - Selected day (default 1)
  * @returns {number} Age in months
  */
 export function calculateMonthAge(
@@ -171,7 +173,9 @@ export function calculateMonthAge(
   birthYear,
   selectedMonth,
   selectedYear,
-  maxAge = 48
+  maxAge = 48,
+  birthDay = 1,
+  selectedDay = 1
 ) {
   const selectedGregorianYear = toGregorianYear(selectedYear);
   const birthGregorianYear = toGregorianYear(birthYear);
@@ -179,6 +183,11 @@ export function calculateMonthAge(
   let monthAge =
     (selectedGregorianYear - birthGregorianYear) * 12 +
     (selectedMonth - birthMonth);
+
+  // ถ้าวันที่เลือกยังไม่ถึงวันเกิดในเดือนนั้น ให้ลบ 1 เดือน
+  if (selectedDay < birthDay) {
+    monthAge--;
+  }
 
   // Limit to max age
   if (monthAge > maxAge) {
