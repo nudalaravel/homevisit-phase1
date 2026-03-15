@@ -6,21 +6,23 @@ Vue.use(Vuex)
 let store = {};
 
 (function updateModules () {
-  store = normalizeRoot(require('../store/index.js'), 'store/index.js')
+  store = normalizeRoot(require('..\\store\\index.js'), 'store/index.js')
 
   // If store is an exported method = classic mode (deprecated)
+
+  if (typeof store === 'function') {
+    return console.warn('Classic mode for store/ is deprecated and will be removed in Nuxt 3.')
+  }
 
   // Enforce store modules
   store.modules = store.modules || {}
 
   // If the environment supports hot reloading...
-<<<<<<< HEAD
-=======
 
   if (process.client && module.hot) {
     // Whenever any Vuex module is updated...
     module.hot.accept([
-      '../store/index.js',
+      '..\\store\\index.js',
     ], () => {
       // Update `root.modules` with the latest definitions.
       updateModules()
@@ -28,7 +30,6 @@ let store = {};
       window.$nuxt.$store.hotUpdate(store)
     })
   }
->>>>>>> 5a7c6c2222cfe45ec07a5dfbb0791a05faadcfa2
 })()
 
 // createStore
