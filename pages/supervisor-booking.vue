@@ -411,18 +411,19 @@
           <p v-if="recordData.answers?.q2_des" class="indent-answer text-muted"><em>เหตุผล: {{ recordData.answers.q2_des }}</em></p>
         </div>
 
-        <!-- Review Previous Visit Section (ซ่อนสำหรับการเยี่ยมบ้านครั้งที่ 1) -->
-        <div v-if="parseInt(recordData.visitNumber) !== 1" class="plain-text-section">
+        <!-- Review Previous Visit Section -->
+        <div class="plain-text-section">
           <p class="section-header-text underline">ทบทวนการเยี่ยมบ้านครั้งที่ผ่านมา</p>
           <p>3 : ในสัปดาห์ที่ผ่านมา ใครเป็นคนทำกิจกรรมที่ได้จากการเยี่ยมบ้านร่วมกับเด็ก</p>
-          <p class="indent-answer">{{ getQ6Answer(recordData.answers?.q6) }}</p>
-          <p v-if="recordData.answers?.q3_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ recordData.answers.q3_des }}</em></p>
+          <p class="indent-answer">{{ parseInt(recordData.visitNumber) === 1 ? '-' : getQ6Answer(recordData.answers?.q6) }}</p>
+          <p v-if="parseInt(recordData.visitNumber) !== 1 && recordData.answers?.q3_des" class="indent-answer text-muted"><em>อื่นๆ ระบุ: {{ recordData.answers.q3_des }}</em></p>
           <p>4 : ในสัปดาห์ที่ผ่านมา ผู้ปกครองร่วมทำกิจกรรมกับเด็กบ่อยแค่ไหน ?</p>
-          <p class="indent-answer">{{ getQ8Answer(recordData.answers?.q8) }}</p>
+          <p class="indent-answer">{{ parseInt(recordData.visitNumber) === 1 ? '-' : getQ8Answer(recordData.answers?.q8) }}</p>
           <p>5 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้านครั้งที่ผ่านมา โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
+          <p v-if="parseInt(recordData.visitNumber) === 1" class="indent-answer">-</p>
         </div>
 
-        <!-- Activity Review Table (ซ่อนสำหรับการเยี่ยมบ้านครั้งที่ 1) -->
+        <!-- Activity Review Table -->
         <div v-if="parseInt(recordData.visitNumber) !== 1" class="plain-text-section">
           <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ recordData.monthAge || '-' }} การเยี่ยมบ้าน {{ recordData.time || '-' }}</p>
           <table class="plain-table">
