@@ -1941,6 +1941,18 @@ export default {
             )
             
             if (existingRecord) {
+              // ตรวจสอบว่าวันนัดใหม่ห่างจากวันนัดเดิมอย่างน้อย 5 วัน
+              if (existingRecord.date_app_curr) {
+                const oldDate = new Date(existingRecord.date_app_curr)
+                const newDate = new Date(appointmentDate)
+                const diffDays = Math.floor((newDate - oldDate) / (1000 * 60 * 60 * 24))
+                if (Math.abs(diffDays) < 5) {
+                  this.loading = false
+                  this.$toast.error(`วันนัดหมายใหม่ต้องห่างจากวันเดิมอย่างน้อย 5 วัน (ห่าง ${Math.abs(diffDays)} วัน)`)
+                  return
+                }
+              }
+
               // แก้ไขนัดหมาย (เลื่อนนัด) - ใช้ PUT และเพิ่ม cnt_app
               const currentCntApp = parseInt(existingRecord.cnt_app) || 1
               const newCntApp = currentCntApp + 1
