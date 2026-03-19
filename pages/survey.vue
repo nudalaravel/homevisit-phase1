@@ -816,7 +816,7 @@
 
 <script>
 import { MONTH_OPTIONS, TIME_OPTIONS } from '~/utils/constants'
-import { getDaysInMonth, generateDayOptions } from '~/utils/dateHelpers'
+import { getDaysInMonth, generateDayOptions, toMySQLDateTime } from '~/utils/dateHelpers'
 import { convertToWebP } from '~/utils/imageHelpers'
 import { generateYearOptions, calculateMonthAgeAndTime } from '~/utils/visitHelpers'
 import { debounce } from '~/utils/helpers'
@@ -1365,7 +1365,7 @@ export default {
       // ใช้ time_visit ในการสร้าง surveyId (ไม่ใช่ time) เพื่อให้ unique
       const timeVisit = this.visitorData.time_visit || this.visitorData.time
       this.surveyId = `${this.visitorData.stid}_${timeVisit}`
-      this.recStart = new Date().toISOString().slice(0, 19).replace('T', ' ')
+      this.recStart = toMySQLDateTime()
       
       if (this.visitorData.startTime) {
         this.timeStart = this.visitorData.startTime
@@ -2600,7 +2600,7 @@ export default {
         }
         
         // recEnd: เวลาที่ระบบบันทึกจริง (อัปเดตทุกครั้งที่มีการบันทึก)
-        this.recEnd = now.toISOString().slice(0, 19).replace('T', ' ')
+        this.recEnd = toMySQLDateTime(now)
         
         // บันทึกลง IndexedDB ทันที
         await this.saveProgress()
@@ -2808,6 +2808,18 @@ export default {
           this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
           return false
         }
+        
+        // ตรวจสอบว่าวันนัดใหม่ห่างจากวันนัดปัจจุบันอย่างน้อย 5 วัน
+        if (this.visitorData && this.visitorData.appointmentDate) {
+          const currentDate = new Date(this.visitorData.appointmentDate)
+          const christianYear = this.newAppointment.appointmentYear - 543
+          const newDate = new Date(christianYear, this.newAppointment.appointmentMonth - 1, this.newAppointment.appointmentDay)
+          const diffDays = Math.floor((newDate - currentDate) / (1000 * 60 * 60 * 24))
+          if (Math.abs(diffDays) < 5) {
+            this.$toast.warning(`วันนัดหมายครั้งถัดไปต้องห่างจากวันนัดปัจจุบันอย่างน้อย 5 วัน (ห่าง ${Math.abs(diffDays)} วัน)`)
+            return false
+          }
+        }
       }
       
       return true
@@ -2830,7 +2842,7 @@ export default {
         const wasCompleted = existingSurvey?.completed || false
         
         // อัปเดต recEnd = เวลาที่ระบบบันทึกจริง (system timestamp) - อัปเดตเสมอ
-        this.recEnd = new Date().toISOString().slice(0, 19).replace('T', ' ')
+        this.recEnd = toMySQLDateTime()
         
         // ตั้งค่า timeEnd = เวลาที่ user กรอกเอง (user input time) - Format: "HH:MM น."
         if (!this.timeEnd) {
@@ -2884,7 +2896,7 @@ export default {
         this.processing = true
         
         // อัปเดต recEnd
-        this.recEnd = new Date().toISOString().slice(0, 19).replace('T', ' ')
+        this.recEnd = toMySQLDateTime()
         
         // ตั้งค่า timeEnd ถ้ายังไม่มี - Format: "HH:MM น."
         if (!this.timeEnd) {
@@ -3104,6 +3116,19 @@ export default {
                                      this.newAppointment.appointmentYear
       
       if (!hasExistingAppointment) {
+        // ลองใช้ q10_appDate จาก answers ก่อน (กรณีแก้ไข survey ที่ sync จาก API ซึ่ง newAppointment เป็น null)
+        if (this.answers.q10_appDate) {
+          const q10Date = new Date(this.answers.q10_appDate)
+          if (!isNaN(q10Date.getTime())) {
+            this.newAppointment.appointmentDay = q10Date.getDate()
+            this.newAppointment.appointmentMonth = q10Date.getMonth() + 1
+            this.newAppointment.appointmentYear = q10Date.getFullYear() + 543
+            this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || '09:00 น.'
+            await this.recalculateMonthAgeAndActivities()
+            return
+          }
+        }
+
         // ใช้ appointmentDate (วันนัดหมายปัจจุบัน) + 7 วัน สำหรับคำนวณวันนัดครั้งถัดไป
         let baseDate
         if (this.visitorData.appointmentDate) {

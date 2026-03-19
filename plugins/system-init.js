@@ -1174,6 +1174,20 @@ export default function ({ app, store, $axios }, inject) {
             let syncedCntApp = 1; // ค่าเริ่มต้น
 
             if (existingRecord) {
+              // ตรวจสอบว่าวันนัดใหม่ห่างจากวันนัดเดิมอย่างน้อย 5 วัน
+              if (existingRecord.date_app_curr && booking.appointmentDate) {
+                const oldDate = new Date(existingRecord.date_app_curr);
+                const newDate = new Date(booking.appointmentDate);
+                const diffDays = Math.floor((newDate - oldDate) / (1000 * 60 * 60 * 24));
+                if (Math.abs(diffDays) < 5) {
+                  console.warn(
+                    `⚠️ Booking for stid ${booking.stid} skipped: new date must be at least 5 days from old date (diff: ${Math.abs(diffDays)} days)`
+                  );
+                  errorCount++;
+                  continue;
+                }
+              }
+
               // แก้ไขนัดหมาย (เลื่อนนัด) - ใช้ PUT และเพิ่ม cnt_app
               const currentCntApp = parseInt(existingRecord.cnt_app) || 1;
               const newCntApp = currentCntApp + 1;
