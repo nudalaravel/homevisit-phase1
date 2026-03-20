@@ -452,3 +452,13 @@ textarea {
     background-position: -200% 0;
   }
 }
+
+/* Build Version Footer */
+.build-version {
+  text-align: center;
+  padding: 1rem 0;
+  font-size: 0.7rem;
+  color: rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.5px;
+  user-select: none;
+}

@@ -387,6 +387,16 @@ export default function ({ app, store, $axios }, inject) {
 
         // 1. Merge ข้อมูลจาก API (เพิ่ม/อัพเดท)
         for (const apiVisitor of apiVisitors) {
+          // ตรวจสอบ deleted_at — ถ้า server ลบแล้ว ให้ลบออกจาก local ด้วย
+          if (apiVisitor.deleted_at) {
+            const existingLocal = localVisitorsMap.get(apiVisitor.stid);
+            if (existingLocal) {
+              await app.$indexedDB.deleteVisitor(apiVisitor.stid);
+              deletedCount++;
+            }
+            continue;
+          }
+
           const localVisitor = localVisitorsMap.get(apiVisitor.stid);
 
           if (!localVisitor) {
@@ -483,60 +493,41 @@ export default function ({ app, store, $axios }, inject) {
 
         const apiBookings = response.results;
 
-        // อัพเดท approve_status จาก API getchildsample_app.php ไปยัง survey_progress
-        console.log('[DEBUG syncBookings] Total bookings from API:', apiBookings.length);
-        
+        // อัพเดท approve_status จาก API ไปยัง survey_progress
+        // (รวม logic จาก syncApprovalStatus เข้ามาที่นี่เพื่อไม่ต้องเรียก API ซ้ำ)
+        // Cache surveys ทั้งหมดก่อน loop เพื่อหลีกเลี่ยง N+1 query
+        const allSurveyProgressForApproval = await app.$indexedDB.getAll("survey_progress");
+        const surveyMapByStidTimeVisit = new Map();
+        allSurveyProgressForApproval.forEach((s) => {
+          const key = `${s.stid}_${s.time_visit}`;
+          surveyMapByStidTimeVisit.set(key, s);
+        });
+
         for (const booking of apiBookings) {
           if (booking.stid && booking.time_visit) {
-            // ค้นหา survey_progress ด้วย stid และ time_visit
-            const allSurveys = await app.$indexedDB.getAllSurveysByStid(booking.stid);
-            const existingSurvey = allSurveys.find(
-              (s) => String(s.time_visit) === String(booking.time_visit)
-            );
+            const lookupKey = `${booking.stid}_${booking.time_visit}`;
+            const existingSurvey = surveyMapByStidTimeVisit.get(lookupKey)
+              || allSurveyProgressForApproval.find(
+                (s) => String(s.stid) === String(booking.stid) && String(s.time_visit) === String(booking.time_visit)
+              );
 
-            console.log('[DEBUG syncBookings] Checking booking:', {
-              stid: booking.stid,
-              time_visit: booking.time_visit,
-              approve_status: booking.approve_status,
-              approve_comment: booking.approve_comment,
-              existingSurveyFound: !!existingSurvey,
-              existingSurveyId: existingSurvey?.id
-            });
-
-            // อัพเดท approve_status และ approve_comment จาก API
             if (existingSurvey) {
               const parsedApproveStatus = booking.approve_status !== null && booking.approve_status !== undefined 
                 ? parseInt(booking.approve_status) 
                 : existingSurvey.approve_status || 0;
-              // ใช้ field approve_comment จาก API โดยตรง
               const approveComment = booking.approve_comment || null;
 
-              console.log('[DEBUG syncBookings] Comparing values:', {
-                stid: booking.stid,
-                time_visit: booking.time_visit,
-                existingApproveStatus: existingSurvey.approve_status,
-                newApproveStatus: parsedApproveStatus,
-                existingApproveComment: existingSurvey.approve_comment,
-                newApproveComment: approveComment,
-                needsUpdate: existingSurvey.approve_status !== parsedApproveStatus || existingSurvey.approve_comment !== approveComment
-              });
-
-              // อัพเดท approve_status และ approve_comment ถ้ามีการเปลี่ยนแปลง
               if (
                 existingSurvey.approve_status !== parsedApproveStatus ||
                 existingSurvey.approve_comment !== approveComment
               ) {
-                console.log('[DEBUG syncBookings] Updating survey_progress with approve_comment:', approveComment);
                 await app.$indexedDB.saveSurveyProgress({
                   ...existingSurvey,
                   approve_status: parsedApproveStatus,
                   approve_comment: approveComment,
                   lastUpdated: new Date().toISOString(),
                 });
-                console.log('[DEBUG syncBookings] Survey updated successfully!');
               }
-            } else {
-              console.log('[DEBUG syncBookings] No existing survey found for:', booking.stid, booking.time_visit);
             }
           }
         }
@@ -555,6 +546,15 @@ export default function ({ app, store, $axios }, inject) {
           // ตรวจสอบว่ามี stid (required field)
           if (!apiBooking.stid) {
             skippedCount++;
+            continue;
+          }
+
+          // ตรวจสอบ deleted_at — ถ้า server ลบแล้ว ให้ลบออกจาก local ด้วย
+          if (apiBooking.deleted_at) {
+            const existingLocal = localBookingsMap.get(apiBooking.stid);
+            if (existingLocal) {
+              await app.$indexedDB.deleteBooking(apiBooking.stid);
+            }
             continue;
           }
 
@@ -625,90 +625,12 @@ export default function ({ app, store, $axios }, inject) {
     }
 
     /**
-     * ซิงค์ approve_status และ approve_comment จาก API getchildsample_app.php
-     * ต้องรันหลัง syncSurveyResults เพื่อไม่ให้ข้อมูลถูกเขียนทับ
+     * syncApprovalStatus — logic ถูกรวมเข้า syncBookings() แล้ว
+     * เก็บ method ไว้เพื่อ backward compatibility
      */
-    async syncApprovalStatus(username) {
-      try {
-        // ใช้ store state แทน navigator.onLine เพื่อความแม่นยำ
-        if (!store.state.isOnline) {
-          return false;
-        }
-
-        // ตรวจสอบว่า IndexedDB พร้อมใช้งาน
-        const dbReady = await app.$indexedDB.ensureInitialized();
-        if (!dbReady) {
-          console.warn("IndexedDB not ready, skipping approval status sync");
-          return false;
-        }
-
-        const response = await $axios.$get(
-          `/api/parenting2025_census/get/homevisit/getchildsample_app.php?homevisitor=${username}`
-        );
-
-        if (!response || !response.results) {
-          console.log('[syncApprovalStatus] No results from API');
-          return false;
-        }
-
-        const apiBookings = response.results;
-        console.log('[syncApprovalStatus] Total bookings from API:', apiBookings.length);
-
-        let updatedCount = 0;
-
-        for (const booking of apiBookings) {
-          if (booking.stid && booking.time_visit) {
-            // ค้นหา survey_progress ด้วย stid และ time_visit
-            const allSurveys = await app.$indexedDB.getAllSurveysByStid(booking.stid);
-            const existingSurvey = allSurveys.find(
-              (s) => String(s.time_visit) === String(booking.time_visit)
-            );
-
-            console.log('[syncApprovalStatus] Checking:', {
-              stid: booking.stid,
-              time_visit: booking.time_visit,
-              approve_status: booking.approve_status,
-              approve_comment: booking.approve_comment,
-              surveyFound: !!existingSurvey
-            });
-
-            if (existingSurvey) {
-              const parsedApproveStatus = booking.approve_status !== null && booking.approve_status !== undefined 
-                ? parseInt(booking.approve_status) 
-                : existingSurvey.approve_status || 0;
-              const approveComment = booking.approve_comment || null;
-
-              // อัพเดทถ้ามีการเปลี่ยนแปลง
-              if (
-                existingSurvey.approve_status !== parsedApproveStatus ||
-                existingSurvey.approve_comment !== approveComment
-              ) {
-                console.log('[syncApprovalStatus] Updating survey:', {
-                  id: existingSurvey.id,
-                  oldStatus: existingSurvey.approve_status,
-                  newStatus: parsedApproveStatus,
-                  oldComment: existingSurvey.approve_comment,
-                  newComment: approveComment
-                });
-
-                await app.$indexedDB.saveSurveyProgress({
-                  ...existingSurvey,
-                  approve_status: parsedApproveStatus,
-                  approve_comment: approveComment,
-                  lastUpdated: new Date().toISOString(),
-                });
-                updatedCount++;
-              }
-            }
-          }
-        }
-
-        console.log('[syncApprovalStatus] Updated', updatedCount, 'surveys');
-        return true;
-      } catch (error) {
-        console.error("Approval status sync failed:", error);
-        return false;
-      }
+    async syncApprovalStatus(_username) {
+      // Logic ถูกย้ายไป syncBookings() — ไม่ต้องเรียก API ซ้ำ
+      return true;
     }
 
     /**
@@ -743,6 +665,9 @@ export default function ({ app, store, $axios }, inject) {
         let updatedCount = 0;
         let skippedCount = 0;
 
+        // Cache survey_progress ทั้งหมดก่อน loop เพื่อหลีกเลี่ยง N+1 query
+        const allSurveyProgress = await app.$indexedDB.getAll("survey_progress");
+
         // Process each result from API
         for (const result of apiResults) {
           try {
@@ -755,6 +680,17 @@ export default function ({ app, store, $axios }, inject) {
             // ถ้า time_visit เป็น empty string ("") ให้ถือว่าเป็นข้อมูลผิดพลาด - skip
             if (!result.stid) {
               console.warn("Skipping result without stid:", result);
+              skippedCount++;
+              continue;
+            }
+
+            // ตรวจสอบ deleted_at — ถ้า server ลบแล้ว ให้ลบออกจาก local ด้วย
+            if (result.deleted_at) {
+              const deleteSurveyId = `${result.stid}_${result.time_visit}`;
+              const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
+              if (existingLocal) {
+                await app.$indexedDB.deleteSurveyProgress(deleteSurveyId);
+              }
               skippedCount++;
               continue;
             }
@@ -781,9 +717,9 @@ export default function ({ app, store, $axios }, inject) {
             let localSurvey = await app.$indexedDB.getSurveyProgressById(surveyId);
 
             // ตรวจสอบว่ามี survey อื่นที่มี stid + time_visit เหมือนกันแต่ id ต่างกัน
+            // ใช้ cached allSurveyProgress แทน getAll() ทุกรอบ loop
             if (!localSurvey) {
-              const allSurveys = await app.$indexedDB.getAll("survey_progress");
-              const duplicateSurveys = allSurveys.filter(
+              const duplicateSurveys = allSurveyProgress.filter(
                 (s) =>
                   String(s.stid) === String(result.stid) &&
                   String(s.time_visit) === String(timeVisitValue) &&
@@ -1102,6 +1038,25 @@ export default function ({ app, store, $axios }, inject) {
         // Get username
         const username = app.$offlineAuth?.getUser?.()?.username;
 
+        // Batch GET: ดึงข้อมูล bookings ทั้งหมดจาก API ครั้งเดียว แทนที่จะ GET ทุก record
+        let allApiBookings = [];
+        try {
+          const batchResponse = await $axios.$get(
+            "/api/parenting2025_census/get/homevisit/getchildsample_app.php",
+            { params: { homevisitor: username } }
+          );
+          allApiBookings = batchResponse?.results || [];
+        } catch (error) {
+          console.warn("Failed to batch-fetch bookings for comparison:", error);
+        }
+
+        // สร้าง Map สำหรับ lookup เร็ว
+        const apiBookingsMap = new Map();
+        allApiBookings.forEach((record) => {
+          const key = `${record.stid}_${record.time_visit}`;
+          apiBookingsMap.set(key, record);
+        });
+
         // ส่งทีละรายการ
         for (const booking of unsyncedBookings) {
           try {
@@ -1140,36 +1095,17 @@ export default function ({ app, store, $axios }, inject) {
 
             // ถ้าไม่มี survey หรือไม่มี timeStart ให้สร้าง recStart ใหม่
             if (!recStart) {
-              const now = new Date();
-              recStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-                2,
-                "0"
-              )}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(
-                2,
-                "0"
-              )}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(
-                2,
-                "0"
-              )}`;
+              recStart = this.generateCurrentTimestamp();
             }
 
-            // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่ (ใช้ time_visit เป็น unique key)
-            const checkResponse = await $axios.$get(
-              "/api/parenting2025_census/get/homevisit/getchildsample_app.php",
-              {
-                params: {
-                  homevisitor: username,
-                  stid: booking.stid,
-                },
-              }
-            );
-
-            // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time_visit หรือไม่
-            const existingRecord = checkResponse?.results?.find(
-              (record) =>
-                record.stid === booking.stid &&
-                String(record.time_visit) === String(booking.time_visit)
-            );
+            // ใช้ cached data แทนการเรียก API ทุก record
+            const lookupKey = `${booking.stid}_${booking.time_visit}`;
+            const existingRecord = apiBookingsMap.get(lookupKey)
+              || allApiBookings.find(
+                (record) =>
+                  record.stid === booking.stid &&
+                  String(record.time_visit) === String(booking.time_visit)
+              );
 
             let syncedCntApp = 1; // ค่าเริ่มต้น
 
@@ -1461,12 +1397,7 @@ export default function ({ app, store, $axios }, inject) {
             // ดึงข้อมูล visitor เพื่อเอา fname, lname
             const visitor = await app.$indexedDB.getVisitor(survey.stid);
 
-            // ตรวจสอบว่า visitor มีข้อมูล fname และ lname
-            if (!visitor) {
-            } else {
-              if (!visitor.fname && !visitor.lname) {
-              }
-            }
+            // visitor อาจเป็น null ได้ (กรณีข้อมูลไม่สมบูรณ์) — ไม่ block sync
 
             // สร้าง fullname_visit ถ้ายังไม่มี
             if (!survey.fullname_visit && visitor) {

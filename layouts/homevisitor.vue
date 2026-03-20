@@ -72,7 +72,7 @@
               <i class="fas fa-code-branch"></i>
               เวอร์ชันแอพพลิเคชัน
             </div>
-            <div class="info-value">{{ systemInfo.appVersion }}</div>
+            <div class="info-value">{{ buildVersion }}</div>
           </div>
           
           <div class="info-row">
@@ -146,7 +146,9 @@ export default {
     }
   },
   computed: {
-  
+    buildVersion() {
+      return process.env.BUILD_VERSION || '0.0.0'
+    }
   },
   mounted() {
     // Close dropdown when clicking outside
