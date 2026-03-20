@@ -992,6 +992,21 @@ export default function ({ app, store, $axios }, inject) {
           }
         }
 
+        // Reconciliation: ตรวจจับ local synced=true ที่ server ไม่มี → re-queue push
+        const apiResultIds = new Set(
+          apiResults.map((r) => `${r.stid}_${r.time_visit}`)
+        );
+        let reconciledCount = 0;
+        for (const local of allSurveyProgress) {
+          if (local.synced === true && local.completed === true && !apiResultIds.has(local.id)) {
+            await app.$indexedDB.saveSurveyProgress({ ...local, synced: false });
+            reconciledCount++;
+          }
+        }
+        if (reconciledCount > 0) {
+          console.warn(`🔄 Reconciliation: ${reconciledCount} surveys re-queued for push`);
+        }
+
         // บันทึกเวลาที่ sync
         await app.$indexedDB.setSetting("survey_results_last_sync", new Date().toISOString());
 
@@ -1110,6 +1125,20 @@ export default function ({ app, store, $axios }, inject) {
             let syncedCntApp = 1; // ค่าเริ่มต้น
 
             if (existingRecord) {
+              // ถ้า approved แล้ว → ห้าม PUT ทับ, sync approved data กลับ local แทน
+              if (String(existingRecord.approve_status) === '1') {
+                console.log(`⏩ Booking stid ${booking.stid} approved — skip PUT, mark synced`);
+                await app.$indexedDB.updateBooking({
+                  ...booking,
+                  approve_status: existingRecord.approve_status,
+                  approve_comment: existingRecord.approve_comment || null,
+                  dataSource: "api",
+                  lastSyncedAt: new Date().toISOString(),
+                });
+                successCount++;
+                continue;
+              }
+
               // ตรวจสอบว่าวันนัดใหม่ห่างจากวันนัดเดิมอย่างน้อย 5 วัน
               if (existingRecord.date_app_curr && booking.appointmentDate) {
                 const oldDate = new Date(existingRecord.date_app_curr);

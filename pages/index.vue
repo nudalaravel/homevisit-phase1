@@ -2163,6 +2163,14 @@ export default {
       if (!visitor.appointmentDate) {
         return false
       }
+
+      // ถ้าวันนัดหมายไม่ตรงกับวันปัจจุบัน → disabled
+      const today = new Date()
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const appointmentStr = String(visitor.appointmentDate).split('T')[0].split(' ')[0]
+      if (todayStr !== appointmentStr) {
+        return false
+      }
       
       // ถ้ามี survey ที่ completed=true แต่ synced=false → disabled (รอซิงค์)
       if (visitor.currentSurveyCompleted && !visitor.currentSurveySynced) {
