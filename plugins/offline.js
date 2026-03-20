@@ -236,26 +236,19 @@ export default function ({ app, store }, inject) {
     }
 
     // Sync individual item
+    // NOTE: ข้อมูล homevisit sync ผ่าน system-init.js โดยตรง
+    // method นี้ใช้สำหรับ generic sync queue items เท่านั้น
     async syncItem(item) {
       const { action, data } = item;
 
       switch (action) {
-        case "CREATE_ORDER":
-          return await app.$axios.post("/orders", data);
-        case "UPDATE_ORDER":
-          return await app.$axios.put(`/orders/${data.id}`, data);
-        case "DELETE_ORDER":
-          return await app.$axios.delete(`/orders/${data.id}`);
-        case "CREATE_PRODUCT":
-          return await app.$axios.post("/products", data);
-        case "UPDATE_PRODUCT":
-          return await app.$axios.put(`/products/${data.id}`, data);
-        case "DELETE_PRODUCT":
-          return await app.$axios.delete(`/products/${data.id}`);
-        case "UPDATE_USER":
-          return await app.$axios.put(`/users/${data.id}`, data);
+        case "UPDATE_BOOKING":
+          return await app.$axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", data);
+        case "UPDATE_SURVEY":
+          return await app.$axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", data);
         default:
-          throw new Error(`Unknown sync action: ${action}`);
+          console.warn(`[OfflineManager] Unknown sync action: ${action}, skipping item`);
+          return null;
       }
     }
 

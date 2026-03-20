@@ -110,6 +110,11 @@ export default {
       sidebarCollapsed: false
     }
   },
+  computed: {
+    buildVersion() {
+      return process.env.BUILD_VERSION || '0.0.0'
+    }
+  },
   mounted() {
     // โหลดค่าจาก cookie เมื่อ component mount
     this.loadSidebarState()

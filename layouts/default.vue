@@ -4,6 +4,16 @@
   </div>
 </template>
 
+<script>
+export default {
+  computed: {
+    buildVersion() {
+      return process.env.BUILD_VERSION || '0.0.0'
+    }
+  }
+}
+</script>
+
 <style>
 html {
   font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI',

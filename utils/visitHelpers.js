@@ -64,6 +64,20 @@ export function calculateNextVisit(
 }
 
 /**
+ * Check if appointment date is today
+ * @param {string} appointmentDate - Date string in YYYY-MM-DD format
+ * @returns {boolean} True if appointment date matches today
+ */
+export function isAppointmentToday(appointmentDate) {
+  if (!appointmentDate) return false;
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // appointmentDate อาจมี time ต่อท้าย → ตัดเอาเฉพาะ date
+  const appointmentStr = String(appointmentDate).split('T')[0].split(' ')[0];
+  return todayStr === appointmentStr;
+}
+
+/**
  * Check if visitor can record a new visit
  * @param {Object} visitor - Visitor object
  * @returns {boolean} True if can record visit
@@ -71,6 +85,11 @@ export function calculateNextVisit(
 export function canRecordVisit(visitor) {
   // If current survey is completed, don't allow duplicate recording
   if (visitor.currentSurveyCompleted) {
+    return false;
+  }
+
+  // ถ้าวันนัดหมายไม่ตรงกับวันปัจจุบัน → disabled
+  if (!isAppointmentToday(visitor.appointmentDate)) {
     return false;
   }
 

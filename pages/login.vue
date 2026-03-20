@@ -84,6 +84,8 @@
             <i v-else class="fas fa-sign-in-alt"></i>
             {{ loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ' }}
           </button>
+
+          <div class="login-build-version">v{{ buildVersion }}</div>
         </form>
       </div>
     </div>
@@ -112,6 +114,9 @@ export default {
   computed: {
     isFormInvalid() {
       return !this.form.username || !this.form.password || this.form.username.length < 1 || this.form.password.length < 1
+    },
+    buildVersion() {
+      return process.env.BUILD_VERSION || '0.0.0'
     }
   },
   beforeMount() {
@@ -517,6 +522,15 @@ export default {
 
 .credential-item strong {
   color: #495057;
+}
+
+.login-build-version {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.7rem;
+  color: rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.5px;
+  user-select: none;
 }
 
 @media (max-width: 480px) {

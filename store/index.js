@@ -1,5 +1,37 @@
+/**
+ * ดึง user level จากหลาย sources (auth state, offline auth, localStorage)
+ * @param {Object} rootState - Vuex root state
+ * @param {Object} app - Nuxt app context (optional)
+ * @returns {number|undefined} user level (1=Admin, 2=Supervisor, 3=Home Visitor)
+ */
+function resolveUserLevel(rootState, app) {
+  let userLevel = rootState.auth?.user?.level;
+
+  if (userLevel === undefined && app) {
+    userLevel = app.$auth?.user?.level;
+  }
+
+  if (userLevel === undefined && app?.$offlineAuth) {
+    const offlineUser = app.$offlineAuth.getUser();
+    userLevel = offlineUser?.level;
+  }
+
+  if (userLevel === undefined && process.client) {
+    try {
+      const authDataStr = localStorage.getItem("offline_auth_data");
+      if (authDataStr) {
+        const authData = JSON.parse(authDataStr);
+        userLevel = authData?.user?.level;
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  return userLevel;
+}
+
 export const state = () => ({
-  // This will be populated by @nuxtjs/auth
   isOnline: true,
   syncQueue: [],
   lastSyncTime: null,
@@ -12,7 +44,6 @@ export const state = () => ({
 });
 
 export const mutations = {
-  // This will be populated by @nuxtjs/auth
   setOnlineStatus(state, status) {
     state.isOnline = status;
   },
@@ -43,24 +74,8 @@ export const mutations = {
 };
 
 export const actions = {
-  // This will be populated by @nuxtjs/auth
   async syncData({ commit, state, rootState, $offline }) {
-    // Level 2 users (Supervisor) should NOT use sync features
-    // Try multiple sources to get user level
-    let userLevel = rootState.auth?.user?.level;
-    
-    if (userLevel === undefined && process.client) {
-      try {
-        const authDataStr = localStorage.getItem("offline_auth_data");
-        if (authDataStr) {
-          const authData = JSON.parse(authDataStr);
-          userLevel = authData?.user?.level;
-        }
-      } catch (e) {
-        // Ignore
-      }
-    }
-    
+    const userLevel = resolveUserLevel(rootState);
     if (userLevel === 2) {
       console.log("Sync blocked: Level 2 users cannot use sync features");
       return false;
@@ -87,33 +102,8 @@ export const actions = {
   },
 
   async initializeSystem({ commit, rootState }, app) {
-    // Level 2 users (Supervisor) should NOT initialize level 3 system
-    // Try multiple sources to get user level
-    let userLevel = rootState.auth?.user?.level;
-    
-    if (userLevel === undefined && app) {
-      userLevel = app.$auth?.user?.level;
-    }
-    
-    if (userLevel === undefined && app?.$offlineAuth) {
-      const offlineUser = app.$offlineAuth.getUser();
-      userLevel = offlineUser?.level;
-    }
-    
-    if (userLevel === undefined && process.client) {
-      try {
-        const authDataStr = localStorage.getItem("offline_auth_data");
-        if (authDataStr) {
-          const authData = JSON.parse(authDataStr);
-          userLevel = authData?.user?.level;
-        }
-      } catch (e) {
-        // Ignore
-      }
-    }
-    
+    const userLevel = resolveUserLevel(rootState, app);
     if (userLevel === 2) {
-      // Supervisor doesn't need level 3 system initialization
       commit("setSystemInitialized", false);
       return false;
     }
@@ -130,31 +120,7 @@ export const actions = {
   },
 
   async manualSync({ commit, state, rootState }, app) {
-    // Level 2 users (Supervisor) should NOT use sync features
-    // Try multiple sources to get user level
-    let userLevel = rootState.auth?.user?.level;
-    
-    if (userLevel === undefined && app) {
-      userLevel = app.$auth?.user?.level;
-    }
-    
-    if (userLevel === undefined && app?.$offlineAuth) {
-      const offlineUser = app.$offlineAuth.getUser();
-      userLevel = offlineUser?.level;
-    }
-    
-    if (userLevel === undefined && process.client) {
-      try {
-        const authDataStr = localStorage.getItem("offline_auth_data");
-        if (authDataStr) {
-          const authData = JSON.parse(authDataStr);
-          userLevel = authData?.user?.level;
-        }
-      } catch (e) {
-        // Ignore
-      }
-    }
-    
+    const userLevel = resolveUserLevel(rootState, app);
     if (userLevel === 2) {
       return {
         success: false,
@@ -179,7 +145,6 @@ export const actions = {
     commit("setIsSyncing", true);
 
     try {
-      // ดึง username จาก auth (ใช้ rootState หรือ app context)
       const username =
         rootState.auth?.user?.username ||
         app.$auth?.user?.username ||
@@ -189,26 +154,15 @@ export const actions = {
         throw new Error("ไม่พบข้อมูลผู้ใช้");
       }
 
-      // ส่งการแก้ไข bookings ที่รอ sync ก่อน
+      // ⬆️ Push: ส่งข้อมูลที่แก้ offline ขึ้น server ก่อน
       await app.$systemInit.pushBookingsToAPI();
-
-      // ส่งผลการทำแบบทดสอบที่รอ sync
       await app.$systemInit.pushSurveyResultsToAPI();
 
-      // ซิงค์ผู้รับบริการ (getchildsample.php)
+      // ⬇️ Pull: ดึงข้อมูลจาก server
       const visitorsSuccess = await app.$systemInit.syncVisitors(username);
-
-      // ซิงค์ข้อมูลวันนัดหมาย (getchildsample_app.php)
-      const bookingsSuccess = await app.$systemInit.syncBookings(username);
-
-      // ซิงค์ผลการบันทึกเยี่ยมบ้าน (getchildsample_result.php)
-      const surveyResultsSuccess = await app.$systemInit.syncSurveyResults(
-        username
-      );
-
-      // ซิงค์ approve_status และ approve_comment หลังจาก syncSurveyResults
-      // เพื่อให้แน่ใจว่าข้อมูลไม่ถูกเขียนทับ
-      await app.$systemInit.syncApprovalStatus(username);
+      await app.$systemInit.syncBookings(username);
+      await app.$systemInit.syncSurveyResults(username);
+      // NOTE: syncApprovalStatus ถูกรวมเข้า syncBookings() แล้ว
 
       if (visitorsSuccess) {
         const syncTime = new Date().toISOString();
@@ -216,7 +170,6 @@ export const actions = {
         commit("setLastSyncTime", syncTime);
       }
 
-      // อัพเดทกิจกรรม
       await app.$systemInit.updateActivitiesFromAPI();
       commit("setLastActivitiesUpdate", new Date().toISOString());
 
@@ -238,7 +191,6 @@ export const actions = {
 };
 
 export const getters = {
-  // This will be populated by @nuxtjs/auth
   isOffline: (state) => !state.isOnline,
   hasPendingSync: (state) => state.syncQueue.length > 0,
   syncStatus: (state) => ({

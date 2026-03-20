@@ -2,6 +2,10 @@ export default {
   ssr: false,
   mode: "spa",
 
+  env: {
+    BUILD_VERSION: process.env.BUILD_VERSION || '0.0.0',
+  },
+
   server: {
     port: process.env.PORT || 3300,
     host: process.env.HOST || "0.0.0.0",

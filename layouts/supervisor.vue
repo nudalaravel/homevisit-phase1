@@ -102,6 +102,11 @@ export default {
       isAdminSwitched: false
     }
   },
+  computed: {
+    buildVersion() {
+      return process.env.BUILD_VERSION || '0.0.0'
+    }
+  },
   mounted() {
     this.loadSidebarState()
     // ตรวจสอบว่าเป็น admin ที่สลับโหมดมาหรือไม่
