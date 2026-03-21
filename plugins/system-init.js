@@ -1243,11 +1243,17 @@ export default function ({ app, store, $axios }, inject) {
               time_visit: result.time_visit || null,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               month_age: localSurvey?.month_age || result.month_age,
+              // ⚠️ FIX: เก็บ recStart/recEnd จาก local → fallback API → ป้องกันหาย
+              recStart: localSurvey?.recStart || result.recStart || null,
+              recEnd: localSurvey?.recEnd || result.recEnd || null,
               timeStart: result.timeStart,
               timeEnd: result.timeEnd,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               appointmentDate: localSurvey?.appointmentDate || result.date_visit,
               fullname_visit: fullnameVisit,
+              // ⚠️ FIX: เก็บ q5Timestamps/q9Timestamps จาก local (API ไม่มี field เหล่านี้)
+              q5Timestamps: localSurvey?.q5Timestamps || {},
+              q9Timestamps: localSurvey?.q9Timestamps || {},
               answers: {
                 // Convert to number for consistent type (API returns string)
                 q1: result.q1 != null ? Number(result.q1) : null,
@@ -2121,9 +2127,18 @@ export default function ({ app, store, $axios }, inject) {
                 // แปลง "16:00 น." เป็น "16.00 น."
                 q10_appTime = appointment.appointmentTime.replace(":", ".");
               }
-            } else {
-              console.warn("No newAppointment data found for survey", survey.id);
             }
+
+            // ⚠️ FIX: Fallback q10_appDate/q10_appTime จาก survey answers หรือ existingRecord
+            // ป้องกันการส่งค่าว่างทับข้อมูลเดิมที่มีอยู่บน server
+            if (!q10_appDate) {
+              q10_appDate = survey.answers?.q10_appDate || survey.q10_appDate || (existingRecord?.q10_appDate || "");
+            }
+            if (!q10_appTime) {
+              q10_appTime = survey.answers?.q10_appTime || survey.q10_appTime || (existingRecord?.q10_appTime || "");
+            }
+
+            console.log(`📋 Push result: stid=${survey.stid}, tv=${survey.time_visit}, q10_appDate=${q10_appDate}, q10_appTime=${q10_appTime}, recStart=${survey.recStart || 'null'}, recEnd=${survey.recEnd || 'null'}`);
 
             // ดึง booking เพื่อเอา time_app_curr มาใช้เป็น timeStart (fallback)
             let bookingAppointmentTime = null;
@@ -2153,9 +2168,26 @@ export default function ({ app, store, $axios }, inject) {
 
             if (existingRecord) {
               // มีข้อมูลแล้ว - ใช้ PUT
-              const putPayload = {
-                variable: [
-                  "recEnd",
+              // ⚠️ FIX: สร้าง variable/value แบบ dynamic — ข้ามถ้าไม่มีข้อมูลทั้ง local + server
+              const putVariables = [];
+              const putValues = [];
+
+              // recStart: เพิ่มเฉพาะเมื่อมีค่า
+              const recStartVal = survey.recStart || existingRecord.recStart;
+              if (recStartVal) {
+                putVariables.push("recStart");
+                putValues.push(recStartVal);
+              }
+
+              // recEnd: เพิ่มเฉพาะเมื่อมีค่า
+              const recEndVal = survey.recEnd || existingRecord.recEnd;
+              if (recEndVal) {
+                putVariables.push("recEnd");
+                putValues.push(recEndVal);
+              }
+
+              // fields ที่ส่งเสมอ
+              putVariables.push(
                   "timeStart",
                   "date_visit",
                   "q1",
@@ -2208,10 +2240,9 @@ export default function ({ app, store, $axios }, inject) {
                   "pic1",
                   "pic2",
                   "pic3",
-                ],
-                value: [
-                  // recEnd: เวลาที่ระบบแก้ไขล่าสุด (system timestamp) - อัปเดตเมื่อมีการแก้ไข
-                  survey.recEnd || "",
+              );
+
+              putValues.push(
                   // timeStart: ใช้ time_app_curr (วันนัดหมายจริง) เป็นหลัก, fallback เป็น user input
                   timeStartValue ? this.formatTimeForAPI(timeStartValue) : "",
                   // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
@@ -2287,7 +2318,11 @@ export default function ({ app, store, $axios }, inject) {
                   pic1,
                   pic2,
                   pic3,
-                ],
+              );
+
+              const putPayload = {
+                variable: putVariables,
+                value: putValues,
                 pk: ["stid", "time_visit"],
                 pkval: [survey.stid, String(survey.time_visit)],
                 tb: "homevisitor_result",
