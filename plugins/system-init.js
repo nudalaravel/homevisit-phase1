@@ -536,8 +536,12 @@ export default function ({ app, store, $axios }, inject) {
 
         // ดึงข้อมูลการนัดหมายที่มีในเครื่อง
         const localBookings = await app.$indexedDB.getBookings();
+        // v11: สร้าง Map ด้วย id (stid_timeVisit) แทน stid เพราะตอนนี้เก็บหลาย booking/เด็กได้
         const localBookingsMap = new Map();
-        localBookings.forEach((b) => localBookingsMap.set(b.stid, b));
+        localBookings.forEach((b) => {
+          const key = b.id || `${b.stid}_${b.time_visit || 1}`;
+          localBookingsMap.set(key, b);
+        });
 
         let newCount = 0;
         let updatedCount = 0;
@@ -548,39 +552,18 @@ export default function ({ app, store, $axios }, inject) {
           return value !== null && value !== undefined && value !== "";
         };
 
-        // ⚠️ FIX: เลือก record ที่มี time_visit สูงสุดต่อ stid จาก API
-        // เพราะ local เก็บแค่ 1 booking ต่อเด็ก (stid เป็น key)
-        // แต่ server มีหลาย records per stid (แยกตาม time_visit)
-        // ถ้าไม่เลือก record สูงสุด จะทำให้ booking ครั้งถัดไปหาย
-        const latestApiBookingByStid = new Map();
+        // v11: เก็บ booking ทุก time_visit (ไม่ filter เฉพาะ latest อีกแล้ว)
         for (const apiBooking of apiBookings) {
           if (!apiBooking.stid || apiBooking.deleted_at) continue;
           if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) continue;
 
-          const existing = latestApiBookingByStid.get(apiBooking.stid);
-          const tv = parseInt(apiBooking.time_visit) || 0;
-          if (!existing || tv > (parseInt(existing.time_visit) || 0)) {
-            latestApiBookingByStid.set(apiBooking.stid, apiBooking);
-          }
-        }
+          const bookingId = `${apiBooking.stid}_${apiBooking.time_visit || 1}`;
+          const localBooking = localBookingsMap.get(bookingId);
 
-        // Merge: ใช้เฉพาะ latest time_visit per stid
-        for (const [stid, apiBooking] of latestApiBookingByStid) {
-          const localBooking = localBookingsMap.get(stid);
-
-          // ⚠️ FIX: ป้องกัน overwrite local booking ที่มี time_visit สูงกว่า API
-          // กรณี: user ทำ survey ครั้ง 2 เสร็จ → สร้าง booking ครั้ง 3 ใน local
-          // แต่ API ยังมีแค่ booking ครั้ง 2 → ถ้าไม่ป้องกัน จะทับ booking ครั้ง 3 ทิ้ง
+          // ป้องกัน overwrite local booking ที่ dataSource="local" (ยังไม่ได้ push)
           if (localBooking && localBooking.dataSource === "local") {
-            const localTv = parseInt(localBooking.time_visit) || 0;
-            const apiTv = parseInt(apiBooking.time_visit) || 0;
-            if (localTv > apiTv) {
-              // local มี time_visit สูงกว่า (booking ครั้งถัดไปที่ยังไม่ push) → ห้ามทับ
-              skippedCount++;
-              continue;
-            }
-            // local มี time_visit เท่ากับหรือต่ำกว่า → skip เหมือนเดิม (จะ push กลับไป API)
             skippedCount++;
+            continue;
           } else if (!localBooking) {
             // ข้อมูลใหม่จาก API
             await app.$indexedDB.addBooking({
@@ -2146,9 +2129,9 @@ export default function ({ app, store, $axios }, inject) {
             try {
               const booking = await app.$indexedDB.getBooking(survey.stid);
               if (booking) {
-                // ⚠️ booking ใน IndexedDB ใช้ stid เป็น primary key (1 record ต่อเด็ก 1 คน)
-                // ดังนั้น booking นี้อาจเป็นนัดหมายครั้งถัดไปแล้ว (ถ้า user สร้างนัดครั้งใหม่ก่อน sync)
-                // จึงใช้เป็น fallback เท่านั้น ไม่ใช้เป็นค่าหลัก
+                // v11: booking ใช้ id = stid_timeVisit แล้ว (หลาย booking/เด็ก)
+                // getBooking(stid) return booking ล่าสุด (time_visit สูงสุด)
+                // ดังนั้น booking นี้อาจเป็นนัดหมายครั้งถัดไปแล้ว — ใช้เป็น fallback เท่านั้น
                 bookingAppointmentDate = booking.appointmentDate || null;
                 bookingAppointmentTime = booking.appointmentTime || null;
               }

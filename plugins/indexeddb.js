@@ -6,7 +6,7 @@ export default function ({ app, store }, inject) {
   class IndexedDBManager {
     constructor() {
       this.dbName = "RipedV2DB"; // ชื่อฐานข้อมูล
-      this.version = 10; // เวอร์ชันฐานข้อมูล (เพิ่มเมื่อมีการเปลี่ยนแปลง schema) - เพิ่มเป็น 10 สำหรับ failed_sync store
+      this.version = 11; // เวอร์ชันฐานข้อมูล - เพิ่มเป็น 11 สำหรับ multi-booking support (เปลี่ยน keyPath bookings จาก stid → id)
       this.db = null; // Instance ของ database
       this.isInitialized = false; // สถานะการเริ่มต้นงาน
     }
@@ -40,10 +40,56 @@ export default function ({ app, store }, inject) {
           reject(request.error);
         };
 
+        // v11 migration flag
+        let needsBookingsMigration = false;
+
         // เมื่อเปิด database สำเร็จ
         request.onsuccess = () => {
           this.db = request.result;
           this.isInitialized = true;
+
+          // v11 migration: copy จาก "bookings" (old, keyPath=stid) → "bookings_v2" (new, keyPath=id)
+          // ทำหลัง DB เปิดสำเร็จ → อ่าน store เก่าได้ปลอดภัย 100% ข้อมูลไม่หายแน่นอน
+          if (needsBookingsMigration && this.db.objectStoreNames.contains("bookings")) {
+            try {
+              const readTx = this.db.transaction(["bookings"], "readonly");
+              const oldStore = readTx.objectStore("bookings");
+              const getAllReq = oldStore.getAll();
+
+              getAllReq.onsuccess = () => {
+                const oldBookings = getAllReq.result || [];
+                console.log(`📦 v11 migration: found ${oldBookings.length} bookings to migrate`);
+
+                if (oldBookings.length > 0) {
+                  const writeTx = this.db.transaction(["bookings_v2"], "readwrite");
+                  const newStore = writeTx.objectStore("bookings_v2");
+                  let count = 0;
+
+                  for (const booking of oldBookings) {
+                    const id = `${booking.stid}_${booking.time_visit || 1}`;
+                    try {
+                      newStore.put({ ...booking, id });
+                      count++;
+                    } catch (e) {
+                      console.error(`❌ v11 migration error for ${id}:`, e);
+                    }
+                  }
+
+                  writeTx.oncomplete = () => {
+                    console.log(`✅ v11 migration: ${count}/${oldBookings.length} bookings → bookings_v2`);
+                    // clear old store (ลบ store จริงจะทำ version ถัดไป)
+                    try {
+                      const clearTx = this.db.transaction(["bookings"], "readwrite");
+                      clearTx.objectStore("bookings").clear();
+                    } catch (e) { /* OK */ }
+                  };
+                }
+              };
+            } catch (e) {
+              console.error("❌ v11 migration failed:", e);
+            }
+          }
+
           resolve(this.db);
         };
 
@@ -52,7 +98,7 @@ export default function ({ app, store }, inject) {
           const db = event.target.result;
 
           // ลบ Object Stores ที่ไม่ใช้แล้ว
-          const storesToDelete = ["users", "orders", "products", "patients"];
+          const storesToDelete = ["users", "orders", "products", "patients", "_bookings_v10_backup"];
           storesToDelete.forEach((storeName) => {
             if (db.objectStoreNames.contains(storeName)) {
               db.deleteObjectStore(storeName);
@@ -138,17 +184,19 @@ export default function ({ app, store }, inject) {
             });
           }
 
-          // 10. Bookings Store - เก็บข้อมูลการนัดหมาย
-          if (!db.objectStoreNames.contains("bookings")) {
-            const bookingStore = db.createObjectStore("bookings", {
-              keyPath: "stid",
-            });
-            bookingStore.createIndex("dataSource", "dataSource", {
-              unique: false,
-            });
-            bookingStore.createIndex("lastSyncedAt", "lastSyncedAt", {
-              unique: false,
-            });
+          // 10. Bookings Store เก่า (keyPath=stid) — ไม่ลบ! เก็บไว้สำหรับ migration
+          // ข้อมูลจะถูก copy ไป bookings_v2 ใน onsuccess หลัง DB เปิดสำเร็จ
+
+          // 10b. Bookings V2 Store (v11) — รองรับหลาย booking/เด็ก (keyPath=id = stid_timeVisit)
+          if (!db.objectStoreNames.contains("bookings_v2")) {
+            const bookingStore = db.createObjectStore("bookings_v2", { keyPath: "id" });
+            bookingStore.createIndex("stid", "stid", { unique: false });
+            bookingStore.createIndex("dataSource", "dataSource", { unique: false });
+            bookingStore.createIndex("lastSyncedAt", "lastSyncedAt", { unique: false });
+            // ถ้ามี store เก่า → flag ให้ onsuccess migrate
+            if (db.objectStoreNames.contains("bookings")) {
+              needsBookingsMigration = true;
+            }
           }
 
           // 11. Survey Progress Store - เก็บความคืบหน้าการทำแบบสอบถาม
@@ -1088,10 +1136,22 @@ export default function ({ app, store }, inject) {
     // Bookings Operations (จัดการการนัดหมาย)
     // ========================================
 
-    /** เพิ่มหรืออัพเดทการนัดหมาย */
+    /**
+     * สร้าง booking ID จาก stid + time_visit
+     * @param {string} stid
+     * @param {number|string} timeVisit
+     * @returns {string} ID ในรูปแบบ "{stid}_{time_visit}"
+     */
+    _generateBookingId(stid, timeVisit) {
+      return `${stid}_${timeVisit || 1}`;
+    }
+
+    /** เพิ่มหรืออัพเดทการนัดหมาย (v11: ใช้ id = stid_timeVisit) */
     async addBooking(booking) {
-      return await this.update("bookings", {
+      const id = booking.id || this._generateBookingId(booking.stid, booking.time_visit);
+      return await this.update("bookings_v2", {
         ...booking,
+        id,
         dataSource: booking.dataSource || "local",
         lastSyncedAt: booking.lastSyncedAt || new Date().toISOString(),
       });
@@ -1106,25 +1166,82 @@ export default function ({ app, store }, inject) {
 
     /** ดึงการนัดหมายทั้งหมด */
     async getBookings() {
-      return await this.getAll("bookings");
+      return await this.getAll("bookings_v2");
     }
 
-    /** ดึงการนัดหมายด้วย stid */
+    /**
+     * ดึงการนัดหมายล่าสุดของ stid (backward compatible — return booking ที่มี time_visit สูงสุด)
+     * @param {string} stid
+     * @returns {Promise<Object|null>} Booking ล่าสุดหรือ null
+     */
     async getBooking(stid) {
-      return await this.get("bookings", stid);
+      const bookings = await this.getBookingsByStid(stid);
+      if (!bookings || bookings.length === 0) return null;
+      // Return booking ที่มี time_visit สูงสุด
+      return bookings.reduce((latest, current) => {
+        const latestTv = parseInt(latest.time_visit) || 0;
+        const currentTv = parseInt(current.time_visit) || 0;
+        return currentTv > latestTv ? current : latest;
+      });
     }
 
-    /** อัพเดทการนัดหมาย */
+    /**
+     * ดึงการนัดหมายทั้งหมดของ stid
+     * @param {string} stid
+     * @returns {Promise<Array>} รายการ bookings ทั้งหมดของ stid
+     */
+    async getBookingsByStid(stid) {
+      const initialized = await this.ensureInitialized();
+      if (!initialized || !this.db) return [];
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(["bookings_v2"], "readonly");
+        const store = transaction.objectStore("bookings_v2");
+        let index;
+        try {
+          index = store.index("stid");
+        } catch (error) {
+          // Fallback: ถ้า index ไม่มี ใช้ getAll + filter
+          const request = store.getAll();
+          request.onsuccess = () => {
+            resolve(request.result.filter((b) => String(b.stid) === String(stid)));
+          };
+          request.onerror = () => reject(request.error);
+          return;
+        }
+        const request = index.getAll(stid);
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    /**
+     * ดึงการนัดหมายเฉพาะ stid + time_visit
+     * @param {string} stid
+     * @param {number|string} timeVisit
+     * @returns {Promise<Object|null>}
+     */
+    async getBookingByStidAndTimeVisit(stid, timeVisit) {
+      const id = this._generateBookingId(stid, timeVisit);
+      return await this.get("bookings_v2", id);
+    }
+
+    /** อัพเดทการนัดหมาย (v11: เพิ่ม id อัตโนมัติ) */
     async updateBooking(booking) {
-      return await this.update("bookings", {
+      const id = booking.id || this._generateBookingId(booking.stid, booking.time_visit);
+      return await this.update("bookings_v2", {
         ...booking,
+        id,
         lastSyncedAt: new Date().toISOString(),
       });
     }
 
-    /** ลบการนัดหมาย */
+    /** ลบการนัดหมายด้วย stid (ลบทั้งหมดของ stid — backward compat) */
     async deleteBooking(stid) {
-      return await this.delete("bookings", stid);
+      const bookings = await this.getBookingsByStid(stid);
+      for (const booking of bookings) {
+        await this.delete("bookings_v2", booking.id);
+      }
     }
 
     /** ล้างการนัดหมายทั้งหมด */
@@ -1133,8 +1250,8 @@ export default function ({ app, store }, inject) {
       if (!initialized || !this.db) return;
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(["bookings"], "readwrite");
-        const store = transaction.objectStore("bookings");
+        const transaction = this.db.transaction(["bookings_v2"], "readwrite");
+        const store = transaction.objectStore("bookings_v2");
         const request = store.clear();
 
         request.onsuccess = () => resolve();
@@ -1148,8 +1265,8 @@ export default function ({ app, store }, inject) {
       if (!initialized || !this.db) return [];
 
       return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction(["bookings"], "readonly");
-        const store = transaction.objectStore("bookings");
+        const transaction = this.db.transaction(["bookings_v2"], "readonly");
+        const store = transaction.objectStore("bookings_v2");
         const index = store.index("dataSource");
         const request = index.getAll("local");
 
