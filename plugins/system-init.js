@@ -634,6 +634,140 @@ export default function ({ app, store, $axios }, inject) {
     }
 
     /**
+     * reconcileMissingBookings — ตรวจจับ results ที่มีบน server แต่ไม่มี booking
+     * สร้าง booking ใหม่จากข้อมูล result + activities lookup
+     */
+    async reconcileMissingBookings() {
+      try {
+        if (!store.state.isOnline) return false;
+
+        const dbReady = await app.$indexedDB.ensureInitialized();
+        if (!dbReady) return false;
+
+        const username = app.$offlineAuth?.getUser?.()?.username;
+        if (!username) return false;
+
+        // ดึงข้อมูลจาก server ทั้ง bookings และ results
+        let apiBookings = [];
+        let apiResults = [];
+        try {
+          const [bookingsRes, resultsRes] = await Promise.all([
+            $axios.$get("/api/parenting2025_census/get/homevisit/getchildsample_app.php", {
+              params: { homevisitor: username },
+            }),
+            $axios.$get("/api/parenting2025_census/get/homevisit/getchildsample_result.php", {
+              params: { homevisitor: username },
+            }),
+          ]);
+          apiBookings = bookingsRes?.results || [];
+          apiResults = resultsRes?.results || [];
+        } catch (error) {
+          console.warn("reconcileMissingBookings: Failed to fetch data", error);
+          return false;
+        }
+
+        if (apiResults.length === 0) return true;
+
+        // สร้าง Set ของ bookings ที่มีบน server (stid_time_visit)
+        const bookingKeys = new Set(
+          apiBookings
+            .filter((b) => !b.deleted_at)
+            .map((b) => `${b.stid}_${b.time_visit}`)
+        );
+
+        // หา results ที่ server ไม่มี booking
+        const missingResults = apiResults.filter((r) => {
+          if (!r.stid || !r.time_visit) return false;
+          if (r.deleted_at) return false;
+          return !bookingKeys.has(`${r.stid}_${r.time_visit}`);
+        });
+
+        if (missingResults.length === 0) return true;
+
+        console.warn(`🔄 Reconciliation: found ${missingResults.length} results without booking`);
+
+        let createdCount = 0;
+        let errorCount = 0;
+
+        for (const result of missingResults) {
+          try {
+            // Lookup q91_name → activities เพื่อหา month_age, time
+            let monthAge = null;
+            let time = null;
+            const activityNo = result.q91_name || result.q92_name || result.q93_name || result.q94_name || result.q95_name;
+            if (activityNo) {
+              const activity = await app.$indexedDB.get("activities", Number(activityNo));
+              if (activity) {
+                monthAge = activity.month_age || null;
+                time = activity.time || null;
+              }
+            }
+
+            // ดึง visitor เพื่อเอา fname, lname
+            const visitor = await app.$indexedDB.getVisitor(result.stid);
+
+            // สร้าง recStart จาก result
+            const recStart = result.recStart || this.generateCurrentTimestamp();
+
+            // POST สร้าง booking ใหม่
+            await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
+              variable: [
+                "recby",
+                "stid",
+                "project",
+                "recStart",
+                "time_visit",
+                "fname_ch",
+                "lname_ch",
+                "month_age",
+                "time",
+                "time_app_first",
+                "date_app_first",
+                "time_app_curr",
+                "date_app_curr",
+                "cnt_app",
+                "note",
+              ],
+              value: [
+                result.recby || username,
+                result.stid,
+                result.project || "15",
+                recStart,
+                String(result.time_visit),
+                visitor?.fname || result.fname_ch || "",
+                visitor?.lname || result.lname_ch || "",
+                String(monthAge || ""),
+                String(time || ""),
+                result.timeStart || "",
+                result.date_visit || "",
+                result.timeStart || "",
+                result.date_visit || "",
+                "1",
+                "ข้อมูลถูกกู้คืนอัตโนมัติ",
+              ],
+              tb: "homevisitor_app",
+            });
+
+            createdCount++;
+            console.log(`✅ Reconciled booking: stid=${result.stid}, time_visit=${result.time_visit}, month_age=${monthAge}, time=${time}`);
+          } catch (error) {
+            errorCount++;
+            console.error(`❌ Failed to reconcile booking: stid=${result.stid}, time_visit=${result.time_visit}`, error);
+          }
+        }
+
+        if (createdCount > 0) {
+          console.warn(`🔄 Reconciliation complete: ${createdCount} bookings created, ${errorCount} errors`);
+        }
+
+        return true;
+      } catch (error) {
+        console.error("reconcileMissingBookings failed:", error);
+        return false;
+      }
+    }
+
+    /**
      * ซิงค์ข้อมูลผลการบันทึกเยี่ยมบ้านจาก API
      * API Endpoint: get/homevisit/getchildsample_result.php
      */

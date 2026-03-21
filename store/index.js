@@ -164,6 +164,9 @@ export const actions = {
       await app.$systemInit.syncSurveyResults(username);
       // NOTE: syncApprovalStatus ถูกรวมเข้า syncBookings() แล้ว
 
+      // 🔄 Reconciliation: ตรวจจับ results ที่มีบน server แต่ไม่มี booking → สร้างใหม่
+      await app.$systemInit.reconcileMissingBookings();
+
       if (visitorsSuccess) {
         const syncTime = new Date().toISOString();
         commit("setLastVisitorsSync", syncTime);
