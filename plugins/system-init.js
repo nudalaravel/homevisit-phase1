@@ -541,43 +541,50 @@ export default function ({ app, store, $axios }, inject) {
         let updatedCount = 0;
         let skippedCount = 0;
 
-        // Merge ข้อมูล
+        // Helper function: ตรวจสอบว่าค่าจาก API ถูกต้องหรือไม่
+        const isValidValue = (value) => {
+          return value !== null && value !== undefined && value !== "";
+        };
+
+        // ⚠️ FIX: เลือก record ที่มี time_visit สูงสุดต่อ stid จาก API
+        // เพราะ local เก็บแค่ 1 booking ต่อเด็ก (stid เป็น key)
+        // แต่ server มีหลาย records per stid (แยกตาม time_visit)
+        // ถ้าไม่เลือก record สูงสุด จะทำให้ booking ครั้งถัดไปหาย
+        const latestApiBookingByStid = new Map();
         for (const apiBooking of apiBookings) {
-          // ตรวจสอบว่ามี stid (required field)
-          if (!apiBooking.stid) {
+          if (!apiBooking.stid || apiBooking.deleted_at) continue;
+          if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) continue;
+
+          const existing = latestApiBookingByStid.get(apiBooking.stid);
+          const tv = parseInt(apiBooking.time_visit) || 0;
+          if (!existing || tv > (parseInt(existing.time_visit) || 0)) {
+            latestApiBookingByStid.set(apiBooking.stid, apiBooking);
+          }
+        }
+
+        // Merge: ใช้เฉพาะ latest time_visit per stid
+        for (const [stid, apiBooking] of latestApiBookingByStid) {
+          const localBooking = localBookingsMap.get(stid);
+
+          // ⚠️ FIX: ป้องกัน overwrite local booking ที่มี time_visit สูงกว่า API
+          // กรณี: user ทำ survey ครั้ง 2 เสร็จ → สร้าง booking ครั้ง 3 ใน local
+          // แต่ API ยังมีแค่ booking ครั้ง 2 → ถ้าไม่ป้องกัน จะทับ booking ครั้ง 3 ทิ้ง
+          if (localBooking && localBooking.dataSource === "local") {
+            const localTv = parseInt(localBooking.time_visit) || 0;
+            const apiTv = parseInt(apiBooking.time_visit) || 0;
+            if (localTv > apiTv) {
+              // local มี time_visit สูงกว่า (booking ครั้งถัดไปที่ยังไม่ push) → ห้ามทับ
+              skippedCount++;
+              continue;
+            }
+            // local มี time_visit เท่ากับหรือต่ำกว่า → skip เหมือนเดิม (จะ push กลับไป API)
             skippedCount++;
-            continue;
-          }
-
-          // ตรวจสอบ deleted_at — ถ้า record นี้ถูกลบบน server ให้ข้ามไป
-          // ⚠️ ห้ามลบ local booking เพราะ local เก็บแค่ 1 record ต่อเด็ก (ใช้ stid เป็น key)
-          // แต่ server มีหลาย records ต่อเด็ก (แยกตาม time_visit)
-          // ถ้าลบจะทำให้ข้อมูลนัดหมาย time_visit อื่นหายไปด้วย
-          if (apiBooking.deleted_at) {
-            skippedCount++;
-            continue;
-          }
-
-          // ตรวจสอบว่า API ส่งข้อมูลนัดหมายมาหรือไม่
-          if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) {
-            // ไม่มีข้อมูลนัดหมาย - ข้ามไป
-            continue;
-          }
-
-          const localBooking = localBookingsMap.get(apiBooking.stid);
-
-          // Helper function: ตรวจสอบว่าค่าจาก API ถูกต้องหรือไม่ (ไม่ใช่ null, undefined, empty string)
-          const isValidValue = (value) => {
-            return value !== null && value !== undefined && value !== "";
-          };
-
-          if (!localBooking) {
+          } else if (!localBooking) {
             // ข้อมูลใหม่จาก API
             await app.$indexedDB.addBooking({
               stid: apiBooking.stid,
               appointmentDate: apiBooking.date_app_curr || null,
               appointmentTime: apiBooking.time_app_curr || null,
-              // ใช้ค่าจาก API ถ้ามี ถ้าไม่มีให้เป็น null
               month_age: isValidValue(apiBooking.month_age) ? apiBooking.month_age : null,
               time: isValidValue(apiBooking.time) ? apiBooking.time : null,
               time_visit: apiBooking.time_visit || null,
@@ -586,18 +593,13 @@ export default function ({ app, store, $axios }, inject) {
               lastSyncedAt: new Date().toISOString(),
             });
             newCount++;
-          } else if (localBooking.dataSource === "local") {
-            // มีข้อมูลในเครื่องที่แก้ไขแล้ว - รักษาข้อมูลที่แก้ไขไว้
-            // ไม่ต้อง overwrite เพราะเราจะ sync กลับไป API ในขั้นตอนถัดไป
-            skippedCount++;
           } else {
-            // ข้อมูลจาก API ปกติ - อัพเดททั้งหมด
+            // ข้อมูลจาก API ปกติ (dataSource !== 'local') — อัพเดท
             // ⚠️ สำคัญ: ถ้า API ไม่ส่ง month_age หรือ time มา ให้ใช้ค่าจาก local booking เดิม
             await app.$indexedDB.updateBooking({
               stid: apiBooking.stid,
               appointmentDate: apiBooking.date_app_curr || localBooking.appointmentDate || null,
               appointmentTime: apiBooking.time_app_curr || localBooking.appointmentTime || null,
-              // ใช้ค่าจาก API ถ้ามี ถ้าไม่มีให้ใช้ค่าจาก local booking เดิม
               month_age: isValidValue(apiBooking.month_age)
                 ? apiBooking.month_age
                 : localBooking.month_age || null,
@@ -700,9 +702,9 @@ export default function ({ app, store, $axios }, inject) {
           }
         }
 
-        if (missingResults.length === 0 && incompleteBookings.length === 0) return true;
-
-        console.warn(`🔄 Reconciliation: ${missingResults.length} missing, ${incompleteBookings.length} incomplete`);
+        if (missingResults.length > 0 || incompleteBookings.length > 0) {
+          console.warn(`🔄 Reconciliation: ${missingResults.length} missing, ${incompleteBookings.length} incomplete`);
+        }
 
         let createdCount = 0;
         let updatedCount = 0;
@@ -819,6 +821,103 @@ export default function ({ app, store, $axios }, inject) {
           } catch (error) {
             errorCount++;
             console.error(`❌ Failed to update booking: stid=${booking.stid}, tv=${booking.time_visit}`, error);
+          }
+        }
+
+        // Pass 3: หาเด็กที่มี completed results แต่ไม่มี booking ครั้งถัดไปบน server
+        // ใช้ q10_appDate, q10_appTime ของ result ครั้งที่สูงสุดเป็นวันนัดหมาย
+        const resultsByStid = new Map();
+        for (const [key, result] of resultsMap) {
+          const stid = result.stid;
+          const tv = parseInt(result.time_visit) || 0;
+          if (!resultsByStid.has(stid)) {
+            resultsByStid.set(stid, []);
+          }
+          resultsByStid.get(stid).push({ ...result, _tv: tv });
+        }
+
+        console.log(`🔍 Pass3: checking ${resultsByStid.size} children, bookingsMap has ${bookingsMap.size} entries`);
+
+        for (const [stid, results] of resultsByStid) {
+          // หา time_visit สูงสุดของ results สำหรับเด็กคนนี้
+          results.sort((a, b) => b._tv - a._tv);
+          const latestResult = results[0];
+          const maxResultTv = latestResult._tv;
+          if (maxResultTv <= 0) continue;
+
+          // ตรวจว่า booking ครั้ง maxResultTv + 1 มีอยู่บน server ไหม
+          const nextTv = maxResultTv + 1;
+          const nextBookingKey = `${stid}_${nextTv}`;
+          const hasNextBooking = bookingsMap.has(nextBookingKey);
+
+          // ตรวจว่า result ล่าสุดมี q10_appDate หรือไม่ (วันนัดครั้งถัดไปจาก survey ก่อนหน้า)
+          const nextAppDate = latestResult.q10_appDate;
+          const nextAppTime = latestResult.q10_appTime;
+
+          console.log(`🔍 Pass3: stid=${stid}, maxResultTv=${maxResultTv}, nextTv=${nextTv}, hasNextBooking=${hasNextBooking}, q10_appDate=${nextAppDate || 'null'}, q10_appTime=${nextAppTime || 'null'}`);
+
+          if (hasNextBooking) continue; // มีแล้ว ข้ามไป
+          if (!nextAppDate) {
+            console.warn(`⚠️ Pass3: stid=${stid} — ไม่มี q10_appDate ใน result ครั้งที่ ${maxResultTv}, ข้ามไป`);
+            continue;
+          }
+
+          try {
+            const { monthAge, time } = await lookupActivity(latestResult);
+            const visitor = await app.$indexedDB.getVisitor(stid);
+            const recStart = this.generateCurrentTimestamp();
+
+            // ดึง activity IDs
+            const activityIds = ["", "", "", "", ""];
+            if (monthAge && time) {
+              const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
+              for (let i = 0; i < 5; i++) {
+                if (activities && activities[i]) {
+                  activityIds[i] = String(activities[i].no || "");
+                }
+              }
+            }
+
+            await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
+              variable: [
+                "recby", "stid", "project", "recStart", "time_visit",
+                "fname_ch", "lname_ch", "month_age", "time",
+                "time_app_first", "date_app_first", "time_app_curr", "date_app_curr",
+                "q1_name", "q2_name", "q3_name", "q4_name", "q5_name",
+                "cnt_app", "note",
+              ],
+              value: [
+                latestResult.recby || username, stid, latestResult.project || "15",
+                recStart, String(nextTv),
+                visitor?.fname || latestResult.fname_ch || "",
+                visitor?.surname || latestResult.lname_ch || "",
+                String(monthAge || ""), String(time || ""),
+                nextAppTime || "", nextAppDate,
+                nextAppTime || "", nextAppDate,
+                activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
+                "1", "สร้างอัตโนมัติจาก q10 ของครั้งก่อนหน้า",
+              ],
+              tb: "homevisitor_app",
+            });
+
+            // บันทึก local booking ด้วย เพื่อให้ UI แสดงทันทีโดยไม่ต้องรอ sync รอบถัดไป
+            await app.$indexedDB.addBooking({
+              stid: stid,
+              appointmentDate: nextAppDate,
+              appointmentTime: nextAppTime || null,
+              month_age: monthAge || null,
+              time: time || null,
+              time_visit: nextTv,
+              cnt_app: 1,
+              dataSource: "api",
+              lastSyncedAt: new Date().toISOString(),
+            });
+
+            createdCount++;
+            console.log(`✅ Pass3: Created next booking: stid=${stid}, tv=${nextTv}, date=${nextAppDate}, time=${nextAppTime}`);
+          } catch (error) {
+            errorCount++;
+            console.error(`❌ Pass3: Failed to create next booking: stid=${stid}, tv=${nextTv}`, error);
           }
         }
 
