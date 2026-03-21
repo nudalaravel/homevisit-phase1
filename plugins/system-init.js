@@ -668,96 +668,128 @@ export default function ({ app, store, $axios }, inject) {
 
         if (apiResults.length === 0) return true;
 
-        // สร้าง Set ของ bookings ที่มีบน server (stid_time_visit)
-        const bookingKeys = new Set(
-          apiBookings
-            .filter((b) => !b.deleted_at)
-            .map((b) => `${b.stid}_${b.time_visit}`)
-        );
+        // สร้าง Map ของ bookings ที่มีบน server (stid_time_visit → booking data)
+        const bookingsMap = new Map();
+        apiBookings
+          .filter((b) => !b.deleted_at)
+          .forEach((b) => bookingsMap.set(`${b.stid}_${b.time_visit}`, b));
 
-        // หา results ที่ server ไม่มี booking
-        const missingResults = apiResults.filter((r) => {
-          if (!r.stid || !r.time_visit) return false;
-          if (r.deleted_at) return false;
-          return !bookingKeys.has(`${r.stid}_${r.time_visit}`);
-        });
+        // สร้าง Map ของ results
+        const resultsMap = new Map();
+        apiResults
+          .filter((r) => r.stid && r.time_visit && !r.deleted_at)
+          .forEach((r) => resultsMap.set(`${r.stid}_${r.time_visit}`, r));
 
-        if (missingResults.length === 0) return true;
+        // Pass 1: หา results ที่ server ไม่มี booking → POST ใหม่
+        const missingResults = [];
+        for (const [key, result] of resultsMap) {
+          if (!bookingsMap.has(key)) {
+            missingResults.push(result);
+          }
+        }
 
-        console.warn(`🔄 Reconciliation: found ${missingResults.length} results without booking`);
+        // Pass 2: หา bookings ที่กู้คืนแล้วแต่ยัง month_age/time ว่าง → PUT อัพเดท
+        const incompleteBookings = [];
+        for (const [key, booking] of bookingsMap) {
+          if (
+            booking.note && booking.note.includes("กู้คืน") &&
+            (!booking.month_age || !booking.time) &&
+            resultsMap.has(key)
+          ) {
+            incompleteBookings.push({ booking, result: resultsMap.get(key) });
+          }
+        }
+
+        if (missingResults.length === 0 && incompleteBookings.length === 0) return true;
+
+        console.warn(`🔄 Reconciliation: ${missingResults.length} missing, ${incompleteBookings.length} incomplete`);
 
         let createdCount = 0;
+        let updatedCount = 0;
         let errorCount = 0;
 
+        // Helper: lookup activity จาก result
+        const lookupActivity = async (result) => {
+          const activityNo = result.q51_name || result.q52_name || result.q53_name
+            || result.q54_name || result.q55_name
+            || result.q91_name || result.q92_name || result.q93_name
+            || result.q94_name || result.q95_name;
+
+          console.log(`🔍 Lookup activity: stid=${result.stid}, q51_name=${result.q51_name}, q91_name=${result.q91_name}, activityNo=${activityNo}`);
+
+          if (!activityNo) return { monthAge: null, time: null };
+
+          let activity = await app.$indexedDB.get("activities", Number(activityNo));
+          if (!activity) {
+            activity = await app.$indexedDB.get("activities", String(activityNo));
+          }
+          console.log(`🔍 Activity found:`, activity ? `month_age=${activity.month_age}, time=${activity.time}` : 'null');
+
+          return {
+            monthAge: activity?.month_age || null,
+            time: activity?.time || null,
+          };
+        };
+
+        // Pass 1: POST missing bookings
         for (const result of missingResults) {
           try {
-            // Lookup q91_name → activities เพื่อหา month_age, time
-            let monthAge = null;
-            let time = null;
-            const activityNo = result.q91_name || result.q92_name || result.q93_name || result.q94_name || result.q95_name;
-            if (activityNo) {
-              const activity = await app.$indexedDB.get("activities", Number(activityNo));
-              if (activity) {
-                monthAge = activity.month_age || null;
-                time = activity.time || null;
-              }
-            }
-
-            // ดึง visitor เพื่อเอา fname, lname
+            const { monthAge, time } = await lookupActivity(result);
             const visitor = await app.$indexedDB.getVisitor(result.stid);
-
-            // สร้าง recStart จาก result
             const recStart = result.recStart || this.generateCurrentTimestamp();
 
-            // POST สร้าง booking ใหม่
             await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
               variable: [
-                "recby",
-                "stid",
-                "project",
-                "recStart",
-                "time_visit",
-                "fname_ch",
-                "lname_ch",
-                "month_age",
-                "time",
-                "time_app_first",
-                "date_app_first",
-                "time_app_curr",
-                "date_app_curr",
-                "cnt_app",
-                "note",
+                "recby", "stid", "project", "recStart", "time_visit",
+                "fname_ch", "lname_ch", "month_age", "time",
+                "time_app_first", "date_app_first", "time_app_curr", "date_app_curr",
+                "cnt_app", "note",
               ],
               value: [
-                result.recby || username,
-                result.stid,
-                result.project || "15",
-                recStart,
-                String(result.time_visit),
+                result.recby || username, result.stid, result.project || "15",
+                recStart, String(result.time_visit),
                 visitor?.fname || result.fname_ch || "",
                 visitor?.lname || result.lname_ch || "",
-                String(monthAge || ""),
-                String(time || ""),
-                result.timeStart || "",
-                result.date_visit || "",
-                result.timeStart || "",
-                result.date_visit || "",
-                "1",
-                "ข้อมูลถูกกู้คืนอัตโนมัติ",
+                String(monthAge || ""), String(time || ""),
+                result.timeStart || "", result.date_visit || "",
+                result.timeStart || "", result.date_visit || "",
+                "1", "ข้อมูลถูกกู้คืนอัตโนมัติ",
               ],
               tb: "homevisitor_app",
             });
 
             createdCount++;
-            console.log(`✅ Reconciled booking: stid=${result.stid}, time_visit=${result.time_visit}, month_age=${monthAge}, time=${time}`);
+            console.log(`✅ Created booking: stid=${result.stid}, tv=${result.time_visit}, ma=${monthAge}, t=${time}`);
           } catch (error) {
             errorCount++;
-            console.error(`❌ Failed to reconcile booking: stid=${result.stid}, time_visit=${result.time_visit}`, error);
+            console.error(`❌ Failed to create booking: stid=${result.stid}, tv=${result.time_visit}`, error);
           }
         }
 
-        if (createdCount > 0) {
-          console.warn(`🔄 Reconciliation complete: ${createdCount} bookings created, ${errorCount} errors`);
+        // Pass 2: PUT incomplete bookings (month_age/time ว่าง)
+        for (const { booking, result } of incompleteBookings) {
+          try {
+            const { monthAge, time } = await lookupActivity(result);
+            if (!monthAge && !time) continue; // ยังหาไม่เจอ ข้ามไป
+
+            await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", {
+              variable: ["month_age", "time"],
+              value: [String(monthAge || ""), String(time || "")],
+              pk: ["stid", "time_visit"],
+              pkval: [booking.stid, String(booking.time_visit)],
+              tb: "homevisitor_app",
+            });
+
+            updatedCount++;
+            console.log(`✅ Updated booking: stid=${booking.stid}, tv=${booking.time_visit}, ma=${monthAge}, t=${time}`);
+          } catch (error) {
+            errorCount++;
+            console.error(`❌ Failed to update booking: stid=${booking.stid}, tv=${booking.time_visit}`, error);
+          }
+        }
+
+        if (createdCount > 0 || updatedCount > 0) {
+          console.warn(`🔄 Reconciliation done: ${createdCount} created, ${updatedCount} updated, ${errorCount} errors`);
         }
 
         return true;
