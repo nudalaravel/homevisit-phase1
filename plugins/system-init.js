@@ -738,43 +738,77 @@ export default function ({ app, store, $axios }, inject) {
             const visitor = await app.$indexedDB.getVisitor(result.stid);
             const recStart = result.recStart || this.generateCurrentTimestamp();
 
+            // ดึง activity IDs สำหรับ q1_name - q5_name
+            const activityIds = ["", "", "", "", ""];
+            if (monthAge && time) {
+              const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
+              for (let i = 0; i < 5; i++) {
+                if (activities && activities[i]) {
+                  activityIds[i] = String(activities[i].no || "");
+                }
+              }
+            }
+
             await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
               variable: [
                 "recby", "stid", "project", "recStart", "time_visit",
                 "fname_ch", "lname_ch", "month_age", "time",
                 "time_app_first", "date_app_first", "time_app_curr", "date_app_curr",
+                "q1_name", "q2_name", "q3_name", "q4_name", "q5_name",
                 "cnt_app", "note",
               ],
               value: [
                 result.recby || username, result.stid, result.project || "15",
                 recStart, String(result.time_visit),
                 visitor?.fname || result.fname_ch || "",
-                visitor?.lname || result.lname_ch || "",
+                visitor?.surname || result.lname_ch || "",
                 String(monthAge || ""), String(time || ""),
                 result.timeStart || "", result.date_visit || "",
                 result.timeStart || "", result.date_visit || "",
+                activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
                 "1", "ข้อมูลถูกกู้คืนอัตโนมัติ",
               ],
               tb: "homevisitor_app",
             });
 
             createdCount++;
-            console.log(`✅ Created booking: stid=${result.stid}, tv=${result.time_visit}, ma=${monthAge}, t=${time}`);
+            console.log(`✅ Created booking: stid=${result.stid}, tv=${result.time_visit}, ma=${monthAge}, t=${time}, fname=${visitor?.fname || result.fname_ch}`);
           } catch (error) {
             errorCount++;
             console.error(`❌ Failed to create booking: stid=${result.stid}, tv=${result.time_visit}`, error);
           }
         }
 
-        // Pass 2: PUT incomplete bookings (month_age/time ว่าง)
+        // Pass 2: PUT incomplete bookings (month_age/time/fname_ch/lname_ch/q1-q5 ว่าง)
         for (const { booking, result } of incompleteBookings) {
           try {
             const { monthAge, time } = await lookupActivity(result);
             if (!monthAge && !time) continue; // ยังหาไม่เจอ ข้ามไป
 
+            const visitor = await app.$indexedDB.getVisitor(result.stid);
+
+            // ดึง activity IDs สำหรับ q1_name - q5_name
+            const activityIds = ["", "", "", "", ""];
+            if (monthAge && time) {
+              const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
+              for (let i = 0; i < 5; i++) {
+                if (activities && activities[i]) {
+                  activityIds[i] = String(activities[i].no || "");
+                }
+              }
+            }
+
             await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", {
-              variable: ["month_age", "time"],
-              value: [String(monthAge || ""), String(time || "")],
+              variable: [
+                "month_age", "time", "fname_ch", "lname_ch",
+                "q1_name", "q2_name", "q3_name", "q4_name", "q5_name",
+              ],
+              value: [
+                String(monthAge || ""), String(time || ""),
+                visitor?.fname || result.fname_ch || booking.fname_ch || "",
+                visitor?.surname || result.lname_ch || booking.lname_ch || "",
+                activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
+              ],
               pk: ["stid", "time_visit"],
               pkval: [booking.stid, String(booking.time_visit)],
               tb: "homevisitor_app",
@@ -1006,12 +1040,13 @@ export default function ({ app, store, $axios }, inject) {
             // หมายเหตุ: API getchildsample_result.php ไม่มี approve_status
             // approve_status จะได้จาก API getchildsample_app.php แทน
 
-            // สร้าง fullname_visit จาก fname_ch และ lname_ch ถ้ายังไม่มี
+            // สร้าง fullname_visit จากชื่อผู้เยี่ยมบ้าน (user) ไม่ใช่ชื่อเด็ก
             let fullnameVisit = result.fullname_visit;
             if (!fullnameVisit) {
-              const fname = result.fname_ch || "";
-              const lname = result.lname_ch || "";
-              fullnameVisit = fname && lname ? `${fname} ${lname}` : fname || lname || "";
+              const currentUser = app.$offlineAuth?.getUser?.();
+              const userFname = currentUser?.fname || "";
+              const userLname = currentUser?.lname || "";
+              fullnameVisit = userFname && userLname ? `${userFname} ${userLname}` : userFname || userLname || "";
             }
 
             const apiSurveyData = {
@@ -1594,11 +1629,12 @@ export default function ({ app, store, $axios }, inject) {
 
             // visitor อาจเป็น null ได้ (กรณีข้อมูลไม่สมบูรณ์) — ไม่ block sync
 
-            // สร้าง fullname_visit ถ้ายังไม่มี
-            if (!survey.fullname_visit && visitor) {
-              const fname = visitor.fname || "";
-              const lname = visitor.lname || "";
-              survey.fullname_visit = fname && lname ? `${fname} ${lname}` : fname || lname || "";
+            // สร้าง fullname_visit จากชื่อผู้เยี่ยมบ้าน (user) ไม่ใช่ชื่อเด็ก
+            if (!survey.fullname_visit) {
+              const currentUser = app.$offlineAuth?.getUser?.();
+              const userFname = currentUser?.fname || "";
+              const userLname = currentUser?.lname || "";
+              survey.fullname_visit = userFname && userLname ? `${userFname} ${userLname}` : userFname || userLname || "";
             }
 
             // ดึงกิจกรรมสำหรับ q9 (กิจกรรมครั้งนี้)
