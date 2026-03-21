@@ -549,12 +549,12 @@ export default function ({ app, store, $axios }, inject) {
             continue;
           }
 
-          // ตรวจสอบ deleted_at — ถ้า server ลบแล้ว ให้ลบออกจาก local ด้วย
+          // ตรวจสอบ deleted_at — ถ้า record นี้ถูกลบบน server ให้ข้ามไป
+          // ⚠️ ห้ามลบ local booking เพราะ local เก็บแค่ 1 record ต่อเด็ก (ใช้ stid เป็น key)
+          // แต่ server มีหลาย records ต่อเด็ก (แยกตาม time_visit)
+          // ถ้าลบจะทำให้ข้อมูลนัดหมาย time_visit อื่นหายไปด้วย
           if (apiBooking.deleted_at) {
-            const existingLocal = localBookingsMap.get(apiBooking.stid);
-            if (existingLocal) {
-              await app.$indexedDB.deleteBooking(apiBooking.stid);
-            }
+            skippedCount++;
             continue;
           }
 
