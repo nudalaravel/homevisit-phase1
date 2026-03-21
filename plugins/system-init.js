@@ -1,3 +1,5 @@
+import { calculateMonthAgeAndTime } from '~/utils/visitHelpers';
+
 export default function ({ app, store, $axios }, inject) {
   /**
    * System Initialization Manager
@@ -733,10 +735,64 @@ export default function ({ app, store, $axios }, inject) {
           };
         };
 
+        // Helper: คำนวณ month_age/time ที่ถูกต้องสำหรับ booking
+        // ใช้ calculateMonthAgeAndTime (logic เดียวกับ saveAppointment ในหน้า survey)
+        const calcBookingMonthAgeAndTime = async (result, allResults) => {
+          const visitor = await app.$indexedDB.getVisitor(result.stid);
+          if (!visitor || !visitor.month_birth || !visitor.year_birth) {
+            // fallback: ใช้ lookupActivity เดิม
+            return lookupActivity(result);
+          }
+
+          const tv = parseInt(result.time_visit) || 0;
+          const appointmentDate = result.date_visit || result.appointmentDate;
+          if (!appointmentDate) {
+            return lookupActivity(result);
+          }
+
+          const selectedDate = new Date(appointmentDate);
+          if (isNaN(selectedDate.getTime())) {
+            return lookupActivity(result);
+          }
+
+          // หา result ครั้งก่อนหน้า (time_visit - 1) เป็น existingBooking
+          let existingBooking = null;
+          if (tv > 1) {
+            const prevResult = allResults.find(
+              r => String(r.stid) === String(result.stid) && parseInt(r.time_visit) === tv - 1
+            );
+            if (prevResult) {
+              existingBooking = {
+                appointmentDate: prevResult.date_visit || prevResult.appointmentDate || null,
+                month_age: parseInt(prevResult.month_age) || 0,
+                time: parseInt(prevResult.time) || 1,
+              };
+            }
+          }
+
+          const calculated = calculateMonthAgeAndTime(
+            parseInt(visitor.month_birth),
+            parseInt(visitor.year_birth),
+            parseInt(visitor.day_birth || 1),
+            selectedDate,
+            existingBooking
+          );
+
+          console.log(`🔍 calcBookingMonthAgeAndTime: stid=${result.stid}, tv=${tv}, monthAge=${calculated.monthAge}, time=${calculated.timeActivity} (prev: ${existingBooking ? `ma=${existingBooking.month_age},t=${existingBooking.time}` : 'none'})`);
+
+          return {
+            monthAge: calculated.monthAge,
+            time: calculated.timeActivity,
+          };
+        };
+
+        // รวม apiResults ทั้งหมดสำหรับ lookup previous result
+        const allApiResults = [...resultsMap.values()];
+
         // Pass 1: POST missing bookings
         for (const result of missingResults) {
           try {
-            const { monthAge, time } = await lookupActivity(result);
+            const { monthAge, time } = await calcBookingMonthAgeAndTime(result, allApiResults);
             const visitor = await app.$indexedDB.getVisitor(result.stid);
             const recStart = result.recStart || this.generateCurrentTimestamp();
 
@@ -774,7 +830,7 @@ export default function ({ app, store, $axios }, inject) {
             });
 
             createdCount++;
-            console.log(`✅ Created booking: stid=${result.stid}, tv=${result.time_visit}, ma=${monthAge}, t=${time}, fname=${visitor?.fname || result.fname_ch}`);
+            console.log(`✅ Created booking: stid=${result.stid}, tv=${result.time_visit}, ma=${monthAge}, t=${time}, acts=${activityIds.join(',')}`);
           } catch (error) {
             errorCount++;
             console.error(`❌ Failed to create booking: stid=${result.stid}, tv=${result.time_visit}`, error);
@@ -784,7 +840,7 @@ export default function ({ app, store, $axios }, inject) {
         // Pass 2: PUT incomplete bookings (month_age/time/fname_ch/lname_ch/q1-q5 ว่าง)
         for (const { booking, result } of incompleteBookings) {
           try {
-            const { monthAge, time } = await lookupActivity(result);
+            const { monthAge, time } = await calcBookingMonthAgeAndTime(result, allApiResults);
             if (!monthAge && !time) continue; // ยังหาไม่เจอ ข้ามไป
 
             const visitor = await app.$indexedDB.getVisitor(result.stid);
@@ -817,7 +873,7 @@ export default function ({ app, store, $axios }, inject) {
             });
 
             updatedCount++;
-            console.log(`✅ Updated booking: stid=${booking.stid}, tv=${booking.time_visit}, ma=${monthAge}, t=${time}`);
+            console.log(`✅ Updated booking: stid=${booking.stid}, tv=${booking.time_visit}, ma=${monthAge}, t=${time}, acts=${activityIds.join(',')}`);
           } catch (error) {
             errorCount++;
             console.error(`❌ Failed to update booking: stid=${booking.stid}, tv=${booking.time_visit}`, error);
@@ -863,11 +919,43 @@ export default function ({ app, store, $axios }, inject) {
           }
 
           try {
-            const { monthAge, time } = await lookupActivity(latestResult);
             const visitor = await app.$indexedDB.getVisitor(stid);
             const recStart = this.generateCurrentTimestamp();
 
-            // ดึง activity IDs
+            // ⚠️ FIX: latestResult.month_age/time อาจเป็น NULL จาก API
+            // ต้องคำนวณ month_age/time ของ latestResult ก่อน แล้วค่อยใช้เป็น existingBooking
+            const latestCalc = await calcBookingMonthAgeAndTime(latestResult, allApiResults);
+            const latestMonthAge = latestCalc.monthAge;
+            const latestTime = latestCalc.time;
+
+            console.log(`🔍 Pass3: stid=${stid}, latestResult tv=${maxResultTv} → calculated monthAge=${latestMonthAge}, time=${latestTime} (raw API: monthAge=${latestResult.month_age}, time=${latestResult.time})`);
+
+            // คำนวณ month_age/time สำหรับ NEXT booking
+            let monthAge = latestMonthAge || 0;
+            let time = latestTime || 1;
+
+            if (visitor && visitor.month_birth && visitor.year_birth) {
+              const nextDate = new Date(nextAppDate);
+              if (!isNaN(nextDate.getTime())) {
+                const calculated = calculateMonthAgeAndTime(
+                  parseInt(visitor.month_birth),
+                  parseInt(visitor.year_birth),
+                  parseInt(visitor.day_birth || 1),
+                  nextDate,
+                  {
+                    appointmentDate: latestResult.date_visit || latestResult.appointmentDate || null,
+                    month_age: latestMonthAge || 0,
+                    time: latestTime || 1,
+                  }
+                );
+                monthAge = calculated.monthAge;
+                time = calculated.timeActivity;
+              }
+            }
+
+            console.log(`🔍 Pass3: stid=${stid} next booking: monthAge=${monthAge}, time=${time} (based on prev calculated: ma=${latestMonthAge}, t=${latestTime})`);
+
+            // ดึง activity IDs สำหรับครั้งถัดไป
             const activityIds = ["", "", "", "", ""];
             if (monthAge && time) {
               const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
