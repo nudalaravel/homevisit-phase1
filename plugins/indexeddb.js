@@ -50,6 +50,7 @@ export default function ({ app, store }, inject) {
 
           // v11 migration: copy จาก "bookings" (old, keyPath=stid) → "bookings_v2" (new, keyPath=id)
           // ทำหลัง DB เปิดสำเร็จ → อ่าน store เก่าได้ปลอดภัย 100% ข้อมูลไม่หายแน่นอน
+          // ⚠️ สำคัญ: resolve หลัง migration เสร็จเท่านั้น เพื่อให้ข้อมูล local พร้อมใช้ทันที
           if (needsBookingsMigration && this.db.objectStoreNames.contains("bookings")) {
             try {
               const readTx = this.db.transaction(["bookings"], "readonly");
@@ -77,20 +78,36 @@ export default function ({ app, store }, inject) {
 
                   writeTx.oncomplete = () => {
                     console.log(`✅ v11 migration: ${count}/${oldBookings.length} bookings → bookings_v2`);
-                    // clear old store (ลบ store จริงจะทำ version ถัดไป)
+                    // clear old store หลัง write สำเร็จ
                     try {
                       const clearTx = this.db.transaction(["bookings"], "readwrite");
                       clearTx.objectStore("bookings").clear();
                     } catch (e) { /* OK */ }
+                    // resolve หลัง migration เสร็จ — ข้อมูล local พร้อมใช้
+                    resolve(this.db);
                   };
+                  writeTx.onerror = () => {
+                    console.error("❌ v11 migration write error:", writeTx.error);
+                    // resolve แม้ migration fail — แอปยังทำงานได้ ข้อมูลเก่ายังอยู่ใน "bookings"
+                    resolve(this.db);
+                  };
+                } else {
+                  // ไม่มีข้อมูลเก่า → resolve ได้เลย
+                  resolve(this.db);
                 }
+              };
+
+              getAllReq.onerror = () => {
+                console.error("❌ v11 migration read error:", getAllReq.error);
+                resolve(this.db);
               };
             } catch (e) {
               console.error("❌ v11 migration failed:", e);
+              resolve(this.db);
             }
+          } else {
+            resolve(this.db);
           }
-
-          resolve(this.db);
         };
 
         // เมื่อต้องการอัพเกรด database (สร้างใหม่หรือเปลี่ยนเวอร์ชัน)
