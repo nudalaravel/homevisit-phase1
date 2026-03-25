@@ -2,99 +2,169 @@
   {
     "name": "admin-document",
     "path": "/admin-document",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-document.vue",
     "chunkName": "pages/admin-document",
     "_name": "_11942510"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-document.vue",
+    "chunkName": "pages/admin-document"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "admin-payment",
     "path": "/admin-payment",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-payment.vue",
     "chunkName": "pages/admin-payment",
     "_name": "_228a85b9"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-payment.vue",
+    "chunkName": "pages/admin-payment"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "admin-payment-history",
     "path": "/admin-payment-history",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-payment-history.vue",
     "chunkName": "pages/admin-payment-history",
     "_name": "_1a313e00"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-payment-history.vue",
+    "chunkName": "pages/admin-payment-history"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "admin-receipt",
     "path": "/admin-receipt",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-receipt.vue",
     "chunkName": "pages/admin-receipt",
     "_name": "_10dd462a"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-receipt.vue",
+    "chunkName": "pages/admin-receipt"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "admin-report",
     "path": "/admin-report",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-report.vue",
     "chunkName": "pages/admin-report",
     "_name": "_3510ca51"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-report.vue",
+    "chunkName": "pages/admin-report"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "admin-visit-results",
     "path": "/admin-visit-results",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-visit-results.vue",
     "chunkName": "pages/admin-visit-results",
     "_name": "_dce3c432"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/admin-visit-results.vue",
+    "chunkName": "pages/admin-visit-results"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "login",
     "path": "/login",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\login.vue",
     "chunkName": "pages/login",
     "_name": "_7d8427cc"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/login.vue",
+    "chunkName": "pages/login"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "supervisor-booking",
     "path": "/supervisor-booking",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-booking.vue",
     "chunkName": "pages/supervisor-booking",
     "_name": "_48cc8993"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/supervisor-booking.vue",
+    "chunkName": "pages/supervisor-booking"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "supervisor-dashboard",
     "path": "/supervisor-dashboard",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-dashboard.vue",
     "chunkName": "pages/supervisor-dashboard",
     "_name": "_8142d464"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/supervisor-dashboard.vue",
+    "chunkName": "pages/supervisor-dashboard"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "supervisor-document",
     "path": "/supervisor-document",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-document.vue",
     "chunkName": "pages/supervisor-document",
     "_name": "_0a7b3f51"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/supervisor-document.vue",
+    "chunkName": "pages/supervisor-document"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "supervisor-report",
     "path": "/supervisor-report",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-report.vue",
     "chunkName": "pages/supervisor-report",
     "_name": "_7d02be6a"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/supervisor-report.vue",
+    "chunkName": "pages/supervisor-report"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "supervisor-survey",
     "path": "/supervisor-survey",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-survey.vue",
     "chunkName": "pages/supervisor-survey",
     "_name": "_3c8ee4e0"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/supervisor-survey.vue",
+    "chunkName": "pages/supervisor-survey"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "survey",
     "path": "/survey",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\survey.vue",
     "chunkName": "pages/survey",
     "_name": "_adc26d0e"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/survey.vue",
+    "chunkName": "pages/survey"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   },
   {
     "name": "index",
     "path": "/",
+<<<<<<< HEAD
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\index.vue",
     "chunkName": "pages/index",
     "_name": "_10d36dfa"
+=======
+    "component": "/Users/exd/Documents/works/riped-v2/pages/index.vue",
+    "chunkName": "pages/index"
+>>>>>>> 1d8d6efd38b417a2eb86062320ce7c205aa3769e
   }
 ]

@@ -1,3 +1,5 @@
+import { calculateMonthAgeAndTime } from '~/utils/visitHelpers';
+
 export default function ({ app, store, $axios }, inject) {
   /**
    * System Initialization Manager
@@ -534,50 +536,40 @@ export default function ({ app, store, $axios }, inject) {
 
         // ดึงข้อมูลการนัดหมายที่มีในเครื่อง
         const localBookings = await app.$indexedDB.getBookings();
+        // v11: สร้าง Map ด้วย id (stid_timeVisit) แทน stid เพราะตอนนี้เก็บหลาย booking/เด็กได้
         const localBookingsMap = new Map();
-        localBookings.forEach((b) => localBookingsMap.set(b.stid, b));
+        localBookings.forEach((b) => {
+          const key = b.id || `${b.stid}_${b.time_visit || 1}`;
+          localBookingsMap.set(key, b);
+        });
 
         let newCount = 0;
         let updatedCount = 0;
         let skippedCount = 0;
 
-        // Merge ข้อมูล
+        // Helper function: ตรวจสอบว่าค่าจาก API ถูกต้องหรือไม่
+        const isValidValue = (value) => {
+          return value !== null && value !== undefined && value !== "";
+        };
+
+        // v11: เก็บ booking ทุก time_visit (ไม่ filter เฉพาะ latest อีกแล้ว)
         for (const apiBooking of apiBookings) {
-          // ตรวจสอบว่ามี stid (required field)
-          if (!apiBooking.stid) {
+          if (!apiBooking.stid || apiBooking.deleted_at) continue;
+          if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) continue;
+
+          const bookingId = `${apiBooking.stid}_${apiBooking.time_visit || 1}`;
+          const localBooking = localBookingsMap.get(bookingId);
+
+          // ป้องกัน overwrite local booking ที่ dataSource="local" (ยังไม่ได้ push)
+          if (localBooking && localBooking.dataSource === "local") {
             skippedCount++;
             continue;
-          }
-
-          // ตรวจสอบ deleted_at — ถ้า record นี้ถูกลบบน server ให้ข้ามไป
-          // ⚠️ ห้ามลบ local booking เพราะ local เก็บแค่ 1 record ต่อเด็ก (ใช้ stid เป็น key)
-          // แต่ server มีหลาย records ต่อเด็ก (แยกตาม time_visit)
-          // ถ้าลบจะทำให้ข้อมูลนัดหมาย time_visit อื่นหายไปด้วย
-          if (apiBooking.deleted_at) {
-            skippedCount++;
-            continue;
-          }
-
-          // ตรวจสอบว่า API ส่งข้อมูลนัดหมายมาหรือไม่
-          if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) {
-            // ไม่มีข้อมูลนัดหมาย - ข้ามไป
-            continue;
-          }
-
-          const localBooking = localBookingsMap.get(apiBooking.stid);
-
-          // Helper function: ตรวจสอบว่าค่าจาก API ถูกต้องหรือไม่ (ไม่ใช่ null, undefined, empty string)
-          const isValidValue = (value) => {
-            return value !== null && value !== undefined && value !== "";
-          };
-
-          if (!localBooking) {
+          } else if (!localBooking) {
             // ข้อมูลใหม่จาก API
             await app.$indexedDB.addBooking({
               stid: apiBooking.stid,
               appointmentDate: apiBooking.date_app_curr || null,
               appointmentTime: apiBooking.time_app_curr || null,
-              // ใช้ค่าจาก API ถ้ามี ถ้าไม่มีให้เป็น null
               month_age: isValidValue(apiBooking.month_age) ? apiBooking.month_age : null,
               time: isValidValue(apiBooking.time) ? apiBooking.time : null,
               time_visit: apiBooking.time_visit || null,
@@ -586,18 +578,13 @@ export default function ({ app, store, $axios }, inject) {
               lastSyncedAt: new Date().toISOString(),
             });
             newCount++;
-          } else if (localBooking.dataSource === "local") {
-            // มีข้อมูลในเครื่องที่แก้ไขแล้ว - รักษาข้อมูลที่แก้ไขไว้
-            // ไม่ต้อง overwrite เพราะเราจะ sync กลับไป API ในขั้นตอนถัดไป
-            skippedCount++;
           } else {
-            // ข้อมูลจาก API ปกติ - อัพเดททั้งหมด
+            // ข้อมูลจาก API ปกติ (dataSource !== 'local') — อัพเดท
             // ⚠️ สำคัญ: ถ้า API ไม่ส่ง month_age หรือ time มา ให้ใช้ค่าจาก local booking เดิม
             await app.$indexedDB.updateBooking({
               stid: apiBooking.stid,
               appointmentDate: apiBooking.date_app_curr || localBooking.appointmentDate || null,
               appointmentTime: apiBooking.time_app_curr || localBooking.appointmentTime || null,
-              // ใช้ค่าจาก API ถ้ามี ถ้าไม่มีให้ใช้ค่าจาก local booking เดิม
               month_age: isValidValue(apiBooking.month_age)
                 ? apiBooking.month_age
                 : localBooking.month_age || null,
@@ -668,96 +655,345 @@ export default function ({ app, store, $axios }, inject) {
 
         if (apiResults.length === 0) return true;
 
-        // สร้าง Set ของ bookings ที่มีบน server (stid_time_visit)
-        const bookingKeys = new Set(
-          apiBookings
-            .filter((b) => !b.deleted_at)
-            .map((b) => `${b.stid}_${b.time_visit}`)
-        );
+        // สร้าง Map ของ bookings ที่มีบน server (stid_time_visit → booking data)
+        const bookingsMap = new Map();
+        apiBookings
+          .filter((b) => !b.deleted_at)
+          .forEach((b) => bookingsMap.set(`${b.stid}_${b.time_visit}`, b));
 
-        // หา results ที่ server ไม่มี booking
-        const missingResults = apiResults.filter((r) => {
-          if (!r.stid || !r.time_visit) return false;
-          if (r.deleted_at) return false;
-          return !bookingKeys.has(`${r.stid}_${r.time_visit}`);
-        });
+        // สร้าง Map ของ results
+        const resultsMap = new Map();
+        apiResults
+          .filter((r) => r.stid && r.time_visit && !r.deleted_at)
+          .forEach((r) => resultsMap.set(`${r.stid}_${r.time_visit}`, r));
 
-        if (missingResults.length === 0) return true;
+        // Pass 1: หา results ที่ server ไม่มี booking → POST ใหม่
+        const missingResults = [];
+        for (const [key, result] of resultsMap) {
+          if (!bookingsMap.has(key)) {
+            missingResults.push(result);
+          }
+        }
 
-        console.warn(`🔄 Reconciliation: found ${missingResults.length} results without booking`);
+        // Pass 2: หา bookings ที่กู้คืนแล้วแต่ยัง month_age/time ว่าง → PUT อัพเดท
+        const incompleteBookings = [];
+        for (const [key, booking] of bookingsMap) {
+          if (
+            booking.note && booking.note.includes("กู้คืน") &&
+            (!booking.month_age || !booking.time) &&
+            resultsMap.has(key)
+          ) {
+            incompleteBookings.push({ booking, result: resultsMap.get(key) });
+          }
+        }
+
+        if (missingResults.length > 0 || incompleteBookings.length > 0) {
+          console.warn(`🔄 Reconciliation: ${missingResults.length} missing, ${incompleteBookings.length} incomplete`);
+        }
 
         let createdCount = 0;
+        let updatedCount = 0;
         let errorCount = 0;
 
+        // Helper: lookup activity จาก result
+        const lookupActivity = async (result) => {
+          const activityNo = result.q51_name || result.q52_name || result.q53_name
+            || result.q54_name || result.q55_name
+            || result.q91_name || result.q92_name || result.q93_name
+            || result.q94_name || result.q95_name;
+
+          console.log(`🔍 Lookup activity: stid=${result.stid}, q51_name=${result.q51_name}, q91_name=${result.q91_name}, activityNo=${activityNo}`);
+
+          if (!activityNo) return { monthAge: null, time: null };
+
+          let activity = await app.$indexedDB.get("activities", Number(activityNo));
+          if (!activity) {
+            activity = await app.$indexedDB.get("activities", String(activityNo));
+          }
+          console.log(`🔍 Activity found:`, activity ? `month_age=${activity.month_age}, time=${activity.time}` : 'null');
+
+          return {
+            monthAge: activity?.month_age || null,
+            time: activity?.time || null,
+          };
+        };
+
+        // Helper: คำนวณ month_age/time ที่ถูกต้องสำหรับ booking
+        // ใช้ calculateMonthAgeAndTime (logic เดียวกับ saveAppointment ในหน้า survey)
+        const calcBookingMonthAgeAndTime = async (result, allResults) => {
+          const visitor = await app.$indexedDB.getVisitor(result.stid);
+          if (!visitor || !visitor.month_birth || !visitor.year_birth) {
+            // fallback: ใช้ lookupActivity เดิม
+            return lookupActivity(result);
+          }
+
+          const tv = parseInt(result.time_visit) || 0;
+          const appointmentDate = result.date_visit || result.appointmentDate;
+          if (!appointmentDate) {
+            return lookupActivity(result);
+          }
+
+          const selectedDate = new Date(appointmentDate);
+          if (isNaN(selectedDate.getTime())) {
+            return lookupActivity(result);
+          }
+
+          // หา result ครั้งก่อนหน้า (time_visit - 1) เป็น existingBooking
+          let existingBooking = null;
+          if (tv > 1) {
+            const prevResult = allResults.find(
+              r => String(r.stid) === String(result.stid) && parseInt(r.time_visit) === tv - 1
+            );
+            if (prevResult) {
+              existingBooking = {
+                appointmentDate: prevResult.date_visit || prevResult.appointmentDate || null,
+                month_age: parseInt(prevResult.month_age) || 0,
+                time: parseInt(prevResult.time) || 1,
+              };
+            }
+          }
+
+          const calculated = calculateMonthAgeAndTime(
+            parseInt(visitor.month_birth),
+            parseInt(visitor.year_birth),
+            parseInt(visitor.day_birth || 1),
+            selectedDate,
+            existingBooking
+          );
+
+          console.log(`🔍 calcBookingMonthAgeAndTime: stid=${result.stid}, tv=${tv}, monthAge=${calculated.monthAge}, time=${calculated.timeActivity} (prev: ${existingBooking ? `ma=${existingBooking.month_age},t=${existingBooking.time}` : 'none'})`);
+
+          return {
+            monthAge: calculated.monthAge,
+            time: calculated.timeActivity,
+          };
+        };
+
+        // รวม apiResults ทั้งหมดสำหรับ lookup previous result
+        const allApiResults = [...resultsMap.values()];
+
+        // Pass 1: POST missing bookings
         for (const result of missingResults) {
           try {
-            // Lookup q91_name → activities เพื่อหา month_age, time
-            let monthAge = null;
-            let time = null;
-            const activityNo = result.q91_name || result.q92_name || result.q93_name || result.q94_name || result.q95_name;
-            if (activityNo) {
-              const activity = await app.$indexedDB.get("activities", Number(activityNo));
-              if (activity) {
-                monthAge = activity.month_age || null;
-                time = activity.time || null;
+            const { monthAge, time } = await calcBookingMonthAgeAndTime(result, allApiResults);
+            const visitor = await app.$indexedDB.getVisitor(result.stid);
+            const recStart = result.recStart || this.generateCurrentTimestamp();
+
+            // ดึง activity IDs สำหรับ q1_name - q5_name
+            const activityIds = ["", "", "", "", ""];
+            if (monthAge && time) {
+              const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
+              for (let i = 0; i < 5; i++) {
+                if (activities && activities[i]) {
+                  activityIds[i] = String(activities[i].no || "");
+                }
               }
             }
 
-            // ดึง visitor เพื่อเอา fname, lname
-            const visitor = await app.$indexedDB.getVisitor(result.stid);
-
-            // สร้าง recStart จาก result
-            const recStart = result.recStart || this.generateCurrentTimestamp();
-
-            // POST สร้าง booking ใหม่
             await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
               variable: [
-                "recby",
-                "stid",
-                "project",
-                "recStart",
-                "time_visit",
-                "fname_ch",
-                "lname_ch",
-                "month_age",
-                "time",
-                "time_app_first",
-                "date_app_first",
-                "time_app_curr",
-                "date_app_curr",
-                "cnt_app",
-                "note",
+                "recby", "stid", "project", "recStart", "time_visit",
+                "fname_ch", "lname_ch", "month_age", "time",
+                "time_app_first", "date_app_first", "time_app_curr", "date_app_curr",
+                "q1_name", "q2_name", "q3_name", "q4_name", "q5_name",
+                "cnt_app", "note",
               ],
               value: [
-                result.recby || username,
-                result.stid,
-                result.project || "15",
-                recStart,
-                String(result.time_visit),
+                result.recby || username, result.stid, result.project || "15",
+                recStart, String(result.time_visit),
                 visitor?.fname || result.fname_ch || "",
-                visitor?.lname || result.lname_ch || "",
-                String(monthAge || ""),
-                String(time || ""),
-                result.timeStart || "",
-                result.date_visit || "",
-                result.timeStart || "",
-                result.date_visit || "",
-                "1",
-                "ข้อมูลถูกกู้คืนอัตโนมัติ",
+                visitor?.surname || result.lname_ch || "",
+                String(monthAge || ""), String(time || ""),
+                result.timeStart || "", result.date_visit || "",
+                result.timeStart || "", result.date_visit || "",
+                activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
+                "1", "ข้อมูลถูกกู้คืนอัตโนมัติ",
               ],
               tb: "homevisitor_app",
             });
 
             createdCount++;
-            console.log(`✅ Reconciled booking: stid=${result.stid}, time_visit=${result.time_visit}, month_age=${monthAge}, time=${time}`);
+            console.log(`✅ Created booking: stid=${result.stid}, tv=${result.time_visit}, ma=${monthAge}, t=${time}, acts=${activityIds.join(',')}`);
           } catch (error) {
             errorCount++;
-            console.error(`❌ Failed to reconcile booking: stid=${result.stid}, time_visit=${result.time_visit}`, error);
+            console.error(`❌ Failed to create booking: stid=${result.stid}, tv=${result.time_visit}`, error);
           }
         }
 
-        if (createdCount > 0) {
-          console.warn(`🔄 Reconciliation complete: ${createdCount} bookings created, ${errorCount} errors`);
+        // Pass 2: PUT incomplete bookings (month_age/time/fname_ch/lname_ch/q1-q5 ว่าง)
+        for (const { booking, result } of incompleteBookings) {
+          try {
+            const { monthAge, time } = await calcBookingMonthAgeAndTime(result, allApiResults);
+            if (!monthAge && !time) continue; // ยังหาไม่เจอ ข้ามไป
+
+            const visitor = await app.$indexedDB.getVisitor(result.stid);
+
+            // ดึง activity IDs สำหรับ q1_name - q5_name
+            const activityIds = ["", "", "", "", ""];
+            if (monthAge && time) {
+              const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
+              for (let i = 0; i < 5; i++) {
+                if (activities && activities[i]) {
+                  activityIds[i] = String(activities[i].no || "");
+                }
+              }
+            }
+
+            await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", {
+              variable: [
+                "month_age", "time", "fname_ch", "lname_ch",
+                "q1_name", "q2_name", "q3_name", "q4_name", "q5_name",
+              ],
+              value: [
+                String(monthAge || ""), String(time || ""),
+                visitor?.fname || result.fname_ch || booking.fname_ch || "",
+                visitor?.surname || result.lname_ch || booking.lname_ch || "",
+                activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
+              ],
+              pk: ["stid", "time_visit"],
+              pkval: [booking.stid, String(booking.time_visit)],
+              tb: "homevisitor_app",
+            });
+
+            updatedCount++;
+            console.log(`✅ Updated booking: stid=${booking.stid}, tv=${booking.time_visit}, ma=${monthAge}, t=${time}, acts=${activityIds.join(',')}`);
+          } catch (error) {
+            errorCount++;
+            console.error(`❌ Failed to update booking: stid=${booking.stid}, tv=${booking.time_visit}`, error);
+          }
+        }
+
+        // Pass 3: หาเด็กที่มี completed results แต่ไม่มี booking ครั้งถัดไปบน server
+        // ใช้ q10_appDate, q10_appTime ของ result ครั้งที่สูงสุดเป็นวันนัดหมาย
+        const resultsByStid = new Map();
+        for (const [key, result] of resultsMap) {
+          const stid = result.stid;
+          const tv = parseInt(result.time_visit) || 0;
+          if (!resultsByStid.has(stid)) {
+            resultsByStid.set(stid, []);
+          }
+          resultsByStid.get(stid).push({ ...result, _tv: tv });
+        }
+
+        console.log(`🔍 Pass3: checking ${resultsByStid.size} children, bookingsMap has ${bookingsMap.size} entries`);
+
+        for (const [stid, results] of resultsByStid) {
+          // หา time_visit สูงสุดของ results สำหรับเด็กคนนี้
+          results.sort((a, b) => b._tv - a._tv);
+          const latestResult = results[0];
+          const maxResultTv = latestResult._tv;
+          if (maxResultTv <= 0) continue;
+
+          // ตรวจว่า booking ครั้ง maxResultTv + 1 มีอยู่บน server ไหม
+          const nextTv = maxResultTv + 1;
+          const nextBookingKey = `${stid}_${nextTv}`;
+          const hasNextBooking = bookingsMap.has(nextBookingKey);
+
+          // ตรวจว่า result ล่าสุดมี q10_appDate หรือไม่ (วันนัดครั้งถัดไปจาก survey ก่อนหน้า)
+          const nextAppDate = latestResult.q10_appDate;
+          const nextAppTime = latestResult.q10_appTime;
+
+          console.log(`🔍 Pass3: stid=${stid}, maxResultTv=${maxResultTv}, nextTv=${nextTv}, hasNextBooking=${hasNextBooking}, q10_appDate=${nextAppDate || 'null'}, q10_appTime=${nextAppTime || 'null'}`);
+
+          if (hasNextBooking) continue; // มีแล้ว ข้ามไป
+          if (!nextAppDate) {
+            console.warn(`⚠️ Pass3: stid=${stid} — ไม่มี q10_appDate ใน result ครั้งที่ ${maxResultTv}, ข้ามไป`);
+            continue;
+          }
+
+          try {
+            const visitor = await app.$indexedDB.getVisitor(stid);
+            const recStart = this.generateCurrentTimestamp();
+
+            // ⚠️ FIX: latestResult.month_age/time อาจเป็น NULL จาก API
+            // ต้องคำนวณ month_age/time ของ latestResult ก่อน แล้วค่อยใช้เป็น existingBooking
+            const latestCalc = await calcBookingMonthAgeAndTime(latestResult, allApiResults);
+            const latestMonthAge = latestCalc.monthAge;
+            const latestTime = latestCalc.time;
+
+            console.log(`🔍 Pass3: stid=${stid}, latestResult tv=${maxResultTv} → calculated monthAge=${latestMonthAge}, time=${latestTime} (raw API: monthAge=${latestResult.month_age}, time=${latestResult.time})`);
+
+            // คำนวณ month_age/time สำหรับ NEXT booking
+            let monthAge = latestMonthAge || 0;
+            let time = latestTime || 1;
+
+            if (visitor && visitor.month_birth && visitor.year_birth) {
+              const nextDate = new Date(nextAppDate);
+              if (!isNaN(nextDate.getTime())) {
+                const calculated = calculateMonthAgeAndTime(
+                  parseInt(visitor.month_birth),
+                  parseInt(visitor.year_birth),
+                  parseInt(visitor.day_birth || 1),
+                  nextDate,
+                  {
+                    appointmentDate: latestResult.date_visit || latestResult.appointmentDate || null,
+                    month_age: latestMonthAge || 0,
+                    time: latestTime || 1,
+                  }
+                );
+                monthAge = calculated.monthAge;
+                time = calculated.timeActivity;
+              }
+            }
+
+            console.log(`🔍 Pass3: stid=${stid} next booking: monthAge=${monthAge}, time=${time} (based on prev calculated: ma=${latestMonthAge}, t=${latestTime})`);
+
+            // ดึง activity IDs สำหรับครั้งถัดไป
+            const activityIds = ["", "", "", "", ""];
+            if (monthAge && time) {
+              const activities = await app.$indexedDB.getActivityByMonthAgeAndTime(monthAge, time);
+              for (let i = 0; i < 5; i++) {
+                if (activities && activities[i]) {
+                  activityIds[i] = String(activities[i].no || "");
+                }
+              }
+            }
+
+            await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
+              variable: [
+                "recby", "stid", "project", "recStart", "time_visit",
+                "fname_ch", "lname_ch", "month_age", "time",
+                "time_app_first", "date_app_first", "time_app_curr", "date_app_curr",
+                "q1_name", "q2_name", "q3_name", "q4_name", "q5_name",
+                "cnt_app", "note",
+              ],
+              value: [
+                latestResult.recby || username, stid, latestResult.project || "15",
+                recStart, String(nextTv),
+                visitor?.fname || latestResult.fname_ch || "",
+                visitor?.surname || latestResult.lname_ch || "",
+                String(monthAge || ""), String(time || ""),
+                nextAppTime || "", nextAppDate,
+                nextAppTime || "", nextAppDate,
+                activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
+                "1", "สร้างอัตโนมัติจาก q10 ของครั้งก่อนหน้า",
+              ],
+              tb: "homevisitor_app",
+            });
+
+            // บันทึก local booking ด้วย เพื่อให้ UI แสดงทันทีโดยไม่ต้องรอ sync รอบถัดไป
+            await app.$indexedDB.addBooking({
+              stid: stid,
+              appointmentDate: nextAppDate,
+              appointmentTime: nextAppTime || null,
+              month_age: monthAge || null,
+              time: time || null,
+              time_visit: nextTv,
+              cnt_app: 1,
+              dataSource: "api",
+              lastSyncedAt: new Date().toISOString(),
+            });
+
+            createdCount++;
+            console.log(`✅ Pass3: Created next booking: stid=${stid}, tv=${nextTv}, date=${nextAppDate}, time=${nextAppTime}`);
+          } catch (error) {
+            errorCount++;
+            console.error(`❌ Pass3: Failed to create next booking: stid=${stid}, tv=${nextTv}`, error);
+          }
+        }
+
+        if (createdCount > 0 || updatedCount > 0) {
+          console.warn(`🔄 Reconciliation done: ${createdCount} created, ${updatedCount} updated, ${errorCount} errors`);
         }
 
         return true;
@@ -974,12 +1210,13 @@ export default function ({ app, store, $axios }, inject) {
             // หมายเหตุ: API getchildsample_result.php ไม่มี approve_status
             // approve_status จะได้จาก API getchildsample_app.php แทน
 
-            // สร้าง fullname_visit จาก fname_ch และ lname_ch ถ้ายังไม่มี
+            // สร้าง fullname_visit จากชื่อผู้เยี่ยมบ้าน (user) ไม่ใช่ชื่อเด็ก
             let fullnameVisit = result.fullname_visit;
             if (!fullnameVisit) {
-              const fname = result.fname_ch || "";
-              const lname = result.lname_ch || "";
-              fullnameVisit = fname && lname ? `${fname} ${lname}` : fname || lname || "";
+              const currentUser = app.$offlineAuth?.getUser?.();
+              const userFname = currentUser?.fname || "";
+              const userLname = currentUser?.lname || "";
+              fullnameVisit = userFname && userLname ? `${userFname} ${userLname}` : userFname || userLname || "";
             }
 
             const apiSurveyData = {
@@ -989,11 +1226,17 @@ export default function ({ app, store, $axios }, inject) {
               time_visit: result.time_visit || null,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               month_age: localSurvey?.month_age || result.month_age,
+              // ⚠️ FIX: เก็บ recStart/recEnd จาก local → fallback API → ป้องกันหาย
+              recStart: localSurvey?.recStart || result.recStart || null,
+              recEnd: localSurvey?.recEnd || result.recEnd || null,
               timeStart: result.timeStart,
               timeEnd: result.timeEnd,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               appointmentDate: localSurvey?.appointmentDate || result.date_visit,
               fullname_visit: fullnameVisit,
+              // ⚠️ FIX: เก็บ q5Timestamps/q9Timestamps จาก local (API ไม่มี field เหล่านี้)
+              q5Timestamps: localSurvey?.q5Timestamps || {},
+              q9Timestamps: localSurvey?.q9Timestamps || {},
               answers: {
                 // Convert to number for consistent type (API returns string)
                 q1: result.q1 != null ? Number(result.q1) : null,
@@ -1562,11 +1805,12 @@ export default function ({ app, store, $axios }, inject) {
 
             // visitor อาจเป็น null ได้ (กรณีข้อมูลไม่สมบูรณ์) — ไม่ block sync
 
-            // สร้าง fullname_visit ถ้ายังไม่มี
-            if (!survey.fullname_visit && visitor) {
-              const fname = visitor.fname || "";
-              const lname = visitor.lname || "";
-              survey.fullname_visit = fname && lname ? `${fname} ${lname}` : fname || lname || "";
+            // สร้าง fullname_visit จากชื่อผู้เยี่ยมบ้าน (user) ไม่ใช่ชื่อเด็ก
+            if (!survey.fullname_visit) {
+              const currentUser = app.$offlineAuth?.getUser?.();
+              const userFname = currentUser?.fname || "";
+              const userLname = currentUser?.lname || "";
+              survey.fullname_visit = userFname && userLname ? `${userFname} ${userLname}` : userFname || userLname || "";
             }
 
             // ดึงกิจกรรมสำหรับ q9 (กิจกรรมครั้งนี้)
@@ -1866,9 +2110,18 @@ export default function ({ app, store, $axios }, inject) {
                 // แปลง "16:00 น." เป็น "16.00 น."
                 q10_appTime = appointment.appointmentTime.replace(":", ".");
               }
-            } else {
-              console.warn("No newAppointment data found for survey", survey.id);
             }
+
+            // ⚠️ FIX: Fallback q10_appDate/q10_appTime จาก survey answers หรือ existingRecord
+            // ป้องกันการส่งค่าว่างทับข้อมูลเดิมที่มีอยู่บน server
+            if (!q10_appDate) {
+              q10_appDate = survey.answers?.q10_appDate || survey.q10_appDate || (existingRecord?.q10_appDate || "");
+            }
+            if (!q10_appTime) {
+              q10_appTime = survey.answers?.q10_appTime || survey.q10_appTime || (existingRecord?.q10_appTime || "");
+            }
+
+            console.log(`📋 Push result: stid=${survey.stid}, tv=${survey.time_visit}, q10_appDate=${q10_appDate}, q10_appTime=${q10_appTime}, recStart=${survey.recStart || 'null'}, recEnd=${survey.recEnd || 'null'}`);
 
             // ดึง booking เพื่อเอา time_app_curr มาใช้เป็น timeStart (fallback)
             let bookingAppointmentTime = null;
@@ -1876,9 +2129,9 @@ export default function ({ app, store, $axios }, inject) {
             try {
               const booking = await app.$indexedDB.getBooking(survey.stid);
               if (booking) {
-                // ⚠️ booking ใน IndexedDB ใช้ stid เป็น primary key (1 record ต่อเด็ก 1 คน)
-                // ดังนั้น booking นี้อาจเป็นนัดหมายครั้งถัดไปแล้ว (ถ้า user สร้างนัดครั้งใหม่ก่อน sync)
-                // จึงใช้เป็น fallback เท่านั้น ไม่ใช้เป็นค่าหลัก
+                // v11: booking ใช้ id = stid_timeVisit แล้ว (หลาย booking/เด็ก)
+                // getBooking(stid) return booking ล่าสุด (time_visit สูงสุด)
+                // ดังนั้น booking นี้อาจเป็นนัดหมายครั้งถัดไปแล้ว — ใช้เป็น fallback เท่านั้น
                 bookingAppointmentDate = booking.appointmentDate || null;
                 bookingAppointmentTime = booking.appointmentTime || null;
               }
@@ -1898,9 +2151,26 @@ export default function ({ app, store, $axios }, inject) {
 
             if (existingRecord) {
               // มีข้อมูลแล้ว - ใช้ PUT
-              const putPayload = {
-                variable: [
-                  "recEnd",
+              // ⚠️ FIX: สร้าง variable/value แบบ dynamic — ข้ามถ้าไม่มีข้อมูลทั้ง local + server
+              const putVariables = [];
+              const putValues = [];
+
+              // recStart: เพิ่มเฉพาะเมื่อมีค่า
+              const recStartVal = survey.recStart || existingRecord.recStart;
+              if (recStartVal) {
+                putVariables.push("recStart");
+                putValues.push(recStartVal);
+              }
+
+              // recEnd: เพิ่มเฉพาะเมื่อมีค่า
+              const recEndVal = survey.recEnd || existingRecord.recEnd;
+              if (recEndVal) {
+                putVariables.push("recEnd");
+                putValues.push(recEndVal);
+              }
+
+              // fields ที่ส่งเสมอ
+              putVariables.push(
                   "timeStart",
                   "date_visit",
                   "q1",
@@ -1953,10 +2223,9 @@ export default function ({ app, store, $axios }, inject) {
                   "pic1",
                   "pic2",
                   "pic3",
-                ],
-                value: [
-                  // recEnd: เวลาที่ระบบแก้ไขล่าสุด (system timestamp) - อัปเดตเมื่อมีการแก้ไข
-                  survey.recEnd || "",
+              );
+
+              putValues.push(
                   // timeStart: ใช้ time_app_curr (วันนัดหมายจริง) เป็นหลัก, fallback เป็น user input
                   timeStartValue ? this.formatTimeForAPI(timeStartValue) : "",
                   // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
@@ -2032,7 +2301,11 @@ export default function ({ app, store, $axios }, inject) {
                   pic1,
                   pic2,
                   pic3,
-                ],
+              );
+
+              const putPayload = {
+                variable: putVariables,
+                value: putValues,
                 pk: ["stid", "time_visit"],
                 pkval: [survey.stid, String(survey.time_visit)],
                 tb: "homevisitor_result",
