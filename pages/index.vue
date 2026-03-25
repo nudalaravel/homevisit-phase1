@@ -2168,7 +2168,12 @@ export default {
       const today = new Date()
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       const appointmentStr = String(visitor.appointmentDate).split('T')[0].split(' ')[0]
-      if (todayStr !== appointmentStr) {
+      // if (todayStr !== appointmentStr) {
+      //   return false
+      // }
+      // 25.3.2026 พี่เคเเจ้งเปลี่ยนเงื่อนไข เป็น 
+      // ถ้าวันนัดหมายมากกว่าวันปัจจุบัน → disabled
+      if (appointmentStr > todayStr) {
         return false
       }
       
