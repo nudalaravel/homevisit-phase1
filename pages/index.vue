@@ -706,6 +706,7 @@ export default {
         appointmentYear: null,
         appointmentTime: '16:00 น.',
         appointmentMonthAge: null,
+        appointmentTimeVisit: null,
         timeActivity: null,
         activities: [],
         visitorBirthMonth: null,
@@ -1301,6 +1302,9 @@ export default {
       // อัพเดทอายุเดือนและครั้งที่เยี่ยม
       this.appointmentForm.appointmentMonthAge = monthAge
       this.appointmentForm.timeActivity = timeActivity
+      // Nuda เพิ่มสำหรับ check อดีต (ยกเว้น timeVisit = 1)
+      const timeVisit = existingBooking?.time_visit || 1
+      this.appointmentForm.appointmentTimeVisit = timeVisit
       
       // ดึงกิจกรรมใหม่
       const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(
@@ -1511,7 +1515,8 @@ export default {
         this.appointmentForm.appointmentDay,
         this.appointmentForm.appointmentMonth,
         this.appointmentForm.appointmentYear,
-        getDaysInMonth
+        getDaysInMonth,
+        this.appointmentForm.appointmentTimeVisit
       )
       
       if (!result.valid) {
@@ -1576,6 +1581,7 @@ export default {
             appointmentYear: year,
             appointmentTime: patient.appointmentTime || '16:00 น.',
             appointmentMonthAge: null,
+            appointmentTimeVisit: 1,
             timeActivity: 1,
             activities: []
           }
@@ -1669,7 +1675,9 @@ export default {
           this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
           return
         }
-        
+        //
+        const timeVisit = existingBooking.time_visit || 1
+
         // ดึงข้อมูลกิจกรรมทั้งหมดจาก IndexedDB
         const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeActivity)
         
@@ -1682,6 +1690,7 @@ export default {
           appointmentYear: year,
           appointmentTime: patient.appointmentTime || '16:00 น.',
           appointmentMonthAge: monthAge,
+          appointmentTimeVisit: timeVisit,
           timeActivity: timeActivity,
           activities: activities || [],
           visitorBirthMonth: parseInt(visitor.month_birth),
@@ -1942,7 +1951,8 @@ export default {
             
             if (existingRecord) {
               // ตรวจสอบว่าวันนัดใหม่ห่างจากวันนัดเดิมอย่างน้อย 5 วัน
-              if (existingRecord.date_app_curr) {
+              // Nuda เพิ่มสำหรับ check อดีต (ยกเว้น timeVisit = 1)
+              if (Number(timeVisit) !== 1 && existingRecord.date_app_curr) {
                 const oldDate = new Date(existingRecord.date_app_curr)
                 const newDate = new Date(appointmentDate)
                 const diffDays = Math.floor((newDate - oldDate) / (1000 * 60 * 60 * 24))

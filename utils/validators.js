@@ -104,7 +104,7 @@ export function validateAddress(address) {
  * @param {Function} getDaysInMonthFn - Function to get days in month
  * @returns {Object} Validation result { valid: boolean, errors: object }
  */
-export function validateAppointmentDate(day, month, year, getDaysInMonthFn) {
+export function validateAppointmentDate(day, month, year, getDaysInMonthFn, timeVisit) {
   const errors = {};
 
   if (!month) {
@@ -131,9 +131,15 @@ export function validateAppointmentDate(day, month, year, getDaysInMonthFn) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (selectedDate < today) {
+    // if (selectedDate < today) {
+    //   errors.day = "ไม่สามารถเลือกวันที่ในอดีตได้";
+    // }
+    // พี่เคให้เพิ่มเงื่อนไข กรณี เยี่ยมครั้งแรก สามารถแก้ไขวันในอดีตได้
+    // ✅ check อดีต (ยกเว้น timeVisit = 1)
+    if (Number(timeVisit) !== 1 && selectedDate < today) {
       errors.day = "ไม่สามารถเลือกวันที่ในอดีตได้";
     }
+
   }
 
   return {

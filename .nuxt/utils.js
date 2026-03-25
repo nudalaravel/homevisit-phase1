@@ -202,7 +202,7 @@ export async function setContext (app, context) {
       payload: context.payload,
       error: context.error,
       base: app.router.options.base,
-      env: {"BUILD_VERSION":"1.0.5 - Build 1000"}
+      env: {"BUILD_VERSION":"1.0.6 - Build 1000"}
     }
     // Only set once
 
