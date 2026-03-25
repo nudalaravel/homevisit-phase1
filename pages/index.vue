@@ -2176,7 +2176,6 @@ export default {
       if (appointmentStr > todayStr) {
         return false
       }
-      
       // ถ้ามี survey ที่ completed=true แต่ synced=false → disabled (รอซิงค์)
       if (visitor.currentSurveyCompleted && !visitor.currentSurveySynced) {
         return false

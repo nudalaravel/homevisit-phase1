@@ -263,7 +263,7 @@
 
           <!-- Activity Review Table (Q5) -->
           <div v-if="parseInt(visitResultForm.visitNumber) !== 1" class="plain-text-section">
-            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ visitResultForm.time || '-' }}</p>
+            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAgePrev || '-' }} การเยี่ยมบ้าน {{ visitResultForm.timePrev || '-' }}</p>
             <table class="plain-table">
               <thead>
                 <tr>
@@ -299,7 +299,7 @@
 
           <!-- Current Visit Activities Section (Q9) -->
           <div v-if="visitResultForm.q9Activities && visitResultForm.q9Activities.length > 0" class="plain-text-section">
-            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ parseInt(visitResultForm.time || 0) + 1 }}</p>
+            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ visitResultForm.time || '-' }}</p>
             <p>โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
             <table class="plain-table">
               <thead>
@@ -709,6 +709,9 @@ export default {
           endTime: raw.timeEnd || '-',
           monthAge: raw.month_age || null,
           time: raw.time_visit,
+          monthAgePrev: raw.prev_month_age || null,
+          timePrev: raw.prev_time_visit,
+          visitNumberPrev: raw.prev_time_visit || 1,
           note: raw.note || '',
           answers: {
             q1: parseInt(raw.q1) || null,
