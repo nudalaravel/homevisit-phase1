@@ -789,7 +789,6 @@ export default function ({ app, store, $axios }, inject) {
                 }
               }
             }
-
             await $axios.$post("/api/parenting2025_census/post/homevisit/datarecord1row.php", {
               variable: [
                 "recby", "stid", "project", "recStart", "time_visit",
@@ -801,8 +800,8 @@ export default function ({ app, store, $axios }, inject) {
               value: [
                 result.recby || username, result.stid, result.project || "15",
                 recStart, String(result.time_visit),
-                visitor?.fname || result.fname_ch || "",
-                visitor?.surname || result.lname_ch || "",
+                visitor?.fname_ch || visitor?.fname || result.fname_ch || "",
+                visitor?.lname_ch || visitor?.surname || result.lname_ch || "",
                 String(monthAge || ""), String(time || ""),
                 result.timeStart || "", result.date_visit || "",
                 result.timeStart || "", result.date_visit || "",
@@ -846,8 +845,8 @@ export default function ({ app, store, $axios }, inject) {
               ],
               value: [
                 String(monthAge || ""), String(time || ""),
-                visitor?.fname || result.fname_ch || booking.fname_ch || "",
-                visitor?.surname || result.lname_ch || booking.lname_ch || "",
+                visitor?.fname_ch || visitor?.fname || result.fname_ch || booking.fname_ch || "",
+                visitor?.lname_ch || visitor?.surname || result.lname_ch || booking.lname_ch || "",
                 activityIds[0], activityIds[1], activityIds[2], activityIds[3], activityIds[4],
               ],
               pk: ["stid", "time_visit"],
@@ -960,8 +959,8 @@ export default function ({ app, store, $axios }, inject) {
               value: [
                 latestResult.recby || username, stid, latestResult.project || "15",
                 recStart, String(nextTv),
-                visitor?.fname || latestResult.fname_ch || "",
-                visitor?.surname || latestResult.lname_ch || "",
+                visitor?.fname_ch || visitor?.fname || latestResult.fname_ch || "",
+                visitor?.lname_ch || visitor?.surname || latestResult.lname_ch || "",
                 String(monthAge || ""), String(time || ""),
                 nextAppTime || "", nextAppDate,
                 nextAppTime || "", nextAppDate,
@@ -1534,9 +1533,10 @@ export default function ({ app, store, $axios }, inject) {
               const currentCntApp = parseInt(existingRecord.cnt_app) || 1;
               const newCntApp = currentCntApp + 1;
               syncedCntApp = newCntApp; // เก็บค่าที่จะ sync กลับ
-
               await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", {
                 variable: [
+                  "fname_ch",
+                  "lname_ch",
                   "time_app_curr",
                   "date_app_curr",
                   "cnt_app",
@@ -1549,6 +1549,8 @@ export default function ({ app, store, $axios }, inject) {
                   "q5_name",
                 ],
                 value: [
+                  visitor?.fname_ch || visitor?.fname || "",
+                  visitor?.lname_ch || visitor?.surname || "",
                   booking.appointmentTime || "",
                   booking.appointmentDate || "",
                   String(newCntApp),
@@ -1596,8 +1598,8 @@ export default function ({ app, store, $axios }, inject) {
                   "15",
                   recStart,
                   String(booking.time_visit || 1),
-                  visitor?.fname || "",
-                  visitor?.lname || "",
+                  visitor?.fname_ch || visitor?.fname || "",
+                  visitor?.lname_ch || visitor?.surname || "",
                   String(booking.month_age || ""),
                   String(booking.time || ""),
                   booking.appointmentTime || "",
@@ -2171,6 +2173,9 @@ export default function ({ app, store, $axios }, inject) {
 
               // fields ที่ส่งเสมอ
               putVariables.push(
+                  "fname_ch",
+                  "lname_ch",
+                  "fullname_visit",
                   "timeStart",
                   "date_visit",
                   "q1",
@@ -2226,6 +2231,9 @@ export default function ({ app, store, $axios }, inject) {
               );
 
               putValues.push(
+                  visitor?.fname_ch,
+                  visitor?.lname_ch,
+                  visitor?.fullname_visit,
                   // timeStart: ใช้ time_app_curr (วันนัดหมายจริง) เป็นหลัก, fallback เป็น user input
                   timeStartValue ? this.formatTimeForAPI(timeStartValue) : "",
                   // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
@@ -2416,9 +2424,9 @@ export default function ({ app, store, $axios }, inject) {
                   // recEnd: เวลาที่ระบบจบการบันทึกจริง (system timestamp)
                   survey.recEnd || "",
                   "1",
-                  visitor?.fname || "",
-                  visitor?.lname || "",
-                  survey.fullname_visit || "",
+                  visitor?.fname_ch || visitor?.fname || "",
+                  visitor?.lname_ch || visitor?.surname ||"",
+                  visitor?.fullname_visit || "",
                   // date_visit: ใช้วันนัดหมายล่าสุดจาก booking (date_app_curr)
                   dateVisitValue,
                   // timeStart: ใช้ time_app_curr (วันนัดหมายจริง) เป็นหลัก, fallback เป็น user input
