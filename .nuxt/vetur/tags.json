@@ -1,0 +1,35 @@
+{
+  "EditPatientModal": {
+    "description": "Auto imported from components/EditPatientModal.vue"
+  },
+  "FailedSyncManager": {
+    "description": "Auto imported from components/FailedSyncManager.vue"
+  },
+  "Loading": {
+    "description": "Auto imported from components/Loading.vue"
+  },
+  "OnlineStatus": {
+    "description": "Auto imported from components/OnlineStatus.vue"
+  },
+  "PatientListItem": {
+    "description": "Auto imported from components/PatientListItem.vue"
+  },
+  "StorageStatus": {
+    "description": "Auto imported from components/StorageStatus.vue"
+  },
+  "Toast": {
+    "description": "Auto imported from components/Toast.vue"
+  },
+  "VisitRecordModal": {
+    "description": "Auto imported from components/VisitRecordModal.vue"
+  },
+  "ActivityQuestionStep": {
+    "description": "Auto imported from components/survey/ActivityQuestionStep.vue"
+  },
+  "ImageUploadStep": {
+    "description": "Auto imported from components/survey/ImageUploadStep.vue"
+  },
+  "QuestionStep": {
+    "description": "Auto imported from components/survey/QuestionStep.vue"
+  }
+}

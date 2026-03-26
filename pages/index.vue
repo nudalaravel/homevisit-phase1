@@ -1676,7 +1676,7 @@ export default {
           return
         }
         //
-        const timeVisit = existingBooking.time_visit || 1
+        const timeVisit = existingBooking?.time_visit || 1
 
         // ดึงข้อมูลกิจกรรมทั้งหมดจาก IndexedDB
         const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeActivity)
