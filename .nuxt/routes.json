@@ -3,98 +3,84 @@
     "name": "admin-document",
     "path": "/admin-document",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-document.vue",
-    "chunkName": "pages/admin-document",
-    "_name": "_11942510"
+    "chunkName": "pages/admin-document"
   },
   {
     "name": "admin-payment",
     "path": "/admin-payment",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-payment.vue",
-    "chunkName": "pages/admin-payment",
-    "_name": "_228a85b9"
+    "chunkName": "pages/admin-payment"
   },
   {
     "name": "admin-payment-history",
     "path": "/admin-payment-history",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-payment-history.vue",
-    "chunkName": "pages/admin-payment-history",
-    "_name": "_1a313e00"
+    "chunkName": "pages/admin-payment-history"
   },
   {
     "name": "admin-receipt",
     "path": "/admin-receipt",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-receipt.vue",
-    "chunkName": "pages/admin-receipt",
-    "_name": "_10dd462a"
+    "chunkName": "pages/admin-receipt"
   },
   {
     "name": "admin-report",
     "path": "/admin-report",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-report.vue",
-    "chunkName": "pages/admin-report",
-    "_name": "_3510ca51"
+    "chunkName": "pages/admin-report"
   },
   {
     "name": "admin-visit-results",
     "path": "/admin-visit-results",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\admin-visit-results.vue",
-    "chunkName": "pages/admin-visit-results",
-    "_name": "_dce3c432"
+    "chunkName": "pages/admin-visit-results"
   },
   {
     "name": "login",
     "path": "/login",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\login.vue",
-    "chunkName": "pages/login",
-    "_name": "_7d8427cc"
+    "chunkName": "pages/login"
   },
   {
     "name": "supervisor-booking",
     "path": "/supervisor-booking",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-booking.vue",
-    "chunkName": "pages/supervisor-booking",
-    "_name": "_48cc8993"
+    "chunkName": "pages/supervisor-booking"
   },
   {
     "name": "supervisor-dashboard",
     "path": "/supervisor-dashboard",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-dashboard.vue",
-    "chunkName": "pages/supervisor-dashboard",
-    "_name": "_8142d464"
+    "chunkName": "pages/supervisor-dashboard"
   },
   {
     "name": "supervisor-document",
     "path": "/supervisor-document",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-document.vue",
-    "chunkName": "pages/supervisor-document",
-    "_name": "_0a7b3f51"
+    "chunkName": "pages/supervisor-document"
   },
   {
     "name": "supervisor-report",
     "path": "/supervisor-report",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-report.vue",
-    "chunkName": "pages/supervisor-report",
-    "_name": "_7d02be6a"
+    "chunkName": "pages/supervisor-report"
   },
   {
     "name": "supervisor-survey",
     "path": "/supervisor-survey",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\supervisor-survey.vue",
-    "chunkName": "pages/supervisor-survey",
-    "_name": "_3c8ee4e0"
+    "chunkName": "pages/supervisor-survey"
   },
   {
     "name": "survey",
     "path": "/survey",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\survey.vue",
-    "chunkName": "pages/survey",
-    "_name": "_adc26d0e"
+    "chunkName": "pages/survey"
   },
   {
     "name": "index",
     "path": "/",
     "component": "E:\\\\Project2025\\\\homevisit\\\\pages\\\\index.vue",
-    "chunkName": "pages/index",
-    "_name": "_10d36dfa"
+    "chunkName": "pages/index"
   }
 ]

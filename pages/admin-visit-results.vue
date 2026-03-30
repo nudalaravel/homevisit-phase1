@@ -543,8 +543,8 @@ export default {
               stid: item.stid,
               recby: item.recby,
               ampCode: item.amp_code,
-              visitorName: visitorNameMap[item.recby] || item.recby || '-',
-              childName: item.fullname_visit || `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
+              visitorName: visitorNameMap[item.recby] || item.recby || item.fullname_visit || '-',
+              childName: `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
               lastVisitDate: item.date_visit || '-',
               lastVisitTime: item.timeStart || '-',
               visitNumber: parseInt(item.maxvisit) || parseInt(item.time_visit) || 0,
@@ -701,8 +701,8 @@ export default {
         }
         
         this.visitResultForm = {
-          childName: raw.fullname_visit || this.visitHistoryForm.childName,
-          visitorName: this.visitHistoryForm.visitorName,
+          childName: this.visitHistoryForm.childName,
+          visitorName: raw.fullname_visit || this.visitHistoryForm.visitorName,
           visitNumber: raw.time_visit || 1,
           visitDate: raw.date_visit || '-',
           visitTime: raw.timeStart || '-',

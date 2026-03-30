@@ -789,8 +789,9 @@ export default {
               id: `${item.stid}-${item.time_visit}-${index}`,
               stid: item.stid,
               visitDate: `${this.formatThaiDate(item.date_visit)} (${item.time_visit || '-'})`,
-              visitorName: visitorNameMap[item.recby] || item.recby || '-',
-              childName: item.fullname_visit || `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
+              // visitorName: visitorNameMap[item.recby] || item.recby || '-',
+              visitorName: visitorNameMap[item.recby] || item.recby || item.fullname_visit || '-',
+              childName: `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
               recordStatus: item.recStatus === '1' ? 'completed' : 'pending',
               hasPhotos: !!(item.pic1 || item.pic2),
               confirmStatus: confirmStatus,
@@ -932,8 +933,8 @@ export default {
           }
 
           this.recordData = {
-            childName: raw.fullname_visit || item.childName,
-            visitorName: item.visitorName,
+            childName: item.childName,
+            visitorName: raw.fullname_visit || item.visitorName,
             visitDate: raw.date_visit || item.visitDate,
             visitNumber: raw.time_visit || 1,
             startTime: raw.timeStart || '16:00 น.',
@@ -1034,8 +1035,8 @@ export default {
       // ใช้ข้อมูลกิจกรรมจริงจาก IndexedDB เท่านั้น (ไม่ใช้ mock)
 
       this.recordData = {
-        childName: survey.fullname_visit || item.childName,
-        visitorName: item.visitorName,
+        childName: item.childName,
+        visitorName: survey.fullname_visit || item.visitorName,
         visitDate: visitDate,
         visitNumber: visitNumber,
         startTime: startTime,

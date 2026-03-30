@@ -492,7 +492,7 @@ export default {
         if (!uniqueChildren.has(item.stid)) {
           uniqueChildren.set(item.stid, {
             value: item.stid,
-            text: item.fullname_visit || item.fname_ch || '-',
+            text: item.fname_ch || '-',
             data: item
           })
         }

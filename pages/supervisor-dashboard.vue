@@ -543,8 +543,8 @@ export default {
               recby: item.recby, // เก็บ username ไว้สำหรับ filter
               ampCode: item.amp_code, // เก็บรหัสอำเภอไว้สำหรับ filter
               // แปลง recby (username) เป็นชื่อจริงจาก visitorOptions
-              visitorName: visitorNameMap[item.recby] || item.recby || '-',
-              childName: item.fullname_visit || `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
+              visitorName: visitorNameMap[item.recby] || item.recby || item.fullname_visit || '-',
+              childName: `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
               lastVisitDate: item.date_visit || '-',
               lastVisitTime: item.timeStart || '-',
               visitNumber: parseInt(item.maxvisit) || parseInt(item.time_visit) || 0,
@@ -701,8 +701,8 @@ export default {
         }
         
         this.visitResultForm = {
-          childName: raw.fullname_visit || this.visitHistoryForm.childName,
-          visitorName: this.visitHistoryForm.visitorName,
+          childName: this.visitHistoryForm.childName,
+          visitorName: raw.fullname_visit ||  this.visitHistoryForm.visitorName,
           visitNumber: raw.time_visit || 1,
           visitDate: raw.date_visit || '-',
           visitTime: raw.timeStart || '-',
