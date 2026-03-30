@@ -1150,13 +1150,14 @@ export default {
             const birthDay = parseInt(visitor.day_birth) || 1
             
             let previousBooking = null
+            let previousAppointmentDate = null
             if (booking.time_visit > 1) {
               // หา survey ครั้งก่อนหน้า เพื่อใช้เป็น existingBooking
               const prevTimeVisit = booking.time_visit - 1
               const prevSurvey = completedSurveys.find(s => 
                 String(s.time_visit) === String(prevTimeVisit) && s.completed
               )
-              
+              previousAppointmentDate = prevSurvey.appointmentDate
               if (prevSurvey && prevSurvey.appointmentDate) {
                 previousBooking = {
                   appointmentDate: new Date(prevSurvey.appointmentDate),
@@ -1173,7 +1174,7 @@ export default {
               appointmentDate,
               previousBooking
             )
-            
+            result.appointmentDatePrev = previousAppointmentDate
             result.month_age = calculated.monthAge
             result.time = calculated.timeActivity
           }
@@ -1549,6 +1550,7 @@ export default {
       return dateValid && timeValid
     },
     async scheduleAppointment(patient) {
+      console.log(patient)
       try {
         let month, day, year
         
@@ -1757,7 +1759,7 @@ export default {
           }
         } catch (error) {
         }
-        
+
         // ถ้าไม่มี survey หรือไม่มี timeStart ให้สร้าง recStart ใหม่
         if (!recStart) {
           const now = new Date()
@@ -1801,7 +1803,6 @@ export default {
           const previousSurvey = completedSurveys.find(s => 
             String(s.time_visit) === String(previousTimeVisit) && s.completed
           )
-          
           if (previousSurvey && previousSurvey.appointmentDate) {
             // มี survey ก่อนหน้า → คำนวณใหม่ตาม logic 21 วัน
             const previousDate = new Date(previousSurvey.appointmentDate)
@@ -1826,6 +1827,16 @@ export default {
             if (finalMonthAge <= 0) {
               this.loading = false
               this.$toast.error('ไม่สามารถบันทึกนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
+              return
+            }
+            // Nuda add 30.3.2026
+            const oldDate = new Date(previousSurvey.appointmentDate)
+            const newDate = new Date(appointmentDate)
+            const diffDays = Math.floor((newDate - oldDate) / (1000 * 60 * 60 * 24))
+            console.log(diffDays)
+            if (Math.abs(diffDays) < 5) {
+              this.loading = false
+              this.$toast.error(`วันนัดหมายใหม่ต้องห่างจากวันเยี่ยมบ้านครั้งก่อนหน้าอย่างน้อย 5 วัน (ห่าง ${Math.abs(diffDays)} วัน) | Offline `)
               return
             }
 
@@ -1948,17 +1959,23 @@ export default {
               record.stid === visitor.stid && 
               String(record.time_visit) === String(timeVisit)
             )
-            
             if (existingRecord) {
+              // Nuda add 30.3.2026
+              const previousTimeVisit = timeVisit - 1
+              const existingRecordPrev = checkResponse?.results?.find(record => 
+                record.stid === visitor.stid && 
+                String(record.time_visit) === String(previousTimeVisit)
+              )
               // ตรวจสอบว่าวันนัดใหม่ห่างจากวันนัดเดิมอย่างน้อย 5 วัน
               // Nuda เพิ่มสำหรับ check อดีต (ยกเว้น timeVisit = 1)
               if (Number(timeVisit) !== 1 && existingRecord.date_app_curr) {
-                const oldDate = new Date(existingRecord.date_app_curr)
+                // const oldDate = new Date(existingRecord.date_app_curr)
+                const oldDate = new Date(existingRecordPrev.date_app_curr)
                 const newDate = new Date(appointmentDate)
                 const diffDays = Math.floor((newDate - oldDate) / (1000 * 60 * 60 * 24))
                 if (Math.abs(diffDays) < 5) {
                   this.loading = false
-                  this.$toast.error(`วันนัดหมายใหม่ต้องห่างจากวันเดิมอย่างน้อย 5 วัน (ห่าง ${Math.abs(diffDays)} วัน)`)
+                  this.$toast.error(`วันนัดหมายใหม่ต้องห่างจากวันเยี่ยมบ้านครั้งก่อนหน้าอย่างน้อย 5 วัน (ห่าง ${Math.abs(diffDays)} วัน)`)
                   return
                 }
               }
