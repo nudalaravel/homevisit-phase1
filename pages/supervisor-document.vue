@@ -329,8 +329,10 @@ export default {
       receiptData: null,
       loadingPDF: false,
       // Pagination state for infinite scroll
-      currentPage: 0,
+      currentPage: 1,
+      pageSize: 20,
       hasMoreData: true,
+      loading: false,
       loadingMore: false
     }
   },
@@ -402,13 +404,84 @@ export default {
       }
     },
 
-    // ดึงข้อมูลการจ่ายเงินจาก API พร้อม pagination
     async fetchTableData(isLoadMore = false) {
+      if (this.loading || this.loadingMore || !this.hasMoreData) return
+
       if (isLoadMore) {
         this.loadingMore = true
       } else {
         this.loading = true
-        this.currentPage = 0
+        this.currentPage = 1
+        this.tableData = []
+        this.hasMoreData = true
+      }
+
+      try {
+        const url = `/api/parenting2025_census/get/homevisit/gethomevisitpayment.php?page=${this.currentPage}`
+        const response = await this.$axios.$get(url)
+
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+
+        if (isSuccess && response.results && response.results.length > 0) {
+          const newItems = response.results.map((item, index) => ({
+            id: item.no || `${item.VendorID}_${item.transfIns || index}`,
+            no: item.no,
+            username: item.VendorID,
+            visitorName: item.VendorName || `${item.fname || ''} ${item.lname || ''}`.trim(),
+            dateSubmit: this.formatApiDate(item.dateSubmit),
+            paymentDate: this.formatApiDate(item.paymentDate),
+            installment: item.transfIns || '-',
+            amount: item.Amount || '0.00',
+            idCard: item.PID || '-',
+            address: item.Address || '-',
+            sendReceipt: item.doc1 === '1',
+            sendIdCard: item.doc2 === '1',
+            doc1_by: item.doc1_by || null,
+            doc1_date: item.doc1_date || null,
+            doc2_by: item.doc2_by || null,
+            doc2_date: item.doc2_date || null,
+            canEdit: item.can_edit === '1' || item.can_edit === 1,
+            isComplete: String(item.isComplete),
+            rawData: item
+          }))
+
+          // กันข้อมูลซ้ำ
+          const existingIds = new Set(this.tableData.map(x => x.id))
+          const filteredItems = newItems.filter(x => !existingIds.has(x.id))
+
+          if (filteredItems.length === 0) {
+            this.hasMoreData = false
+            return
+          }
+
+          this.tableData = [...this.tableData, ...filteredItems]
+          this.currentPage++
+
+          // ถ้า backend ส่งมาน้อยกว่าที่ควรเป็น ให้ถือว่าหมดแล้ว
+          if (response.results.length < this.pageSize) {
+            this.hasMoreData = false
+          }
+        } else {
+          this.hasMoreData = false
+        }
+      } catch (error) {
+        console.error('Error fetching table data:', error)
+        if (!isLoadMore) {
+          this.tableData = []
+        }
+        this.hasMoreData = false
+      } finally {
+        this.loading = false
+        this.loadingMore = false
+      }
+    },
+    // ดึงข้อมูลการจ่ายเงินจาก API พร้อม pagination
+    async fetchTableDataVerPPol(isLoadMore = false) {
+      if (isLoadMore) {
+        this.loadingMore = true
+      } else {
+        this.loading = true
+        this.currentPage = 1
         this.tableData = []
         this.hasMoreData = true
       }
