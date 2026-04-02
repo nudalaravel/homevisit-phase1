@@ -234,7 +234,7 @@
           <!-- Basic Info Section -->
           <div class="plain-text-section">
             <p>ชื่อ-นามสกุลของเด็ก : {{ visitResultForm.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatVisitDate(visitResultForm.visitDate) }}</span></p>
-            <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ visitResultForm.visitNumber || '-' }}</span></p>
+            <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ visitResultForm.visitNumber || '-' }} (กิจกรรมการเยี่ยมบ้านเดีอนที่ {{ visitResultForm.monthAge || '-' }} ครั้งที่ {{ visitResultForm.time || '-' }})</span></p>
             <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ visitResultForm.visitTime || '-' }}</p>
           </div>
 
@@ -263,7 +263,7 @@
 
           <!-- Activity Review Table (Q5) -->
           <div v-if="parseInt(visitResultForm.visitNumber) !== 1" class="plain-text-section">
-            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAgePrev || '-' }} การเยี่ยมบ้าน {{ visitResultForm.timePrev || '-' }}</p>
+            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAgePrev || '-' }} ครั้งที่ {{ visitResultForm.timePrev || '-' }}</p>
             <table class="plain-table">
               <thead>
                 <tr>
@@ -299,7 +299,7 @@
 
           <!-- Current Visit Activities Section (Q9) -->
           <div v-if="visitResultForm.q9Activities && visitResultForm.q9Activities.length > 0" class="plain-text-section">
-            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ visitResultForm.time || '-' }}</p>
+            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} ครั้งที่ {{ visitResultForm.time || '-' }}</p>
             <p>โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
             <table class="plain-table">
               <thead>

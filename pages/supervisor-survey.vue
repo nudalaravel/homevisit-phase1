@@ -105,7 +105,7 @@
           <!-- กิจกรรมการเยี่ยมบ้าน (read-only) -->
           <div class="fixed-form-row">
             <label class="fixed-label">กิจกรรมการเยี่ยมบ้าน :</label>
-            <span class="fixed-value">เดือนที่ {{ selectedVisitData.month_age || '-' }} การเยี่ยมบ้าน {{ selectedVisitData.time || '-' }}</span>
+            <span class="fixed-value">เดือนที่ {{ selectedVisitData.month_age || '-' }} ครั้งที่ {{ selectedVisitData.time || '-' }}</span>
           </div>
           
           <!-- กิจกรรมเริ่มเวลา (free text) -->

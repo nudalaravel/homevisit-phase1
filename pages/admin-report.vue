@@ -204,7 +204,7 @@
 
           <!-- ทบทวนกิจกรรมการเยี่ยมบ้าน Section -->
           <div class="plain-text-section">
-            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ observationData?.month_age || '-' }} การเยี่ยมบ้าน {{ observationData?.time || '-' }}</p>
+            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ observationData?.month_age || '-' }} ครั้งที่ {{ observationData?.time || '-' }}</p>
           </div>
 
           <!-- Questions Section -->
@@ -674,7 +674,7 @@ export default {
             </div>
             
             <div style="margin-bottom: 15px;">
-              <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ ${data?.month_age || '-'} การเยี่ยมบ้าน ${data?.time || '-'}</p>
+              <p style="font-weight: bold; text-decoration: underline; margin-bottom: 10px;">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ ${data?.month_age || '-'} ครั้งที่ ${data?.time || '-'}</p>
             </div>
         `
         
