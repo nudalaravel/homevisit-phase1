@@ -396,7 +396,7 @@
         <!-- Basic Info Section -->
         <div class="plain-text-section">
           <p>ชื่อ-นามสกุลของเด็ก : {{ recordData.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatThaiDate(recordData.visitDate) }}</span></p>
-          <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ recordData.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ recordData.visitNumber || '-' }} (กิจกรรมการเยี่ยมบ้านเดีอนที่ {{ recordData.monthAge || '-' }} ครั้งที่ {{ recordData.time || '-' }})</span></p>
+          <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ recordData.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ recordData.visitNumber || '-' }} (กิจกรรมการเยี่ยมบ้าน เดีอนที่ {{ recordData.monthAge || '-' }} ครั้งที่ {{ recordData.time || '-' }})</span></p>
           <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ recordData.startTime || '-' }}</p>
         </div>
 

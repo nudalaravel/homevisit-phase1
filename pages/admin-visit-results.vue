@@ -226,7 +226,7 @@
           <!-- Basic Info Section -->
           <div class="plain-text-section">
             <p>ชื่อ-นามสกุลของเด็ก : {{ visitResultForm.childName || '-' }} <span style="margin-left: 3rem;">วันที่ {{ formatVisitDate(visitResultForm.visitDate) }}</span></p>
-            <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ visitResultForm.visitNumber || '-' }} (กิจกรรมการเยี่ยมบ้านเดีอนที่ {{ visitResultForm.monthAge || '-' }} ครั้งที่ {{ visitResultForm.time || '-' }})</span></p>
+            <p>ชื่อ-นามสกุลของผู้เยี่ยมบ้าน : {{ visitResultForm.visitorName || '-' }} <span style="margin-left: 3rem;">การเยี่ยมบ้านครั้งที่ {{ visitResultForm.visitNumber || '-' }} (กิจกรรมการเยี่ยมบ้าน เดีอนที่ {{ visitResultForm.monthAge || '-' }} ครั้งที่ {{ visitResultForm.time || '-' }})</span></p>
             <p>เวลาเริ่มต้นการเยี่ยมบ้าน {{ visitResultForm.visitTime || '-' }}</p>
           </div>
 
