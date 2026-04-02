@@ -255,7 +255,7 @@
 
           <!-- Activity Review Table (Q5) -->
           <div v-if="parseInt(visitResultForm.visitNumber) !== 1" class="plain-text-section">
-            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAgePrev || '-' }} การเยี่ยมบ้าน {{ visitResultForm.timePrev || '-' }}</p>
+            <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ visitResultForm.monthAgePrev || '-' }} ครั้งที่ {{ visitResultForm.timePrev || '-' }}</p>
             <table class="plain-table">
               <thead>
                 <tr>
@@ -291,7 +291,7 @@
 
           <!-- Current Visit Activities Section (Q9) -->
           <div v-if="visitResultForm.q9Activities && visitResultForm.q9Activities.length > 0" class="plain-text-section">
-            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} การเยี่ยมบ้าน {{ visitResultForm.time || '-' }}</p>
+            <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ visitResultForm.monthAge || '-' }} ครั้งที่ {{ visitResultForm.time || '-' }}</p>
             <p>โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
             <table class="plain-table">
               <thead>

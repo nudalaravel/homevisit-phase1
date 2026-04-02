@@ -425,7 +425,7 @@
 
         <!-- Activity Review Table -->
         <div v-if="parseInt(recordData.visitNumber) !== 1" class="plain-text-section">
-          <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ recordData.monthAge || '-' }} การเยี่ยมบ้าน {{ recordData.time || '-' }}</p>
+          <p class="section-header-text underline">ทบทวนกิจกรรมการเยี่ยมบ้าน : เดือนที่ {{ recordData.monthAgePrev || '-' }} ครั้งที่ {{ recordData.timePrev || '-' }}</p>
           <table class="plain-table">
             <thead>
               <tr>
@@ -461,7 +461,7 @@
 
         <!-- Current Visit Activities Section (Q9) -->
         <div v-if="recordData.q9Activities && recordData.q9Activities.length > 0" class="plain-text-section">
-          <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ recordData.monthAge || '-' }} การเยี่ยมบ้าน {{ parseInt(recordData.time || 0) + 1 }}</p>
+          <p>9 : ให้ผู้เยี่ยมบ้าน <strong>สังเกต</strong> หรือ <strong>ทบทวน</strong> กิจกรรมการเยี่ยมบ้าน เดือนที่ {{ recordData.monthAge || '-' }} ครั้งที่ {{ recordData.time || '-' }}</p>
           <p>โดยขอให้ผู้ปกครองสาธิตการทำกิจกรรมร่วมกับเด็ก</p>
           <table class="plain-table">
             <thead>
@@ -764,7 +764,7 @@ export default {
           if (this.filters.visitor && this.filters.visitor !== 'all') {
             filteredResults = resultDataResponse.results.filter(item => item.recby === this.filters.visitor)
           }
-          
+          console.log(filteredResults)
           this.tableData = filteredResults.map((item, index) => {
             // ดึง approve status จาก resultlist API โดยใช้ stid และ time_visit เป็น key
             const approveKey = `${item.stid}_${item.time_visit}`
@@ -939,8 +939,11 @@ export default {
             visitNumber: raw.time_visit || 1,
             startTime: raw.timeStart || '16:00 น.',
             endTime: raw.timeEnd || '-',
-            monthAge: null, // ไม่มีใน API
-            time: raw.time_visit,
+            time_visit: raw.time_visit,
+            monthAge: raw.month_age,
+            time: raw.time,
+            monthAgePrev: raw.prev_month_age,
+            timePrev: raw.prev_time,
             note: raw.note || '',
             answers: {
               q1: parseInt(raw.q1) || null,
