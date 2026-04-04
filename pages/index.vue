@@ -318,8 +318,6 @@
       header-class="modal-header-visit"
     >
       <b-form>
-       
-
         <div class="visit-info-grid">
           <div class="info-item">
             <label><i class="fas fa-calendar-alt"></i> วันที่เยี่ยมบ้าน</label>
@@ -355,6 +353,57 @@
         <b-button variant="primary" @click="continueToSurvey">
           <i class="fas fa-arrow-right"></i>
           เริ่มทำแบบสอบถาม
+        </b-button>
+      </template>
+    </b-modal>
+
+
+    <!-- Visit Record Modal -->
+    <b-modal
+      id="editvisitRecordModal"
+      v-model="showEditVisitModal"
+      title="แก้ไขแบบบันทึกข้อมูลการเยี่ยมบ้าน"
+      size="lg"
+      no-close-on-backdrop
+      @hidden="resetVisitForm"
+      header-class="modal-header-visit"
+    >
+      <b-form>
+        <div class="visit-info-grid">
+          <div class="info-item">
+            <label><i class="fas fa-calendar-alt"></i> วันที่เยี่ยมบ้าน</label>
+            <div class="info-value">{{ visitForm.visitDate }}</div>
+          </div>
+
+          <div class="info-item">
+            <label><i class="fas fa-user"></i> ชื่อ-นามสกุล</label>
+            <div class="info-value">{{ visitForm.patientName }}</div>
+          </div>
+
+          <div class="info-item">
+            <label><i class="fas fa-id-badge"></i> ชื่อเล่น</label>
+            <div class="info-value">{{ visitForm.nickname }}</div>
+          </div>
+
+          <div class="info-item full-width">
+            <label><i class="fas fa-clock"></i> เวลาเริ่มต้นการเยี่ยมบ้าน</label>
+            <b-form-select
+              v-model="visitForm.startTime"
+              :options="timeOptions"
+              class="custom-select-visit"
+            ></b-form-select>
+          </div>
+        </div>
+      </b-form>
+
+      <template #modal-footer="{ cancel }">
+        <b-button variant="secondary" @click="cancel()">
+          <i class="fas fa-times"></i>
+          ปิด
+        </b-button>
+        <b-button variant="primary" @click="editSurvey">
+          <i class="fas fa-arrow-right"></i>
+          ถัดไป
         </b-button>
       </template>
     </b-modal>
@@ -689,6 +738,7 @@ export default {
       showVisitHistoryModal: false,
       showAddModal: false,
       showEditPhotoModal: false,
+      showEditVisitModal: false,
       editForm: {
         id: null,
         stid: null,
@@ -2348,6 +2398,7 @@ export default {
     
     // แสดงประวัติการเยี่ยมบ้าน
     async showVisitHistory(patient) {
+      console.log(patient)
       try {
         // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
@@ -2411,6 +2462,7 @@ export default {
         }
         
         this.showVisitHistoryModal = false
+
         
         // เก็บข้อมูลแบบสอบถามสำหรับแก้ไข
         const surveyData = {
@@ -2424,11 +2476,66 @@ export default {
         }
         
         localStorage.setItem('surveyEdit', JSON.stringify(surveyData))
-        
         // ไปหน้าแบบสอบถามโหมดแก้ไข
         this.$router.push('/survey?mode=edit&surveyId=' + visit.surveyId)
+        
+        // เปิดให้แก้ไขเวลาเริ่มต้นก่อน
+        // this.editVisitRecordModal(visit)
       } catch (error) {
         this.$toast.error('ไม่สามารถเปิดหน้าแก้ไขบันทึกได้')
+      }
+    },
+    editVisitRecordModal(visit) {
+      let day, month, thaiYear      
+      if (visit?.date) {
+        // มีวันนัดหมาย ใช้วันที่นัดหมาย
+        const appointmentDate = new Date(visit.date)
+        day = appointmentDate.getDate()
+        month = this.getThaiMonth(appointmentDate.getMonth())
+        thaiYear = appointmentDate.getFullYear() + 543
+      } else {
+        // ไม่มีวันนัดหมาย ใช้วันที่ปัจจุบัน
+        const now = new Date()
+        day = now.getDate()
+        month = this.getThaiMonth(now.getMonth())
+        thaiYear = now.getFullYear() + 543
+      }
+      const normalizeTime = (time) => {
+        if (!time) return ''
+        return time.replace('.', ':')
+      }
+      this.visitForm = {
+        id: this.visitHistoryForm.id,
+        patientName: this.visitHistoryForm.patientName,
+        nickname: this.visitHistoryForm.nickname,
+        visitDate: `${day} ${month} ${thaiYear}`,
+        // เวลาเริ่มบันทึก (user กรอกเอง) - default เป็นเวลานัดหมาย หรือ 16:00
+        startTime: normalizeTime(visit?.timeStart) || '',
+        // เก็บเวลานัดหมายไว้ด้วย
+        appointmentTime: normalizeTime(visit?.timeStart) || '',
+        currVisit: visit?.visitNumber
+      }
+      this.showEditVisitModal = true
+      
+    },
+    async editSurvey() {
+      const patient = this.visitors.find(v => v.id === this.visitForm.id)
+      if (patient) {
+        await this.goToEditSurvey(patient)
+      }
+    },
+    async goToEditSurvey(patient) {
+      try {
+        
+        const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
+        console.log(existingSurvey)
+        // Navigate to survey page
+        // this.$router.push('/survey')
+        // ไปหน้าแบบสอบถามโหมดแก้ไข
+        // this.$router.push('/survey?mode=edit&surveyId=' + visit.surveyId)
+      } catch (error) {
+        console.error('Error in goToSurvey:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการเตรียมข้อมูล')
       }
     },
     async editVisitPhotos(visit) {
