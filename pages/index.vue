@@ -2463,7 +2463,7 @@ export default {
         
         this.showVisitHistoryModal = false
 
-        
+        /*
         // เก็บข้อมูลแบบสอบถามสำหรับแก้ไข
         const surveyData = {
           mode: 'edit',
@@ -2476,11 +2476,12 @@ export default {
         }
         
         localStorage.setItem('surveyEdit', JSON.stringify(surveyData))
+        */
         // ไปหน้าแบบสอบถามโหมดแก้ไข
-        this.$router.push('/survey?mode=edit&surveyId=' + visit.surveyId)
+        // this.$router.push('/survey?mode=edit&surveyId=' + visit.surveyId)
         
         // เปิดให้แก้ไขเวลาเริ่มต้นก่อน
-        // this.editVisitRecordModal(visit)
+        this.editVisitRecordModal(visit)
       } catch (error) {
         this.$toast.error('ไม่สามารถเปิดหน้าแก้ไขบันทึกได้')
       }
@@ -2505,6 +2506,7 @@ export default {
         return time.replace('.', ':')
       }
       this.visitForm = {
+        surveyId: visit.surveyId,
         id: this.visitHistoryForm.id,
         patientName: this.visitHistoryForm.patientName,
         nickname: this.visitHistoryForm.nickname,
@@ -2513,30 +2515,28 @@ export default {
         startTime: normalizeTime(visit?.timeStart) || '',
         // เก็บเวลานัดหมายไว้ด้วย
         appointmentTime: normalizeTime(visit?.timeStart) || '',
-        currVisit: visit?.visitNumber
+        visitNumber: visit.visitNumber
       }
       this.showEditVisitModal = true
       
     },
     async editSurvey() {
-      const patient = this.visitors.find(v => v.id === this.visitForm.id)
-      if (patient) {
-        await this.goToEditSurvey(patient)
+      const surveyId = this.visitForm.surveyId
+      const visitNumber = this.visitForm.visitNumber
+      const surveyData = {
+        mode: 'edit',
+        surveyId: surveyId,
+        stid: this.visitHistoryForm.stid,
+        name: this.visitHistoryForm.patientName,
+        nickname: this.visitHistoryForm.nickname,
+        time: visitNumber,
+        appointmentTime: this.visitForm.startTime,
+        editAllowed: true // อนุญาตให้แก้ไขทั้งหมด
       }
-    },
-    async goToEditSurvey(patient) {
-      try {
-        
-        const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
-        console.log(existingSurvey)
-        // Navigate to survey page
-        // this.$router.push('/survey')
-        // ไปหน้าแบบสอบถามโหมดแก้ไข
-        // this.$router.push('/survey?mode=edit&surveyId=' + visit.surveyId)
-      } catch (error) {
-        console.error('Error in goToSurvey:', error)
-        this.$toast.error('เกิดข้อผิดพลาดในการเตรียมข้อมูล')
-      }
+      
+      localStorage.setItem('surveyEdit', JSON.stringify(surveyData))
+      // ไปหน้าแบบสอบถามโหมดแก้ไข
+      this.$router.push('/survey?mode=edit&surveyId=' + surveyId)
     },
     async editVisitPhotos(visit) {
       try {

@@ -1183,8 +1183,10 @@ export default {
         time_visit: timeVisit,
         month_age: monthAge,
         appointmentDate: survey.appointmentDate,
-        appointmentTime: survey.appointmentTime
+        appointmentTime: editData.appointmentTime
+        // appointmentTime: survey.appointmentTime
       }
+      console.log(this.visitorData)
       
       // โหลดข้อมูลแบบสอบถามเดิม
       await this.loadExistingSurvey(survey)
@@ -1377,11 +1379,16 @@ export default {
     },
     
     async loadExistingSurvey(survey) {
+      const urlParams = this.$route.query
       this.surveyId = survey.id
       
       this.recStart = survey.recStart || null
       this.recEnd = survey.recEnd || null
-      this.timeStart = survey.timeStart || null
+      if (survey.completed && urlParams.mode === 'edit') {
+        this.timeStart = this.visitorData.appointmentTime || null
+      } else {
+        this.timeStart = survey.timeStart || null
+      }
       this.timeEnd = survey.timeEnd || null
     
       this.isSyncedSurvey = survey.synced === true
