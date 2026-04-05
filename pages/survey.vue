@@ -1,7 +1,6 @@
 <template>
   <div>
     <Loading :show="loading" :message="loadingMessage" />
-    
     <!-- Step 1: ผู้ปกครองสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่ -->
     <div v-if="currentStep === 1" class="survey-step">
       <h4 class="question-title">1.ผู้ปกครองสามารถร่วมทำกิจกรรมการเยี่ยมบ้านครั้งนี้ได้หรือไม่</h4>
@@ -1184,9 +1183,9 @@ export default {
         month_age: monthAge,
         appointmentDate: survey.appointmentDate,
         appointmentTime: editData.appointmentTime
-        // appointmentTime: survey.appointmentTime
       }
-      console.log(this.visitorData)
+      // เปลี่ยนเป็น เอาเวลา หน้าแก้ไขข้อมูล แทน
+      // appointmentTime: survey.appointmentTime
       
       // โหลดข้อมูลแบบสอบถามเดิม
       await this.loadExistingSurvey(survey)
@@ -1379,16 +1378,18 @@ export default {
     },
     
     async loadExistingSurvey(survey) {
-      const urlParams = this.$route.query
       this.surveyId = survey.id
       
       this.recStart = survey.recStart || null
       this.recEnd = survey.recEnd || null
+      // เพิ่มตรงนี้ เพื่อเช็คว่า เป็นหน้าแก้ไข หรือไม่
+      const urlParams = this.$route.query
       if (survey.completed && urlParams.mode === 'edit') {
         this.timeStart = this.visitorData.appointmentTime || null
       } else {
         this.timeStart = survey.timeStart || null
       }
+      // this.timeStart = survey.timeStart || null
       this.timeEnd = survey.timeEnd || null
     
       this.isSyncedSurvey = survey.synced === true
@@ -2600,11 +2601,19 @@ export default {
       // บันทึก timeEnd และ recEnd เมื่อออกจาก Step 10 (บันทึกผู้เยี่ยมบ้าน)
       if (this.currentStep === 10) {
         const now = new Date()
-        
-        // timeEnd: เวลาที่ user กรอก (จาก endHour และ endMinute) - Format: "HH:MM น."
-        if (!this.timeEnd) {
+        const urlParams = this.$route.query
+        if (
+          (urlParams.mode === 'edit') ||
+          !this.timeEnd
+        ) {
           this.timeEnd = `${this.answers.endHour}:${this.answers.endMinute} น.`
         }
+        
+        
+        // timeEnd: เวลาที่ user กรอก (จาก endHour และ endMinute) - Format: "HH:MM น."
+        // if (!this.timeEnd) {
+        //   this.timeEnd = `${this.answers.endHour}:${this.answers.endMinute} น.`
+        // }
         
         // recEnd: เวลาที่ระบบบันทึกจริง (อัปเดตทุกครั้งที่มีการบันทึก)
         this.recEnd = toMySQLDateTime(now)
@@ -2612,6 +2621,8 @@ export default {
         // บันทึกลง IndexedDB ทันที
         await this.saveProgress()
       }
+
+      
       
       // Skip logic: จาก step 1 ถ้า q1 === 3 แสดงแจ้งเตือนและลบ survey
       if (this.currentStep === 1 && this.skippedFromQ1) {

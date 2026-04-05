@@ -457,7 +457,7 @@
           <div 
             class="visit-card visit-card-action visit-card-edit-record" 
             :class="{ 'disabled': visit.approved }"
-            @click="visit.approved ? null : editVisitRecord(visit)"
+            @click="visit.approved ? null : editVisitRecord(visitHistoryForm, visit)"
           >
             <i class="fas fa-edit"></i>
             <span>แก้ไขบันทึกการเยี่ยม</span>
@@ -1600,7 +1600,6 @@ export default {
       return dateValid && timeValid
     },
     async scheduleAppointment(patient) {
-      console.log(patient)
       try {
         let month, day, year
         
@@ -2301,9 +2300,7 @@ export default {
         nickname: patient.nickname,
         visitDate: `${day} ${month} ${thaiYear}`,
         // เวลาเริ่มบันทึก (user กรอกเอง) - default เป็นเวลานัดหมาย หรือ 16:00
-        startTime: booking?.appointmentTime || patient.appointmentTime || '16:00 น.',
-        // เก็บเวลานัดหมายไว้ด้วย
-        appointmentTime: booking?.appointmentTime || patient.appointmentTime || '16:00 น.'
+        startTime: booking?.appointmentTime || patient.appointmentTime || '16:00 น.'
       }
       
 
@@ -2398,7 +2395,6 @@ export default {
     
     // แสดงประวัติการเยี่ยมบ้าน
     async showVisitHistory(patient) {
-      console.log(patient)
       try {
         // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
@@ -2453,7 +2449,7 @@ export default {
     formatVisitDate(dateStr) {
       return formatVisitDate(dateStr)
     },
-    async editVisitRecord(visit) {
+    async editVisitRecord(raw, visit) {
       try {
         // ตรวจสอบว่าอนุมัติแล้วหรือไม่ (approve_status == 1)
         if (visit.approved === true) {
@@ -2481,12 +2477,12 @@ export default {
         // this.$router.push('/survey?mode=edit&surveyId=' + visit.surveyId)
         
         // เปิดให้แก้ไขเวลาเริ่มต้นก่อน
-        this.editVisitRecordModal(visit)
+        this.editVisitRecordModal(raw, visit)
       } catch (error) {
         this.$toast.error('ไม่สามารถเปิดหน้าแก้ไขบันทึกได้')
       }
     },
-    editVisitRecordModal(visit) {
+    editVisitRecordModal(raw, visit) {
       let day, month, thaiYear      
       if (visit?.date) {
         // มีวันนัดหมาย ใช้วันที่นัดหมาย
@@ -2507,14 +2503,13 @@ export default {
       }
       this.visitForm = {
         surveyId: visit.surveyId,
-        id: this.visitHistoryForm.id,
-        patientName: this.visitHistoryForm.patientName,
-        nickname: this.visitHistoryForm.nickname,
+        id: visit.id,
+        stid: raw.stid,
+        patientName: raw.patientName,
+        nickname: raw.nickname,
         visitDate: `${day} ${month} ${thaiYear}`,
         // เวลาเริ่มบันทึก (user กรอกเอง) - default เป็นเวลานัดหมาย หรือ 16:00
         startTime: normalizeTime(visit?.timeStart) || '',
-        // เก็บเวลานัดหมายไว้ด้วย
-        appointmentTime: normalizeTime(visit?.timeStart) || '',
         visitNumber: visit.visitNumber
       }
       this.showEditVisitModal = true
@@ -2526,14 +2521,13 @@ export default {
       const surveyData = {
         mode: 'edit',
         surveyId: surveyId,
-        stid: this.visitHistoryForm.stid,
-        name: this.visitHistoryForm.patientName,
-        nickname: this.visitHistoryForm.nickname,
+        stid: this.visitForm.stid,
+        name: this.visitForm.patientName,
+        nickname: this.visitForm.nickname,
         time: visitNumber,
         appointmentTime: this.visitForm.startTime,
         editAllowed: true // อนุญาตให้แก้ไขทั้งหมด
       }
-      
       localStorage.setItem('surveyEdit', JSON.stringify(surveyData))
       // ไปหน้าแบบสอบถามโหมดแก้ไข
       this.$router.push('/survey?mode=edit&surveyId=' + surveyId)
