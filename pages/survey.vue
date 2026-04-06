@@ -564,7 +564,7 @@
     </div>
 
     <!-- Step 12: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
-    <div v-if="currentStep === 12" class="survey-step">      
+    <div v-if="currentStep === 12" class="survey-step">    
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
       
       <div class="appointment-form-wrapper">
