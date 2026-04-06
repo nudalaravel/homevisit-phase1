@@ -564,9 +564,7 @@
     </div>
 
     <!-- Step 12: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
-    <div v-if="currentStep === 12" class="survey-step">
-     {{ newAppointment }}
-      
+    <div v-if="currentStep === 12" class="survey-step">      
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
       
       <div class="appointment-form-wrapper">
@@ -1288,6 +1286,7 @@ export default {
             if (visitor) {
               // ดึง booking เพื่อเอา appointmentTime และ startTime
               const booking = await this.$indexedDB.getBooking(stid)
+              console.log(booking)
               
               // คำนวณ time_visit ถ้าไม่มี (ไม่ใช้ time เป็น fallback)
               let timeVisit = existingSurvey.time_visit

@@ -318,7 +318,6 @@
       header-class="modal-header-visit"
     >
       <b-form>
-        {{ visitForm }}
         <div class="visit-info-grid">
           <div class="info-item">
             <label><i class="fas fa-calendar-alt"></i> วันที่เยี่ยมบ้าน</label>
@@ -352,7 +351,7 @@
         </b-button>
         <b-button variant="primary" @click="continueToSurvey" :disabled="requiredForm">
           <i class="fas fa-arrow-right"></i>
-          เริ่มทำแบบสอบถาม
+          {{ continueToSurveyButtonText }}
         </b-button>
       </template>
     </b-modal>
@@ -838,6 +837,11 @@ export default {
     },
     requiredForm() {
       return !this.visitForm.startTime
+    },
+    continueToSurveyButtonText() {
+      if (this.visitFormStatus?.currentSurveyCompleted) return 'ดูข้อมูล'
+      if (this.visitFormStatus.hasSurveyProgress && !this.visitFormStatus.currentSurveyCompleted) return 'ทำต่อ'
+      return 'เริ่มทำแบบสอบถาม'
     }
   },
   beforeMount() {
@@ -1757,10 +1761,6 @@ export default {
           visitorBirthYear: parseInt(visitor.year_birth),
           existingBooking: existingBooking
         }
-        if (!this.appointmentForm.appointmentTime) {
-          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
-          return
-        }
         this.appointmentFormErrors = {}
         this.showAppointmentModal = true
       } catch (error) {
@@ -1787,7 +1787,7 @@ export default {
         }
         
         if (!this.appointmentForm.appointmentTime) {
-          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
+          this.$toast.error('กรุณาระบุเวลาเริ่มต้น 2')
           return
         }
         // แปลงปีพุทธศักราชเป็นคริสต์ศักราช
@@ -2385,7 +2385,7 @@ export default {
         const finalStartTime = this.visitForm.startTime // เวลาเริ่มบันทึกที่ user กรอก
         
         if (!this.visitForm.startTime) {
-          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
+          this.$toast.error('กรุณาระบุเวลาเริ่มต้น 3')
           return
         }
         // Store complete survey data

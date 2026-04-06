@@ -1261,6 +1261,10 @@ export default function ({ app, store }, inject) {
       }
     }
 
+    async deleteBookingV2(id) {
+      return await this.delete("bookings_v2", id);
+    }
+
     /** ล้างการนัดหมายทั้งหมด */
     async clearBookings() {
       const initialized = await this.ensureInitialized();

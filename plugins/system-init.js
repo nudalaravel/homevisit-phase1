@@ -554,6 +554,13 @@ export default function ({ app, store, $axios }, inject) {
 
         // v11: เก็บ booking ทุก time_visit (ไม่ filter เฉพาะ latest อีกแล้ว)
         for (const apiBooking of apiBookings) {
+          // เพิ่มตรงนี้ให้ลบรายการที่ deleted ฝั่ง Local 6.4.2026
+          const bookingId2 = `${apiBooking.stid}_${apiBooking.time_visit || 1}`;
+          const localBooking2 = localBookingsMap.get(bookingId2);
+          if (localBooking2 && apiBooking.deleted_at) {
+            await app.$indexedDB.deleteBookingV2(bookingId2);
+          }
+
           if (!apiBooking.stid || apiBooking.deleted_at) continue;
           if (!apiBooking.date_app_curr && !apiBooking.time_app_curr) continue;
 
@@ -1217,7 +1224,6 @@ export default function ({ app, store, $axios }, inject) {
               const userLname = currentUser?.lname || "";
               fullnameVisit = userFname && userLname ? `${userFname} ${userLname}` : userFname || userLname || "";
             }
-
             const apiSurveyData = {
               id: surveyId,
               stid: result.stid,
