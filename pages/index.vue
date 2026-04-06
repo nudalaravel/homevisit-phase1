@@ -72,7 +72,7 @@
               }"
               @click="canRecordVisitForVisitor(visitor) ? recordVisit(visitor) : null"
               :style="{ cursor: canRecordVisitForVisitor(visitor) ? 'pointer' : 'not-allowed' }"
-            >
+            > 
               <!-- กรณีบันทึกเสร็จและซิงค์แล้ว -->
               <div v-if="visitor.currentSurveyCompleted && visitor.currentSurveySynced" class="visit-text-success">
                 บันทึกเรียบร้อย<br>ซิงค์แล้ว
@@ -318,6 +318,7 @@
       header-class="modal-header-visit"
     >
       <b-form>
+        {{ visitForm }}
         <div class="visit-info-grid">
           <div class="info-item">
             <label><i class="fas fa-calendar-alt"></i> วันที่เยี่ยมบ้าน</label>
@@ -344,13 +345,12 @@
           </div>
         </div>
       </b-form>
-
       <template #modal-footer="{ cancel }">
         <b-button variant="secondary" @click="cancel()">
           <i class="fas fa-times"></i>
           ปิด
         </b-button>
-        <b-button variant="primary" @click="continueToSurvey">
+        <b-button variant="primary" @click="continueToSurvey" :disabled="requiredForm">
           <i class="fas fa-arrow-right"></i>
           เริ่มทำแบบสอบถาม
         </b-button>
@@ -754,7 +754,7 @@ export default {
         appointmentMonth: null,
         appointmentDay: null,
         appointmentYear: null,
-        appointmentTime: '16:00 น.',
+        appointmentTime: null,
         appointmentMonthAge: null,
         appointmentTimeVisit: null,
         timeActivity: null,
@@ -764,12 +764,18 @@ export default {
         existingBooking: null
       },
       appointmentFormErrors: {},
+      visitFormStatus: {
+        id: null,
+        appointmentDate: null,
+        hasSurveyProgress: null,
+        currentSurveyCompleted: null,
+      },
       visitForm: {
         id: null,
         patientName: '',
         nickname: '',
         visitDate: '',
-        startTime: '16:00 น.'
+        startTime: ''
       },
       visitHistoryForm: {
         id: null,
@@ -829,6 +835,9 @@ export default {
       
       const daysInMonth = getDaysInMonth(month, year)
       return generateDayOptions(daysInMonth)
+    },
+    requiredForm() {
+      return !this.visitForm.startTime
     }
   },
   beforeMount() {
@@ -1630,7 +1639,7 @@ export default {
             appointmentMonth: month,
             appointmentDay: day,
             appointmentYear: year,
-            appointmentTime: patient.appointmentTime || '16:00 น.',
+            appointmentTime: patient.appointmentTime,
             appointmentMonthAge: null,
             appointmentTimeVisit: 1,
             timeActivity: 1,
@@ -1739,7 +1748,7 @@ export default {
           appointmentMonth: month,
           appointmentDay: day,
           appointmentYear: year,
-          appointmentTime: patient.appointmentTime || '16:00 น.',
+          appointmentTime: patient.appointmentTime,
           appointmentMonthAge: monthAge,
           appointmentTimeVisit: timeVisit,
           timeActivity: timeActivity,
@@ -1747,6 +1756,10 @@ export default {
           visitorBirthMonth: parseInt(visitor.month_birth),
           visitorBirthYear: parseInt(visitor.year_birth),
           existingBooking: existingBooking
+        }
+        if (!this.appointmentForm.appointmentTime) {
+          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
+          return
         }
         this.appointmentFormErrors = {}
         this.showAppointmentModal = true
@@ -1773,6 +1786,10 @@ export default {
           return
         }
         
+        if (!this.appointmentForm.appointmentTime) {
+          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
+          return
+        }
         // แปลงปีพุทธศักราชเป็นคริสต์ศักราช
         const christianYear = this.appointmentForm.appointmentYear - 543
         const appointmentDate = `${christianYear}-${String(this.appointmentForm.appointmentMonth).padStart(2, '0')}-${String(this.appointmentForm.appointmentDay).padStart(2, '0')}`
@@ -2219,7 +2236,7 @@ export default {
         appointmentMonth: null,
         appointmentDay: null,
         appointmentYear: null,
-        appointmentTime: '16:00 น.',
+        appointmentTime: null,
         appointmentMonthAge: null,
         timeActivity: null,
         activities: [],
@@ -2293,17 +2310,25 @@ export default {
       
       // ดึงข้อมูล booking เพื่อเอา appointmentTime ที่ถูกต้อง
       const booking = await this.$indexedDB.getBooking(patient.stid)
-      
+      const normalizeTime = (time) => {
+        if (!time) return ''
+        return time.replace('.', ':')
+      }
+      this.visitFormStatus = {
+        id: patient.id,
+        appointmentDate: patient.appointmentDate,
+        hasSurveyProgress: patient.hasSurveyProgress,
+        currentSurveyCompleted: patient.currentSurveyCompleted
+      }
       this.visitForm = {
         id: patient.id,
         patientName: patient.name,
         nickname: patient.nickname,
         visitDate: `${day} ${month} ${thaiYear}`,
+        // startTime: booking?.appointmentTime || patient.appointmentTime
         // เวลาเริ่มบันทึก (user กรอกเอง) - default เป็นเวลานัดหมาย หรือ 16:00
-        startTime: booking?.appointmentTime || patient.appointmentTime || '16:00 น.'
+        startTime: normalizeTime(booking?.appointmentTime) || normalizeTime(patient.appointmentTime)
       }
-      
-
       this.showVisitModal = true
     },
     saveVisitRecord() {
@@ -2316,7 +2341,7 @@ export default {
         patientName: '',
         nickname: '',
         visitDate: '',
-        startTime: '16:00 น.'
+        startTime: ''
       }
     },
     async goToSurvey(patient) {
@@ -2356,9 +2381,13 @@ export default {
         const finalTime = existingSurvey?.time || time
         const finalTimeVisit = existingSurvey?.time_visit || time_visit
         const finalAppointmentDate = existingSurvey?.appointmentDate || patient.appointmentDate || booking?.appointmentDate
-        const finalAppointmentTime = this.visitForm.appointmentTime || existingSurvey?.appointmentTime || patient.appointmentTime || booking?.appointmentTime || '16:00 น.'
-        const finalStartTime = this.visitForm.startTime || '16:00 น.' // เวลาเริ่มบันทึกที่ user กรอก
+        const finalAppointmentTime = this.visitForm.appointmentTime || existingSurvey?.appointmentTime || patient.appointmentTime || booking?.appointmentTime
+        const finalStartTime = this.visitForm.startTime // เวลาเริ่มบันทึกที่ user กรอก
         
+        if (!this.visitForm.startTime) {
+          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
+          return
+        }
         // Store complete survey data
         // แยก appointmentTime (เวลานัดหมาย) กับ startTime (เวลาเริ่มบันทึก)
         const surveyData = {

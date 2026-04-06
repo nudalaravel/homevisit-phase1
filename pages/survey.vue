@@ -456,7 +456,7 @@
         ></b-form-textarea>
 
         <div class="time-end-section">
-          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม</label>
+          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม <span v-if="requiredEndTime" class="text-danger">*</span></label>
         <div class="dropdown-row">
           <b-form-select
               v-model="answers.endHour"
@@ -470,6 +470,9 @@
             class="select-field"
           ></b-form-select>
           </div>
+          <small v-if="requiredEndTime" class="text-danger">
+            กรุณากรอกเวลาสิ้นสุดการเยี่ยม
+          </small>
         </div>
       </div>
 
@@ -477,7 +480,7 @@
         <b-button variant="primary" size="lg" @click="prevStep">
           ย้อนกลับ
         </b-button>
-        <b-button variant="info" size="lg" @click="nextStep">
+        <b-button variant="info" size="lg" @click="nextStep" :disabled="requiredEndTime">
           ถัดไป
         </b-button>
       </div>
@@ -562,7 +565,7 @@
 
     <!-- Step 12: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
     <div v-if="currentStep === 12" class="survey-step">
-     
+     {{ newAppointment }}
       
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
       
@@ -933,7 +936,7 @@ export default {
         appointmentDay: null,
         appointmentMonth: null,
         appointmentYear: null,
-        appointmentTime: '09:00 น.',
+        appointmentTime: null,
         monthAge: null,
         timeActivity: 1,
         activities: []
@@ -1012,6 +1015,9 @@ export default {
         return this.normalizeImageUrl(rawUrl)
       }
       return this.normalizeImageUrl(img)
+    },
+    requiredEndTime() {
+      return !this.answers.endHour || !this.answers.endMinute
     }
   },
   async mounted() {
@@ -1032,9 +1038,10 @@ export default {
       this.minuteOptions = minuteOptions
       
       // Set default to current time
-      const now = new Date()
-      this.answers.endHour = String(now.getHours()).padStart(2, '0')
-      this.answers.endMinute = String(now.getMinutes()).padStart(2, '0')
+      // P'Kei เวลา ให้ว่างไว้ ไม่ต้องขึ้น default ถ้าไม่กรอกไปต่อไม่ได้ | 6.4.2026
+      // const now = new Date()
+      // this.answers.endHour = String(now.getHours()).padStart(2, '0')
+      // this.answers.endMinute = String(now.getMinutes()).padStart(2, '0')
     },
     
     showActivityDetailModal(activity) {
@@ -3141,7 +3148,8 @@ export default {
             this.newAppointment.appointmentDay = q10Date.getDate()
             this.newAppointment.appointmentMonth = q10Date.getMonth() + 1
             this.newAppointment.appointmentYear = q10Date.getFullYear() + 543
-            this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || '09:00 น.'
+            // ลบ Default ออก 6.4.2026
+            this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || ''
             await this.recalculateMonthAgeAndActivities()
             return
           }
@@ -3171,7 +3179,8 @@ export default {
         if (this.visitorData.appointmentTime) {
           this.newAppointment.appointmentTime = this.visitorData.appointmentTime
         } else {
-          this.newAppointment.appointmentTime = '09:00 น.'
+          // ลบ default 6.4.2026
+          this.newAppointment.appointmentTime = null
         }
       }
       await this.recalculateMonthAgeAndActivities()
