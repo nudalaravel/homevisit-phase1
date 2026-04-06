@@ -1286,7 +1286,6 @@ export default {
             if (visitor) {
               // ดึง booking เพื่อเอา appointmentTime และ startTime
               const booking = await this.$indexedDB.getBooking(stid)
-              console.log(booking)
               
               // คำนวณ time_visit ถ้าไม่มี (ไม่ใช้ time เป็น fallback)
               let timeVisit = existingSurvey.time_visit
@@ -1294,7 +1293,6 @@ export default {
                 const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(stid)
                 timeVisit = completedSurveys.length + 1
               }
-              
               this.visitorData = {
                 stid: stid,
                 name: visitor.cname || visitor.name,
@@ -2603,7 +2601,6 @@ export default {
       if (!this.validateCurrentStep()) {
         return
       }
-      
       // บันทึก timeEnd และ recEnd เมื่อออกจาก Step 10 (บันทึกผู้เยี่ยมบ้าน)
       if (this.currentStep === 10) {
         const now = new Date()
@@ -2861,6 +2858,10 @@ export default {
       
         this.processing = true
         
+        if (!this.newAppointment.appointmentTime) {
+          this.$toast.warning('กรุณาบันทึก เวลา นัดหมายการเยี่ยมบ้านครั้งถัดไป')
+          return false
+        }
         // ตรวจสอบว่าเป็นการแก้ไขแบบสอบถามที่เสร็จแล้วหรือไม่
         const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
         const wasCompleted = existingSurvey?.completed || false
@@ -2919,6 +2920,10 @@ export default {
       try {
         this.processing = true
         
+        if (!this.newAppointment.appointmentTime) {
+          this.$toast.warning('กรุณาบันทึก เวลา นัดหมายการเยี่ยมบ้านครั้งถัดไป')
+          return false
+        }
         // อัปเดต recEnd
         this.recEnd = toMySQLDateTime()
         
@@ -3148,7 +3153,8 @@ export default {
             this.newAppointment.appointmentMonth = q10Date.getMonth() + 1
             this.newAppointment.appointmentYear = q10Date.getFullYear() + 543
             // ลบ Default ออก 6.4.2026
-            this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || ''
+            // this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || '16:30 น.'
+            this.newAppointment.appointmentTime = this.answers.q10_appTime || ''
             await this.recalculateMonthAgeAndActivities()
             return
           }
@@ -3175,12 +3181,12 @@ export default {
         this.newAppointment.appointmentYear = nextVisit.getFullYear() + 543
         
         // ใช้เวลาจาก appointmentTime หรือค่า default
-        if (this.visitorData.appointmentTime) {
-          this.newAppointment.appointmentTime = this.visitorData.appointmentTime
-        } else {
-          // ลบ default 6.4.2026
-          this.newAppointment.appointmentTime = null
-        }
+        // if (this.visitorData.appointmentTime) {
+        //   this.newAppointment.appointmentTime = this.visitorData.appointmentTime
+        // } else {
+        //   // ลบ default 6.4.2026
+        //   this.newAppointment.appointmentTime = null
+        // }
       }
       await this.recalculateMonthAgeAndActivities()
     },

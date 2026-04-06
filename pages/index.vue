@@ -2385,7 +2385,7 @@ export default {
         const finalStartTime = this.visitForm.startTime // เวลาเริ่มบันทึกที่ user กรอก
         
         if (!this.visitForm.startTime) {
-          this.$toast.error('กรุณาระบุเวลาเริ่มต้น 3')
+          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
           return
         }
         // Store complete survey data
