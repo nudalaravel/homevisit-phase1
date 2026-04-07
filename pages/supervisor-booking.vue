@@ -1365,6 +1365,7 @@ export default {
             try {
               const stid = item.stid || item.rawData?.stid
               const timeVisit = item.rawData?.time_visit || '1'
+              const recBy = item.recby || item.rawData?.recby
               
               const payload = {
                 variable: [
@@ -1379,8 +1380,8 @@ export default {
                   '',                            // approve_comment (ไม่มี comment สำหรับการอนุมัติ)
                   supervisorUsername             // approve_by
                 ],
-                pk: ['stid', 'time_visit'],
-                pkval: [stid, String(timeVisit)],
+                pk: ['stid', 'time_visit', 'recby'],
+                pkval: [stid, String(timeVisit), recBy],
                 tb: 'homevisitor_app'
               }
               
@@ -1475,6 +1476,8 @@ export default {
       }
       
       try {
+        console.log(this.correctionItem)
+        console.log(this.correctionItem.rawData)
         // Get supervisor username
         const user = this.$offlineAuth?.getUser?.()
         const supervisorUsername = user?.username || 'supervisor'
@@ -1486,6 +1489,8 @@ export default {
         // Get stid and time_visit from correctionItem
         const stid = this.correctionItem.stid || this.correctionItem.rawData?.stid
         const timeVisit = this.correctionItem.rawData?.time_visit || '1'
+        // เพิ่ม pk จาก stid,time_visit, เป็น recby
+        const recBy = this.correctionItem.recby || this.correctionItem.rawData?.recby
         
         const payload = {
           variable: [
@@ -1500,8 +1505,9 @@ export default {
             this.correctionReason.trim(),    // approve_comment (reason)
             supervisorUsername               // approve_by
           ],
-          pk: ['stid', 'time_visit'],
-          pkval: [stid, String(timeVisit)],
+          // เพิ่ม pk จาก stid,time_visit, เป็น recby
+          pk: ['stid', 'time_visit', 'recby'],
+          pkval: [stid, String(timeVisit), recBy],
           tb: 'homevisitor_app'
         }
         
