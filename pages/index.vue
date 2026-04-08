@@ -2310,10 +2310,7 @@ export default {
       
       // ดึงข้อมูล booking เพื่อเอา appointmentTime ที่ถูกต้อง
       const booking = await this.$indexedDB.getBooking(patient.stid)
-      const normalizeTime = (time) => {
-        if (!time) return ''
-        return time.replace('.', ':')
-      }
+
       this.visitFormStatus = {
         id: patient.id,
         appointmentDate: patient.appointmentDate,
@@ -2325,9 +2322,9 @@ export default {
         patientName: patient.name,
         nickname: patient.nickname,
         visitDate: `${day} ${month} ${thaiYear}`,
-        // startTime: booking?.appointmentTime || patient.appointmentTime
+        startTime: booking?.appointmentTime || patient.appointmentTime
         // เวลาเริ่มบันทึก (user กรอกเอง) - default เป็นเวลานัดหมาย หรือ 16:00
-        startTime: normalizeTime(booking?.appointmentTime) || normalizeTime(patient.appointmentTime)
+        // startTime: normalizeTime(booking?.appointmentTime) || normalizeTime(patient.appointmentTime)
       }
       this.showVisitModal = true
     },
@@ -2382,12 +2379,11 @@ export default {
         const finalTimeVisit = existingSurvey?.time_visit || time_visit
         const finalAppointmentDate = existingSurvey?.appointmentDate || patient.appointmentDate || booking?.appointmentDate
         const finalAppointmentTime = this.visitForm.appointmentTime || existingSurvey?.appointmentTime || patient.appointmentTime || booking?.appointmentTime
-        const finalStartTime = this.visitForm.startTime // เวลาเริ่มบันทึกที่ user กรอก
-        
-        if (!this.visitForm.startTime) {
-          this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
-          return
-        }
+        const finalStartTime = this.visitForm.startTime || existingSurvey?.appointmentTime || patient.appointmentTime || booking?.appointmentTime // เวลาเริ่มบันทึกที่ user กรอก
+        // if (!finalStartTime) {
+        //   this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
+        //   return
+        // }
         // Store complete survey data
         // แยก appointmentTime (เวลานัดหมาย) กับ startTime (เวลาเริ่มบันทึก)
         const surveyData = {
