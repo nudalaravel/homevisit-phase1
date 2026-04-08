@@ -764,7 +764,6 @@ export default {
           if (this.filters.visitor && this.filters.visitor !== 'all') {
             filteredResults = resultDataResponse.results.filter(item => item.recby === this.filters.visitor)
           }
-          console.log(filteredResults)
           this.tableData = filteredResults.map((item, index) => {
             // ดึง approve status จาก resultlist API โดยใช้ stid และ time_visit เป็น key
             const approveKey = `${item.stid}_${item.time_visit}`
@@ -1476,8 +1475,6 @@ export default {
       }
       
       try {
-        console.log(this.correctionItem)
-        console.log(this.correctionItem.rawData)
         // Get supervisor username
         const user = this.$offlineAuth?.getUser?.()
         const supervisorUsername = user?.username || 'supervisor'
