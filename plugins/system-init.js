@@ -1791,19 +1791,25 @@ export default function ({ app, store, $axios }, inject) {
           console.warn("IndexedDB not ready, skipping push survey results");
           return false;
         }
-
+        // Get username
+        const username = app.$offlineAuth?.getUser?.()?.username;
         // ดึงแบบสอบถามที่เสร็จแล้วแต่ยังไม่ sync
-        const unsyncedSurveys = await app.$indexedDB.getUnsyncedSurveys();
-
+        // const unsyncedSurveys = await app.$indexedDB.getUnsyncedSurveys();
+        
+        // Nuda แก้ไขตรงนี้ 8.4.2026
+        // ดึงแบบสอบถามที่เสร็จแล้วแต่ยังไม่ sync ของ user คนปัจจุบัน
+        const visitors = await app.$indexedDB.getVisitorsByHomevisitor(username)
+        const visitorStidSet = new Set(visitors.map(v => v.stid))
+        const preUnsyncedSurveys = await app.$indexedDB.getUnsyncedSurveys()
+        const unsyncedSurveys = preUnsyncedSurveys.filter(s =>
+          visitorStidSet.has(s.stid)
+        )
         if (unsyncedSurveys.length === 0) {
           return true;
         }
 
         let successCount = 0;
         let errorCount = 0;
-
-        // Get username
-        const username = app.$offlineAuth?.getUser?.()?.username;
 
         // ส่งทีละรายการ
         for (const survey of unsyncedSurveys) {
