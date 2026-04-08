@@ -812,7 +812,8 @@ export default {
       addFormErrors: {},
       monthOptions: [],
       yearOptions: [],
-      timeOptions: []
+      timeOptions: [],
+      visitorData: null
     }
   },
   computed: {
@@ -2310,6 +2311,9 @@ export default {
       
       // ดึงข้อมูล booking เพื่อเอา appointmentTime ที่ถูกต้อง
       const booking = await this.$indexedDB.getBooking(patient.stid)
+      // เพิ่มกรณี มี timeStart เเล้ว ให้เอาจาก ตรงนี้
+      const existingSurvey = await this.$indexedDB.getSurveyProgress(patient.stid, patient.time_visit)
+      // console.log(existingSurvey)
 
       this.visitFormStatus = {
         id: patient.id,
@@ -2322,7 +2326,7 @@ export default {
         patientName: patient.name,
         nickname: patient.nickname,
         visitDate: `${day} ${month} ${thaiYear}`,
-        startTime: booking?.appointmentTime || patient.appointmentTime
+        startTime: existingSurvey?.timeStart || booking?.appointmentTime || patient.appointmentTime
         // เวลาเริ่มบันทึก (user กรอกเอง) - default เป็นเวลานัดหมาย หรือ 16:00
         // startTime: normalizeTime(booking?.appointmentTime) || normalizeTime(patient.appointmentTime)
       }
@@ -2386,14 +2390,18 @@ export default {
         // }
         // Store complete survey data
         // แยก appointmentTime (เวลานัดหมาย) กับ startTime (เวลาเริ่มบันทึก)
+        const isStartTimeChanged = finalAppointmentTime !== finalStartTime
         const surveyData = {
           ...patient,
           month_age: finalMonthAge,
           time: finalTime,
           time_visit: finalTimeVisit,
           appointmentDate: finalAppointmentDate,
-          appointmentTime: finalAppointmentTime,
-          startTime: finalStartTime
+          startTime: finalStartTime,
+          // appointmentTime: finalAppointmentTime
+          appointmentTime: isStartTimeChanged
+            ? finalStartTime   // ถ้าเปลี่ยน → ใช้ startTime ใหม่
+            : finalAppointmentTime // ถ้าไม่เปลี่ยน → ใช้ค่าเดิม
         }
     
         localStorage.setItem('surveyPatient', JSON.stringify(surveyData))
