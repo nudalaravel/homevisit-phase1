@@ -735,8 +735,8 @@ export default {
         // สร้าง lookup map สำหรับ approve_status และ approve_comment จาก resultlist API
         // key = stid_time_visit
         const approveStatusMap = {}
-        if (resultListResponse?.results) {
-          resultListResponse.results.forEach(item => {
+        if (resultDataResponse?.results) {
+          resultDataResponse.results.forEach(item => {
             const key = `${item.stid}_${item.time_visit}`
             approveStatusMap[key] = {
               approve_status: item.approve_status !== null && item.approve_status !== undefined 
@@ -748,7 +748,8 @@ export default {
             }
           })
         }
-        
+        console.log(resultDataResponse)
+        console.log(resultListResponse)
         const isSuccess = resultDataResponse.message === 'success' || resultDataResponse.statusCode === 200
         if (isSuccess && resultDataResponse.results) {
           // สร้าง lookup map: username -> ชื่อเต็ม จาก visitorOptions
