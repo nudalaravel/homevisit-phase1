@@ -373,7 +373,6 @@ export default function ({ app, store, $axios }, inject) {
         }
 
         const apiVisitors = response.results;
-
         // ดึงข้อมูลผู้รับบริการที่มีในเครื่อง
         const localVisitors = await app.$indexedDB.getVisitors();
         const localVisitorsMap = new Map();
@@ -436,7 +435,6 @@ export default function ({ app, store, $axios }, inject) {
             updatedCount++;
           }
         }
-
         // 2. ลบรายการที่ API ไม่มีแล้ว
         // ตรวจสอบ visitors ที่มีใน IndexedDB แต่ไม่มีใน API
         for (const localVisitor of localVisitors) {
@@ -494,7 +492,6 @@ export default function ({ app, store, $axios }, inject) {
         }
 
         const apiBookings = response.results;
-
         // อัพเดท approve_status จาก API ไปยัง survey_progress
         // (รวม logic จาก syncApprovalStatus เข้ามาที่นี่เพื่อไม่ต้องเรียก API ซ้ำ)
         // Cache surveys ทั้งหมดก่อน loop เพื่อหลีกเลี่ยง N+1 query
@@ -1030,7 +1027,6 @@ export default function ({ app, store, $axios }, inject) {
         const response = await $axios.$get(
           `/api/parenting2025_census/get/homevisit/getchildsample_result.php?homevisitor=${username}`
         );
-
         if (!response || !response.results) {
           return false;
         }
@@ -1043,7 +1039,6 @@ export default function ({ app, store, $axios }, inject) {
 
         // Cache survey_progress ทั้งหมดก่อน loop เพื่อหลีกเลี่ยง N+1 query
         const allSurveyProgress = await app.$indexedDB.getAll("survey_progress");
-
         // Process each result from API
         for (const result of apiResults) {
           try {
@@ -1349,7 +1344,6 @@ export default function ({ app, store, $axios }, inject) {
                 return apiImg;
               });
             }
-
             if (!localSurvey) {
               // ไม่มีข้อมูล local - สร้างใหม่จาก API
               await app.$indexedDB.saveSurveyProgress(apiSurveyData);

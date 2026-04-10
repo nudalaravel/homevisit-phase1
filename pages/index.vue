@@ -1117,17 +1117,154 @@ export default {
       try {
         // ดึงชื่อผู้ใช้ปัจจุบัน
         const username = this.$offlineAuth?.getUser?.()?.username
-        
+
         if (!username) {
           return
         }
+        // โหลดข้อมูลผู้รับบริการจาก IndexedDB
+        const visitors = await this.$indexedDB.getVisitorsByHomevisitor(username)
+
+        // โหลดข้อมูลการนัดหมายจาก IndexedDB
+        const bookings = await this.$indexedDB.getBookings()
+        // สร้างแผนที่การนัดหมายตาม stid เพื่อค้นหาเร็ว
+        const bookingsMap = new Map()
+        bookings.forEach(booking => {
+          bookingsMap.set(booking.stid, booking)
+        })
+
+        // ดึง surveys ทั้งหมดครั้งเดียวแล้วจัดกลุ่มตาม stid (optimization: ลด database queries)
+        const allSurveysData = await this.$indexedDB.getAll("survey_progress")
+        const surveysByStidMap = new Map()
+        // จัดกลุ่ม surveys ตาม stid (logic เดิม: s.stid === stid)
+        allSurveysData.forEach(survey => {
+          const stid = survey.stid
+          if (!surveysByStidMap.has(stid)) {
+            surveysByStidMap.set(stid, [])
+          }
+          surveysByStidMap.get(stid).push(survey)
+        })
+        // Sort แต่ละกลุ่มตาม timeStart descending (newest first) - logic เดิมจาก getAllSurveysByStid
+        surveysByStidMap.forEach((surveys, stid) => {
+          surveys.sort((a, b) => new Date(b.timeStart) - new Date(a.timeStart))
+        })
+        // จัดเตรียมข้อมูลผู้รับบริการสำหรับแสดงผลและรวมกับการนัดหมาย
+        const visitorPromises = visitors.map(async (visitor, index) => {
+          try {
+            // สร้างชื่อเต็มจากฟิลด์ที่มี
+            let fullName = ''
+            if (visitor?.stname) {
+              fullName = visitor?.stname // ถ้ามีชื่อเต็มอยู่แล้ว
+            } else if (visitor?.prefix || visitor?.fname_ch || visitor?.lname_ch) {
+              fullName = `${visitor?.prefix || ''}${visitor?.fname_ch || ''} ${visitor?.lname_ch || ''}`.trim()
+            }
+            // ดึงข้อมูลการนัดหมายของผู้รับบริการคนนี้
+            const booking = bookingsMap.get(visitor.stid)
+            
+            // ดึงแบบสอบถามทั้งหมด (รวม completed และไม่ completed) จาก grouped data
+            const allSurveys = surveysByStidMap.get(visitor.stid) || []
+            // คำนวณว่าสามารถแก้ไขนัดหมายได้หรือไม่
+            const timeVisit = booking?.time_visit || 1
+            let canEdit = true
+
+            // ดึงแบบสอบถามที่ completed เท่านั้น (สำหรับแสดงสถานะ)
+            const completedSurveys = allSurveys
+              .filter(s => s.completed)
+              .sort((a, b) => {
+                // เรียงตาม time_visit จากมากไปน้อย
+                const timeA = parseInt(a.time_visit) || 0
+                const timeB = parseInt(b.time_visit) || 0
+                return timeB - timeA
+              })
+
+            // ดึง survey ของครั้งที่แล้ว (time - 1) สำหรับเช็คการอนุมัติ
+            const previousTimeVisit = parseInt(timeVisit) - 1
+            const previousCompletedSurvey = completedSurveys.find(s =>
+              String(s.time_visit) === String(previousTimeVisit)
+            )
+            // ตรวจสอบว่ามี survey_progress ของครั้งนี้หรือไม่ (ไม่ว่า completed จะเป็นอะไร)
+            const currentVisitSurvey = allSurveys.find(s => String(s.time_visit) === String(timeVisit))
+
+            if (currentVisitSurvey) {
+              // ถ้ามี survey_progress ของครั้งนี้แล้ว
+              // ถ้า approve_status = 1 แล้ว ให้ปลดล็อคเพื่อแก้ไขนัดหมายครั้งถัดไปได้
+              if (currentVisitSurvey.approve_status === 1) {
+                canEdit = true
+              } else {
+                canEdit = false
+              }
+            }
+            // ตรวจสอบว่า time_visit >= 2 แต่ไม่มีข้อมูลครั้งที่แล้ว
+            const needsPreviousVisit = parseInt(timeVisit) >= 2 && !previousCompletedSurvey
+
+            const result = prepareVisitorData(visitor, booking, completedSurveys, allSurveys)
+            
+            // คำนวณ month_age/time ด้วย calculateMonthAgeAndTime() ให้ตรงกับ modal นัดหมาย
+            if (visitor.month_birth && visitor.year_birth && booking?.appointmentDate) {
+              const appointmentDate = new Date(booking.appointmentDate)
+              const birthDay = parseInt(visitor.day_birth) || 1
+
+              let previousBooking = null
+              let previousAppointmentDate = null
+
+              if (booking.time_visit > 1) {
+                // หา survey ครั้งก่อนหน้า เพื่อใช้เป็น existingBooking
+                const prevTimeVisit = booking.time_visit - 1
+                const prevSurvey = completedSurveys.find(s =>
+                  String(s.time_visit) === String(prevTimeVisit) && s.completed
+                )
+
+                previousAppointmentDate = prevSurvey?.appointmentDate || null
+
+                if (prevSurvey && prevSurvey.appointmentDate) {
+                  previousBooking = {
+                    appointmentDate: new Date(prevSurvey.appointmentDate),
+                    month_age: Number(prevSurvey.month_age),
+                    time: Number(prevSurvey.time)
+                  }
+                }
+              }
+
+              const calculated = calculateMonthAgeAndTime(
+                parseInt(visitor.month_birth),
+                parseInt(visitor.year_birth),
+                birthDay,
+                appointmentDate,
+                previousBooking
+              )
+
+              result.appointmentDatePrev = previousAppointmentDate
+              result.month_age = calculated.monthAge
+              result.time = calculated.timeActivity
+            }
+
+            return result
+          } catch (err) {
+            console.error('error in visitor row:', visitor, err)
+            throw err
+          }
+        })
+
+        this.visitors = await Promise.all(visitorPromises)
+
+      } catch (error) {
+        console.error('loadVisitors error:', error)
+        console.error('stack:', error?.stack)
+        this.$toast.error('ไม่สามารถโหลดข้อมูลผู้รับบริการได้')
+      }
+    },
+    async loadVisitorsVersionOld() {
+      try {
+        // ดึงชื่อผู้ใช้ปัจจุบัน
+        const username = this.$offlineAuth?.getUser?.()?.username
         
+        if (!username) {
+          return
+        }        
         // โหลดข้อมูลผู้รับบริการจาก IndexedDB
         const visitors = await this.$indexedDB.getVisitorsByHomevisitor(username)
         
         // โหลดข้อมูลการนัดหมายจาก IndexedDB
         const bookings = await this.$indexedDB.getBookings()
-        
         // สร้างแผนที่การนัดหมายตาม stid เพื่อค้นหาเร็ว
         const bookingsMap = new Map()
         bookings.forEach(booking => {
@@ -1137,7 +1274,6 @@ export default {
         // ดึง surveys ทั้งหมดครั้งเดียวแล้วจัดกลุ่มตาม stid (optimization: ลด database queries)
         const allSurveysData = await this.$indexedDB.getAll("survey_progress")
         const surveysByStidMap = new Map()
-        
         // จัดกลุ่ม surveys ตาม stid (logic เดิม: s.stid === stid)
         allSurveysData.forEach(survey => {
           const stid = survey.stid
@@ -1167,7 +1303,6 @@ export default {
           
           // ดึงแบบสอบถามทั้งหมด (รวม completed และไม่ completed) จาก grouped data
           const allSurveys = surveysByStidMap.get(visitor.stid) || []
-          
           // คำนวณว่าสามารถแก้ไขนัดหมายได้หรือไม่
           const timeVisit = booking?.time_visit || 1
           let canEdit = true
@@ -1187,7 +1322,6 @@ export default {
           const previousCompletedSurvey = completedSurveys.find(s => 
             String(s.time_visit) === String(previousTimeVisit)
           )
-          
           // ตรวจสอบว่ามี survey_progress ของครั้งนี้หรือไม่ (ไม่ว่า completed จะเป็นอะไร)
           const currentVisitSurvey = allSurveys.find(s => String(s.time_visit) === String(timeVisit))
           
