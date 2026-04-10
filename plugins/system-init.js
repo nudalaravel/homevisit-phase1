@@ -1031,7 +1031,7 @@ export default function ({ app, store, $axios }, inject) {
           return false;
         }
 
-        const apiResults = response.results;
+        const apiResultsRaw = response.results;
 
         let newCount = 0;
         let updatedCount = 0;
@@ -1039,6 +1039,26 @@ export default function ({ app, store, $axios }, inject) {
 
         // Cache survey_progress ทั้งหมดก่อน loop เพื่อหลีกเลี่ยง N+1 query
         const allSurveyProgress = await app.$indexedDB.getAll("survey_progress");
+        const apiResults = [];
+
+        for (const result of apiResultsRaw) {
+          if (result.deleted_at) {
+            const deleteSurveyId = `${result.stid}_${result.time_visit}`;
+            const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
+            if (existingLocal) {
+              // await app.$indexedDB.deleteSurveyProgress(deleteSurveyId);
+              try {
+                await app.$indexedDB.deleteSurveyProgress(deleteSurveyId);
+              } catch (error) {
+                console.error(`Failed to remove  ${deleteSurveyId}:`, error);
+              }
+            }
+            skippedCount++;
+            continue;
+          }
+
+          apiResults.push(result);
+        }
         // Process each result from API
         for (const result of apiResults) {
           try {
@@ -1056,15 +1076,15 @@ export default function ({ app, store, $axios }, inject) {
             }
 
             // ตรวจสอบ deleted_at — ถ้า server ลบแล้ว ให้ลบออกจาก local ด้วย
-            if (result.deleted_at) {
-              const deleteSurveyId = `${result.stid}_${result.time_visit}`;
-              const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
-              if (existingLocal) {
-                await app.$indexedDB.deleteSurveyProgress(deleteSurveyId);
-              }
-              skippedCount++;
-              continue;
-            }
+            // if (result.deleted_at) {
+            //   const deleteSurveyId = `${result.stid}_${result.time_visit}`;
+            //   const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
+            //   if (existingLocal) {
+            //     await app.$indexedDB.deleteSurveyProgress(deleteSurveyId);
+            //   }
+            //   skippedCount++;
+            //   continue;
+            // }
 
             // ตรวจสอบ time_visit - ถ้าเป็น empty string หรือ null แสดงว่าข้อมูลไม่สมบูรณ์
             if (!timeVisitValue || timeVisitValue === "") {
@@ -1801,7 +1821,6 @@ export default function ({ app, store, $axios }, inject) {
         if (unsyncedSurveys.length === 0) {
           return true;
         }
-
         let successCount = 0;
         let errorCount = 0;
 
@@ -2033,7 +2052,7 @@ export default function ({ app, store, $axios }, inject) {
               );
             } else {
               try {
-                const checkResponse = await $axios.$get(
+                const precheckResponse = await $axios.$get(
                   "/api/parenting2025_census/get/homevisit/getchildsample_result.php",
                   {
                     params: {
@@ -2043,6 +2062,8 @@ export default function ({ app, store, $axios }, inject) {
                     },
                   }
                 );
+                // 🔥 filter deleted_at ออก
+                const checkResponse = (precheckResponse || []).filter(r => !r.deleted_at);
 
                 // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time_visit หรือไม่
                 if (checkResponse?.results && checkResponse.results.length > 0) {
