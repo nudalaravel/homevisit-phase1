@@ -164,6 +164,8 @@ export function prepareVisitorData(visitor, booking, completedSurveys, allSurvey
     lastSyncedAt: visitor.lastSyncedAt || null,
     needsPreviousVisit: parseInt(timeVisit) >= 2 && !previousCompletedSurvey,
     needsNextAppointment,
+    // เพิ่มตัวนี้
+    hasPreviousSurvey: previousCompletedSurvey?.completed || false,
     latestSurveySynced: previousCompletedSurvey?.synced || false,
     latestSurveyApproved: previousCompletedSurvey?.approve_status === 1,
     currentSurveyCompleted: currentVisitSurvey?.completed || false,

@@ -86,7 +86,10 @@
                 บันทึกเยี่ยมบ้าน
               </div>
               <!-- กรณีครั้งที่ 2+ แต่ survey ครั้งก่อนหน้ายังไม่ได้ sync -->
-              <div v-else-if="parseInt(visitor.time_visit) >= 2 && !visitor.latestSurveySynced && !visitor.latestSurveyApproved" class="visit-text-disabled">
+              <!--div v-else-if="parseInt(visitor.time_visit) >= 2 && !visitor.latestSurveySynced && !visitor.latestSurveyApproved" class="visit-text-disabled">
+               รอส่งข้อมูล
+              </div-->
+              <div v-else-if="parseInt(visitor.time_visit) >= 2 && !visitor.latestSurveySynced && !visitor.hasPreviousSurvey" class="visit-text-disabled">
                รอส่งข้อมูล
               </div>
               <!-- กรณีมีนัดหมายและพร้อมบันทึก -->
@@ -2418,7 +2421,8 @@ export default {
       // visitor.time = ครั้งที่เยี่ยม (1, 2, 3, ...)
       // visitor.latestSurveySynced = survey ครั้งก่อนหน้าถูก synced แล้วหรือยัง
       const timeVisit = parseInt(visitor.time_visit) || 1
-      if (timeVisit >= 2 && !visitor.latestSurveySynced && !visitor.latestSurveyApproved) {
+      // if (timeVisit >= 2 && !visitor.latestSurveySynced && !visitor.latestSurveyApproved) {
+      if (timeVisit >= 2 && !visitor.latestSurveySynced && !visitor.hasPreviousSurvey) {
         // ครั้งที่ 2+ แต่ survey ครั้งก่อนหน้ายังไม่ได้ sync → disabled
         return false
       }
