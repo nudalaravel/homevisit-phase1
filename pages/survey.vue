@@ -456,7 +456,12 @@
         ></b-form-textarea>
 
         <div class="time-end-section">
-          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม <span v-if="requiredEndTime" class="text-danger">*</span></label>
+          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม
+            <span v-if="requiredEndTime" class="text-danger">*</span>
+            <span style="color:#6c757d;font-size:18px">
+              <small v-html="timeEndHint"></small>
+            </span>
+        </label>
         <div class="dropdown-row">
           <b-form-select
               v-model="answers.endHour"
@@ -942,7 +947,8 @@ export default {
       
       monthOptions: MONTH_OPTIONS,
       yearOptions: [],
-      timeOptions: TIME_OPTIONS
+      timeOptions: TIME_OPTIONS,
+      timeEndHint: '(ตัวอย่าง: เริ่มเยี่ยม 11:00 และสิ้นสุดการเยี่ยม 11:30  → กรอก 11:30)'
     }
   },
   computed: {
