@@ -55,7 +55,6 @@
                 <div class="appointment-time">{{ visitor.appointmentTime }}  <template v-if="visitor.month_age && visitor.time">
                   ({{ visitor.month_age }}/{{ visitor.time }})
                 </template></div>
-               
               </div>
               <!-- กรณียังไม่ได้กำหนดวันนัดหมาย -->
               <div v-else class="appointment-placeholder">
@@ -427,7 +426,6 @@
           <span class="patient-nickname-badge">({{ visitHistoryForm.nickname }})</span>
         </div>
       </div>
-
       <div v-if="visitHistoryForm.visits && visitHistoryForm.visits.length > 0" class="visit-history-list">
         <div v-for="(visit, index) in visitHistoryForm.visits" :key="index" class="visit-history-row">
           <div class="visit-card visit-card-date">
@@ -1076,13 +1074,11 @@ export default {
         
         // ซิงค์การนัดหมาย
         await this.$systemInit.syncBookings(username)
-        
         // ส่งข้อมูลที่ยังไม่ซิงค์แบบ parallel (optimization: push operations เป็น independent)
         await Promise.all([
           this.$systemInit.pushBookingsToAPI(),
           this.$systemInit.pushSurveyResultsToAPI()
         ])
-        
         // ซิงค์ผลการบันทึกเยี่ยมบ้าน
         await this.$systemInit.syncSurveyResults(username)
         
@@ -1217,14 +1213,21 @@ export default {
                 )
 
                 previousAppointmentDate = prevSurvey?.appointmentDate || null
-
-                if (prevSurvey && prevSurvey.appointmentDate) {
+                // มันมีข้อมูล Booking อยู่เเล้ว
+                if (booking && booking?.appointmentDate) {
                   previousBooking = {
-                    appointmentDate: new Date(prevSurvey.appointmentDate),
-                    month_age: Number(prevSurvey.month_age),
-                    time: Number(prevSurvey.time)
+                    appointmentDate: new Date(booking?.appointmentDate),
+                    month_age: Number(booking?.month_age),
+                    time: Number(booking?.time)
                   }
                 }
+                // if (prevSurvey && prevSurvey.appointmentDate) {
+                //   previousBooking = {
+                //     appointmentDate: new Date(prevSurvey.appointmentDate),
+                //     month_age: Number(prevSurvey.month_age),
+                //     time: Number(prevSurvey.time)
+                //   }
+                // }
               }
 
               const calculated = calculateMonthAgeAndTime(
@@ -2569,12 +2572,10 @@ export default {
       try {
         // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
-        
         // แปลงข้อมูลแบบสอบถามเป็นประวัติการเยี่ยม
         const visits = surveys.map((survey, index) => {
           const visitDate = survey.appointmentDate || survey.timeStart?.split(' ')[0] || ''
           const visitTimeOfDay = survey.appointmentTime || survey.timeStart?.split(' ')[1] || ''
-          
           return {
             id: survey.id,
             surveyId: survey.id,

@@ -515,7 +515,6 @@ export default function ({ app, store, $axios }, inject) {
                 ? parseInt(booking.approve_status) 
                 : existingSurvey.approve_status || 0;
               const approveComment = booking.approve_comment || null;
-
               if (
                 existingSurvey.approve_status !== parsedApproveStatus ||
                 existingSurvey.approve_comment !== approveComment
@@ -1064,7 +1063,8 @@ export default function ({ app, store, $axios }, inject) {
           try {
             // API ส่งมาเป็น time และเราก็เก็บด้วย key time ใน IndexedDB (local variable ใช้ชื่อ timeActivity)
             // บางข้อมูลอาจมีแค่ time_visit แต่ไม่มี time (ข้อมูลเก่า)
-            const timeValue = result.time_visit;
+            // const timeValue = result.time_visit;
+            const timeValue = result.time;
             const timeVisitValue = result.time_visit || null;
 
             // Skip if missing required fields
@@ -1337,10 +1337,12 @@ export default function ({ app, store, $axios }, inject) {
               ),
               synced: true,
               // ไม่ต้องเซ็ต approve_status จาก API นี้ เพราะ API getchildsample_result.php ไม่มีฟิลด์นี้
-              // approve_status จะมาจาก API getchildsample_app.php ใน syncBookings() แทน
-              approve_status: localSurvey?.approve_status || 0, // เก็บค่าเดิมจาก local
-              // approve_comment มาจาก API getchildsample_app.php ใน syncBookings() - รักษาค่าจาก local
-              approve_comment: localSurvey?.approve_comment || null,
+              // :approve_status จะมาจาก API getchildsample_app.php ใน syncBookings() แทน
+              // approve_status: localSurvey?.approve_status || 0, // เก็บค่าเดิมจาก local
+              // :approve_comment มาจาก API getchildsample_app.php ใน syncBookings() - รักษาค่าจาก local
+              // approve_comment: localSurvey?.approve_comment || null,
+              approve_status: localSurvey?.approve_status,
+              approve_comment: localSurvey?.approve_comment,
               // เก็บ newAppointment จาก local เพราะ user อาจแก้ไขล่าสุด
               newAppointment: localSurvey?.newAppointment || null,
               // เก็บ currentStep จาก local เพื่อรักษา progress
