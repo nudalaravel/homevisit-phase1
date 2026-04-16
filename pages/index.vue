@@ -1074,6 +1074,7 @@ export default {
         
         // ซิงค์การนัดหมาย
         await this.$systemInit.syncBookings(username)
+        
         // ส่งข้อมูลที่ยังไม่ซิงค์แบบ parallel (optimization: push operations เป็น independent)
         await Promise.all([
           this.$systemInit.pushBookingsToAPI(),
@@ -1082,6 +1083,7 @@ export default {
         // ซิงค์ผลการบันทึกเยี่ยมบ้าน
         await this.$systemInit.syncSurveyResults(username)
         
+        return
         // โหลดข้อมูลใหม่หลังซิงค์เสร็จ
         await this.loadVisitors()
         
