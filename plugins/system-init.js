@@ -509,7 +509,7 @@ export default function ({ app, store, $axios }, inject) {
         const apiBookings = [];
 
         for (const result of apiResultsRaw) {
-          if (result.deleted_at) {
+          if (result.deleted_at || !result.recby) {
             const deleteSurveyId = `${result.stid}_${result.time_visit}`;
             const existingLocal = surveyMapByStidTimeVisit.get(deleteSurveyId);
             if (existingLocal) {
@@ -1066,7 +1066,7 @@ export default function ({ app, store, $axios }, inject) {
         const apiResults = [];
 
         for (const result of apiResultsRaw) {
-          if (result.deleted_at) {
+          if (result.deleted_at || !result.recby) {
             const deleteSurveyId = `${result.stid}_${result.time_visit}`;
             const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
             if (existingLocal) {
@@ -1097,9 +1097,12 @@ export default function ({ app, store, $axios }, inject) {
                 (s) => String(s.stid) === String(booking.stid) && String(s.time_visit) === String(booking.time_visit)
               );
             if (existingSurvey) {
-              const parsedApproveStatus = booking.approve_status !== null && booking.approve_status !== undefined 
-                ? parseInt(booking.approve_status) 
-                : existingSurvey.approve_status ?? 0;
+              const parsedApproveStatus =
+                booking.approve_status !== null &&
+                booking.approve_status !== undefined &&
+                booking.approve_status !== ''
+                  ? parseInt(booking.approve_status) 
+                  : existingSurvey.approve_status ?? 0;
               const approveComment = booking.approve_comment ?? null;
               if (
                 existingSurvey.approve_status !== parsedApproveStatus ||
@@ -1398,7 +1401,7 @@ export default function ({ app, store, $axios }, inject) {
               //   result.q8
               // ),
               completed:
-                result.time_visit == 1
+                String(result.time_visit) == '1'
                   ? !!(
                       result.q1 ||
                       result.q2 ||
@@ -1418,9 +1421,9 @@ export default function ({ app, store, $axios }, inject) {
               synced: true,
               // ไม่ต้องเซ็ต approve_status จาก API นี้ เพราะ API getchildsample_result.php ไม่มีฟิลด์นี้
               // :approve_status จะมาจาก API getchildsample_app.php ใน syncBookings() แทน
-              approve_status: localSurvey?.approve_status || 0, // เก็บค่าเดิมจาก local
+              approve_status: localSurvey?.approve_status ?? 0, // เก็บค่าเดิมจาก local
               // :approve_comment มาจาก API getchildsample_app.php ใน syncBookings() - รักษาค่าจาก local
-              approve_comment: localSurvey?.approve_comment || null,
+              approve_comment: localSurvey?.approve_comment ?? null,
               // เก็บ newAppointment จาก local เพราะ user อาจแก้ไขล่าสุด
               newAppointment: localSurvey?.newAppointment || null,
               // เก็บ currentStep จาก local เพื่อรักษา progress
@@ -1532,7 +1535,7 @@ export default function ({ app, store, $axios }, inject) {
         const apiResults = [];
 
         for (const result of apiResultsRaw) {
-          if (result.deleted_at) {
+          if (result.deleted_at || !result.recby) {
             const deleteSurveyId = `${result.stid}_${result.time_visit}`;
             const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
             if (existingLocal) {
