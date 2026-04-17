@@ -635,7 +635,8 @@ export default {
     // jsPDF and html2canvas imported directly, no need for CDN
 
     // Load data from APIs
-    await this.fetchAmphoeOptions()
+    // await this.fetchAmphoeOptions()
+    await this.fetchTambonOptions()
     await this.fetchVisitorOptions()
     await this.fetchTableData()
 
@@ -694,6 +695,25 @@ export default {
             ...response.results.map(item => ({
               value: item.amp_code || item.code,
               text: item.amp_nameT || item.name
+            }))
+          ]
+        }
+      } catch (error) {
+        console.error('Error fetching amphoe options:', error)
+      }
+    },
+
+    // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
+    async fetchTambonOptions() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/gettambon.php')
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          this.subdistrictOptions = [
+            { value: 'all', text: '--เลือกตำบล--' },
+            ...response.results.map(item => ({
+              value: item.tambon_code || item.code,
+              text: item.tambon_nameT || item.tambon
             }))
           ]
         }
