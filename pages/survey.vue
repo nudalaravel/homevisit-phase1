@@ -571,7 +571,6 @@
     <!-- Step 12: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
     <div v-if="currentStep === 12" class="survey-step">    
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
-      
       <div class="appointment-form-wrapper">
         <div class="appointment-form-grid">
           <div class="appointment-field">
@@ -940,6 +939,7 @@ export default {
         appointmentMonth: null,
         appointmentYear: null,
         appointmentTime: null,
+        appointmentMonthAge: null,
         monthAge: null,
         timeActivity: 1,
         activities: []
@@ -1394,6 +1394,8 @@ export default {
       this.recEnd = survey.recEnd || null
       // เพิ่มตรงนี้ เพื่อเช็คว่า เป็นหน้าแก้ไข หรือไม่
       const urlParams = this.$route.query
+      console.log(this.visitorData)
+      console.log(survey)
       if (survey.completed && urlParams.mode === 'edit') {
         this.timeStart = this.visitorData.appointmentTime || null
       } else {
@@ -1407,13 +1409,11 @@ export default {
 
       if (survey.completed) {
         const allSurveys = await this.$indexedDB.getAllSurveysByStid(survey.stid)
-        
         const surveyTimes = allSurveys
           .map(s => Number(s.time_visit))
           .filter(t => !isNaN(t) && t > 0)
         const maxTime = surveyTimes.length > 0 ? Math.max(...surveyTimes) : 0
         const currentTime = Number(survey.time_visit || 0)
-        
         if (maxTime > currentTime) {
           this.shouldDisableStep12 = true
         } else {
