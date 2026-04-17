@@ -228,12 +228,12 @@ export default {
         let userLevel = user?.level;
         
         // Debug logging
-        console.log("Login - User data check:", {
-          storeUser: this.$store.state.auth?.user,
-          storeUserLevel: this.$store.state.auth?.user?.level,
-          offlineUser: this.$offlineAuth?.getUser(),
-          offlineUserLevel: this.$offlineAuth?.getUser()?.level
-        });
+        // console.log("Login - User data check:", {
+        //   storeUser: this.$store.state.auth?.user,
+        //   storeUserLevel: this.$store.state.auth?.user?.level,
+        //   offlineUser: this.$offlineAuth?.getUser(),
+        //   offlineUserLevel: this.$offlineAuth?.getUser()?.level
+        // });
         
         // If level is undefined, try offline auth
         if (userLevel === undefined) {

@@ -431,7 +431,8 @@
           <div class="visit-card visit-card-date">
             <i class="fas fa-calendar-day"></i>
             <div class="visit-card-content">
-              <div class="visit-number-badge">ครั้งที่ {{ visit.visitNumber }}</div>
+              <!--div class="visit-number-badge">ครั้งที่ {{ visit.visitNumber }}</div-->
+              <div class="visit-number-badge">ครั้งที่ {{ visit.timeVisit }}</div>
               <div class="visit-date-text">{{ formatVisitDate(visit.date) }}</div>
               <div class="visit-time-text">{{ visit.time }}</div>
               <div class="visit-status-badges">
@@ -507,7 +508,8 @@
         <div class="patient-info-bar-small">
           <i class="fas fa-user-circle"></i>
           <span>{{ editPhotoForm.patientName }}</span>
-          <span class="badge badge-info">ครั้งที่ {{ editPhotoForm.visitNumber }}</span>
+          <!--span class="badge badge-info">ครั้งที่ {{ editPhotoForm.visitNumber }}</span-->
+          <span class="badge badge-info">ครั้งที่ {{ editPhotoForm.timeVisit }}</span>
         </div>
 
         <div class="dual-image-container">
@@ -1083,7 +1085,6 @@ export default {
         // ซิงค์ผลการบันทึกเยี่ยมบ้าน
         await this.$systemInit.syncSurveyResults(username)
         
-        return
         // โหลดข้อมูลใหม่หลังซิงค์เสร็จ
         await this.loadVisitors()
         
@@ -1216,20 +1217,20 @@ export default {
 
                 previousAppointmentDate = prevSurvey?.appointmentDate || null
                 // มันมีข้อมูล Booking อยู่เเล้ว
-                if (booking && booking?.appointmentDate) {
-                  previousBooking = {
-                    appointmentDate: new Date(booking?.appointmentDate),
-                    month_age: Number(booking?.month_age),
-                    time: Number(booking?.time)
-                  }
-                }
-                // if (prevSurvey && prevSurvey.appointmentDate) {
+                // if (booking && booking?.appointmentDate) {
                 //   previousBooking = {
-                //     appointmentDate: new Date(prevSurvey.appointmentDate),
-                //     month_age: Number(prevSurvey.month_age),
-                //     time: Number(prevSurvey.time)
+                //     appointmentDate: new Date(booking?.appointmentDate),
+                //     month_age: Number(booking?.month_age),
+                //     time: Number(booking?.time)
                 //   }
                 // }
+                if (prevSurvey && prevSurvey.appointmentDate) {
+                  previousBooking = {
+                    appointmentDate: new Date(prevSurvey.appointmentDate),
+                    month_age: Number(prevSurvey.month_age),
+                    time: Number(prevSurvey.time)
+                  }
+                }
               }
 
               const calculated = calculateMonthAgeAndTime(
@@ -1821,7 +1822,6 @@ export default {
               month_age: Number(previousSurvey.month_age),
               time: Number(previousSurvey.time)
             }
-            
             const result = calculateMonthAgeAndTime(
               parseInt(visitor.month_birth),
               parseInt(visitor.year_birth),
@@ -1862,7 +1862,6 @@ export default {
           monthAge = result.monthAge
           timeActivity = result.timeActivity
         }
-        
         // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือ month_age <= 0
         const selectedYear = year - 543
         const selectedDate = new Date(selectedYear, month - 1, day)
@@ -2585,12 +2584,13 @@ export default {
             appointmentTime: visitTimeOfDay,
             patientId: patient.id,
             visitNumber: survey.time || (index + 1),
+            timeVisit: survey.time_visit,
             timeStart: survey.timeStart,
             timeEnd: survey.timeEnd,
             synced: survey.synced || false,
             approved: survey.approve_status === 1,
-            approvedStatus: survey.approve_status || 0, // 0=ยังไม่ตรวจสอบ, -1=ต้องแก้ไข, -2=แก้ไขแล้ว, 1=อนุมัติ
-            approveComment: survey.approve_comment || null,
+            approvedStatus: survey.approve_status ?? 0, // 0=ยังไม่ตรวจสอบ, -1=ต้องแก้ไข, -2=แก้ไขแล้ว, 1=อนุมัติ
+            approveComment: survey.approve_comment ?? null,
             answers: survey.answers,
             surveyImage: survey.surveyImage,
             surveyImageKey: survey.surveyImageKey
@@ -2763,7 +2763,8 @@ export default {
         this.editPhotoForm = {
           surveyId: visit.surveyId,
           patientName: this.visitHistoryForm.patientName,
-          visitNumber: visit.visitNumber,
+          // visitNumber: visit.visitNumber,
+          visitNumber: visit.timeVisit,
           currentImages: currentImages,
           currentImageKeys: currentImageKeys,
           newImages: [],

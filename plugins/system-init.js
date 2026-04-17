@@ -1083,6 +1083,44 @@ export default function ({ app, store, $axios }, inject) {
 
           apiResults.push(result);
         }
+        // Nuda เพิ่มตรงนี้ให้เหมือนกับฝั่ง synsBooking() ดึงข้อมูล api มาอัพเดตตัวแปร Approve 
+        const surveyMapByStidTimeVisit = new Map();
+        allSurveyProgress.forEach((s) => {
+          const key = `${s.stid}_${s.time_visit}`;
+          surveyMapByStidTimeVisit.set(key, s);
+        });
+        for (const booking of apiResults) {
+          if (booking.stid && booking.time_visit) {
+            const lookupKey = `${booking.stid}_${booking.time_visit}`;
+            const existingSurvey = surveyMapByStidTimeVisit.get(lookupKey)
+              || allSurveyProgress.find(
+                (s) => String(s.stid) === String(booking.stid) && String(s.time_visit) === String(booking.time_visit)
+              );
+            if (existingSurvey) {
+              const parsedApproveStatus = booking.approve_status !== null && booking.approve_status !== undefined 
+                ? parseInt(booking.approve_status) 
+                : existingSurvey.approve_status ?? 0;
+              const approveComment = booking.approve_comment ?? null;
+              if (
+                existingSurvey.approve_status !== parsedApproveStatus ||
+                existingSurvey.approve_comment !== approveComment
+              ) {
+                await app.$indexedDB.saveSurveyProgress({
+                  ...existingSurvey,
+                  synced: true,
+                  approve_status: parsedApproveStatus,
+                  approve_comment: approveComment,
+                  lastUpdated: new Date().toISOString(),
+                });
+              }
+            }
+            // const savedSurvey = await app.$indexedDB.getSurveyProgressById(lookupKey)
+            // console.log('--- syncSurveyResults: AFTER FINAL SAVE ---')
+            // console.log('saved approve_status:', savedSurvey?.approve_status)
+            // console.log('saved approve_comment:', savedSurvey?.approve_comment)
+          }
+        }
+        
         // Process each result from API
         for (const result of apiResults) {
           try {
@@ -1131,13 +1169,6 @@ export default function ({ app, store, $axios }, inject) {
 
             // Get existing local survey by standard ID
             let localSurvey = await app.$indexedDB.getSurveyProgressById(surveyId);
-            console.log('--- syncSurveyResults: localSurvey ---')
-            console.log('surveyId:', surveyId)
-            console.log('localSurvey exists:', !!localSurvey)
-            console.log('local approve_status:', localSurvey?.approve_status)
-            console.log('local approve_comment:', localSurvey?.approve_comment)
-            console.log('local synced:', localSurvey?.synced)
-            console.log('local completed:', localSurvey?.completed)
             // ตรวจสอบว่ามี survey อื่นที่มี stid + time_visit เหมือนกันแต่ id ต่างกัน
             // ใช้ cached allSurveyProgress แทน getAll() ทุกรอบ loop
             if (!localSurvey) {
@@ -1357,15 +1388,33 @@ export default function ({ app, store, $axios }, inject) {
               note: result.note,
               // ตรวจสอบว่าข้อมูลครบถ้วนหรือไม่ก่อน set completed = true
               // ถ้ามีแค่วันนัดหมาย แต่ไม่มีคำตอบ (q1-q8) ถือว่ายัง completed = false
-              completed: !!(
-                result.q1 ||
-                result.q2 ||
-                result.q3 ||
-                result.q4 ||
-                result.q6 ||
-                result.q7 ||
-                result.q8
-              ),
+              // completed: !!(
+              //   result.q1 ||
+              //   result.q2 ||
+              //   result.q3 ||
+              //   result.q4 ||
+              //   result.q6 ||
+              //   result.q7 ||
+              //   result.q8
+              // ),
+              completed:
+                result.time_visit == 1
+                  ? !!(
+                      result.q1 ||
+                      result.q2 ||
+                      result.q6 ||
+                      result.q7 ||
+                      result.q8
+                    )
+                  : !!(
+                      result.q1 ||
+                      result.q2 ||
+                      result.q3 ||
+                      result.q4 ||
+                      result.q6 ||
+                      result.q7 ||
+                      result.q8
+                    ),
               synced: true,
               // ไม่ต้องเซ็ต approve_status จาก API นี้ เพราะ API getchildsample_result.php ไม่มีฟิลด์นี้
               // :approve_status จะมาจาก API getchildsample_app.php ใน syncBookings() แทน
@@ -1419,7 +1468,6 @@ export default function ({ app, store, $axios }, inject) {
             skippedCount++;
           }
         }
-
         // Reconciliation: ตรวจจับ local synced=true ที่ server ไม่มี → re-queue push
         const apiResultIds = new Set(
           apiResults.map((r) => `${r.stid}_${r.time_visit}`)
@@ -3001,6 +3049,7 @@ export default function ({ app, store, $axios }, inject) {
             // อัพเดทสถานะเป็น synced
             const SurveyId = `${survey.stid}_${survey.time_visit}`;
             const existing = await app.$indexedDB.getSurveyProgressById(SurveyId)
+            console.log('existing:'+existing)
             await app.$indexedDB.updateSurveySyncStatus(survey.id, true, existing?.approve_status ?? 0);
             // await app.$indexedDB.updateSurveySyncStatus(survey.id, true, 0);
 
@@ -3013,7 +3062,6 @@ export default function ({ app, store, $axios }, inject) {
             errorCount++;
           }
         }
-
         return successCount > 0;
       } catch (error) {
         console.error("Survey results sync failed:", error);
