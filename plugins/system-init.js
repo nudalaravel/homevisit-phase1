@@ -505,7 +505,7 @@ export default function ({ app, store, $axios }, inject) {
           surveyMapByStidTimeVisit.set(key, s);
         });
 
-        // Nuda Add
+        // Nuda Add เพื่อ กรองรายการนี้ออกก่อนเข้า loop
         const apiBookings = [];
 
         for (const result of apiResultsRaw) {
@@ -1137,6 +1137,12 @@ export default function ({ app, store, $axios }, inject) {
             // ถ้า time_visit เป็น empty string ("") ให้ถือว่าเป็นข้อมูลผิดพลาด - skip
             if (!result.stid) {
               console.warn("Skipping result without stid:", result);
+              skippedCount++;
+              continue;
+            }
+            // nuda 17.4.2026 เพิ่มให้ Skip กรณีไม่มี recby ด้วย Pk: stid,recby,time_visit
+            if (!result.recby) {
+              console.warn("Skipping result without recby:", result);
               skippedCount++;
               continue;
             }
@@ -2835,11 +2841,11 @@ export default function ({ app, store, $axios }, inject) {
               const putPayload = {
                 variable: putVariables,
                 value: putValues,
-                pk: ["stid", "time_visit"],
-                pkval: [survey.stid, String(survey.time_visit)],
+                pk: ["stid", "time_visit", "recby"],
+                pkval: [survey.stid, String(survey.time_visit), survey.recby],
                 tb: "homevisitor_result",
               };
-
+              console.log(putPayload)
               // Validation: ตรวจสอบว่า time_visit ถูกต้องก่อน PUT
               if (!survey.time_visit) {
                 console.error(
@@ -2851,6 +2857,7 @@ export default function ({ app, store, $axios }, inject) {
               await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", putPayload);
             } else {
               // ยังไม่มีข้อมูล - ใช้ POST
+              console.log(username)
               const postPayload = {
                 variable: [
                   "recby",

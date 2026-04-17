@@ -2596,7 +2596,6 @@ export default {
             surveyImageKey: survey.surveyImageKey
           }
         })
-        console.log(visits)
         this.visitHistoryForm = {
           id: patient.id,
           stid: patient.stid,

@@ -767,7 +767,6 @@ export default {
           // API เสริม - ข้อมูล approve_status และ approve_comment
           this.$axios.$get(`/api/parenting2025_census/get/homevisit/sup/gethomevisit_resultlist.php${params.toString() ? '?' + params.toString() : ''}`)
         ])
-        
         // สร้าง lookup map สำหรับ approve_status และ approve_comment จาก resultlist API
         // key = stid_time_visit
         const approveStatusMap = {}
