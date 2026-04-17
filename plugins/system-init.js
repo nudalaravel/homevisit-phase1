@@ -2563,19 +2563,19 @@ export default function ({ app, store, $axios }, inject) {
                   }
                 );
                 // 🔥 filter deleted_at ออก
-                const checkResponse = (precheckResponse || []).filter(r => !r.deleted_at);
-
+                // const checkResponse = (precheckResponse || []).filter(r => !r.deleted_at);
+                const checkResponse = (precheckResponse?.results || []).filter(r => !r.deleted_at);
                 // ตรวจสอบว่ามีรายการที่ตรงกับ stid และ time_visit หรือไม่
-                if (checkResponse?.results && checkResponse.results.length > 0) {
-                  existingRecord = checkResponse.results.find(
+                if (checkResponse && checkResponse.length > 0) {
+                  existingRecord = checkResponse.find(
                     (record) =>
                       String(record.stid) === String(survey.stid) &&
                       String(record.time_visit) === String(survey.time_visit)
                   );
 
                   // Log warning ถ้าพบ record ที่ time_visit ไม่ตรงกัน
-                  if (!existingRecord && checkResponse.results.length > 0) {
-                    const foundRecords = checkResponse.results.filter(
+                  if (!existingRecord && checkResponse.length > 0) {
+                    const foundRecords = checkResponse.filter(
                       (record) => String(record.stid) === String(survey.stid)
                     );
                     if (foundRecords.length > 0) {
@@ -2677,7 +2677,6 @@ export default function ({ app, store, $axios }, inject) {
 
             // timeStart: ใช้ time_app_curr จาก booking เป็น fallback ถ้า survey ไม่มี timeStart
             const timeStartValue = survey.timeStart || bookingAppointmentTime || '';
-
             if (existingRecord) {
               // มีข้อมูลแล้ว - ใช้ PUT
               // ⚠️ FIX: สร้าง variable/value แบบ dynamic — ข้ามถ้าไม่มีข้อมูลทั้ง local + server
@@ -2841,11 +2840,10 @@ export default function ({ app, store, $axios }, inject) {
               const putPayload = {
                 variable: putVariables,
                 value: putValues,
-                pk: ["stid", "time_visit", "recby"],
-                pkval: [survey.stid, String(survey.time_visit), survey.recby],
+                pk: ["stid", "time_visit"],
+                pkval: [survey.stid, String(survey.time_visit)],
                 tb: "homevisitor_result",
               };
-              console.log(putPayload)
               // Validation: ตรวจสอบว่า time_visit ถูกต้องก่อน PUT
               if (!survey.time_visit) {
                 console.error(
@@ -2857,7 +2855,6 @@ export default function ({ app, store, $axios }, inject) {
               await $axios.$put("/api/parenting2025_census/put/homevisit/putdata.php", putPayload);
             } else {
               // ยังไม่มีข้อมูล - ใช้ POST
-              console.log(username)
               const postPayload = {
                 variable: [
                   "recby",
