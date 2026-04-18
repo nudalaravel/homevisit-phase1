@@ -2,7 +2,7 @@
   <div class="supervisor-booking">
     <!-- Page Header -->
     <div class="page-header">
-      <h1 class="page-title">ยืนยันการเยี่ยมบ้าน</h1>
+      <h1 class="page-title">ยืนยันการเยี่ยมบ้าน (รายการที่อนุมัติแล้ว)</h1>
     </div>
 
     <!-- Filters -->
@@ -749,13 +749,13 @@ export default {
       this.selectedItems = [] // เคลียร์รายการที่เลือกเมื่อรีเฟรสข้อมูล
       try {
         const params = new URLSearchParams()
+        params.append('action', 'approved')
         if (this.filters.subdistrict && this.filters.subdistrict !== 'all') {
           params.append('amp_code', this.filters.subdistrict)
         }
         if (this.filters.visitor && this.filters.visitor !== 'all') {
           params.append('user_id', this.filters.visitor)
         }
-        
         // ดึงข้อมูลจาก 2 API พร้อมกัน
         const [resultDataResponse, resultListResponse] = await Promise.all([
           // API หลัก - ข้อมูลผลการเยี่ยมบ้าน

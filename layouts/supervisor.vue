@@ -38,7 +38,7 @@
           <i class="fas fa-desktop"></i>
           <span v-if="!sidebarCollapsed">ผลการเยี่ยมบ้าน</span>
         </nuxt-link>
-        <nuxt-link
+        <!--nuxt-link
           to="/supervisor-booking"
           class="nav-item"
           :class="{ active: isActiveRoute('supervisor-booking') }"
@@ -46,7 +46,45 @@
         >
           <i class="fas fa-clipboard-check"></i>
           <span v-if="!sidebarCollapsed">ยืนยันการเยี่ยมบ้าน</span>
-        </nuxt-link>
+        </nuxt-link-->
+        <div class="nav-group">
+          <div
+            class="nav-item nav-parent"
+            :class="{ active: isBookingMenuActive }"
+            :title="sidebarCollapsed ? 'ยืนยันการเยี่ยมบ้าน' : ''"
+            @click="toggleBookingMenu"
+          >
+            <div class="d-flex align-items-center gap-2">
+              <i class="fas fa-clipboard-check"></i>
+              <span v-if="!sidebarCollapsed" class="ml-2">ยืนยันการเยี่ยมบ้าน</span>
+            </div>
+            <i
+              v-if="!sidebarCollapsed"
+              class="fas"
+              :class="showBookingSubmenu ? 'fa-chevron-down' : 'fa-chevron-right'"
+            ></i>
+          </div>
+
+          <div v-show="showBookingSubmenu && !sidebarCollapsed" class="sub-nav">
+            <nuxt-link
+              to="/supervisor-booking-pending"
+              class="nav-item sub-item"
+              :class="{ active: isActiveRoute('supervisor-booking-pending') }"
+            >
+              <i class="fas fa-hourglass-half"></i>
+              <span>รออนุมัติ</span>
+            </nuxt-link>
+
+            <nuxt-link
+              to="/supervisor-booking-approved"
+              class="nav-item sub-item"
+              :class="{ active: isActiveRoute('supervisor-booking-approved') }"
+            >
+              <i class="fas fa-check-circle"></i>
+              <span>อนุมัติแล้ว</span>
+            </nuxt-link>
+          </div>
+        </div>
         <nuxt-link
           to="/supervisor-survey"
           class="nav-item"
@@ -99,12 +137,16 @@ export default {
   data() {
     return {
       sidebarCollapsed: false,
-      isAdminSwitched: false
+      isAdminSwitched: false,
+      showBookingSubmenu: false
     }
   },
   computed: {
     buildVersion() {
       return process.env.BUILD_VERSION || '0.0.0'
+    },
+    isBookingMenuActive() {
+      return this.$route.path.startsWith('/supervisor-booking')
     }
   },
   mounted() {
@@ -112,6 +154,9 @@ export default {
     // ตรวจสอบว่าเป็น admin ที่สลับโหมดมาหรือไม่
     if (process.client) {
       this.isAdminSwitched = localStorage.getItem('admin_active_mode') === 'supervisor'
+    }
+    if (this.$route.path.startsWith('/supervisor-booking')) {
+      this.showBookingSubmenu = true
     }
   },
   methods: {
@@ -183,6 +228,15 @@ export default {
     switchToAdmin() {
       localStorage.removeItem('admin_active_mode')
       this.$router.push('/admin-payment')
+    },
+    toggleBookingMenu() {
+      if (this.sidebarCollapsed) {
+        return this.$router.push('/supervisor-booking-pending')
+      }
+      this.showBookingSubmenu = !this.showBookingSubmenu
+    },
+    isActiveRoute(route) {
+      return this.$route.path === `/${route}` || this.$route.path === route
     }
   }
 }
@@ -507,5 +561,76 @@ export default {
   justify-content: center;
   padding: 0.75rem 0.5rem;
   gap: 0;
+}
+
+/* ===== SUB MENU (SAFE ADD-ON) ===== */
+
+.nav-group {
+  width: 100%;
+}
+
+/* parent menu */
+.nav-parent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+/* submenu container */
+.sub-nav {
+  display: flex;
+  flex-direction: column;
+  margin-left: 1.5rem;
+  margin-top: 0.25rem;
+}
+
+/* submenu item */
+.sub-item {
+  font-size: 0.9rem;
+  padding: 0.6rem 1rem;
+  padding-left: 2.5rem; /* 👈 เยื้องเข้า */
+  opacity: 0.9;
+}
+
+/* hover */
+.sub-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* active submenu */
+.sub-item.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-left: 3px solid #87ceeb;
+}
+
+/* ===== COLLAPSED MODE ===== */
+
+.sidebar-collapsed .sub-nav {
+  display: none; /* 👈 ซ่อน submenu เลย */
+}
+
+/* ===== MOBILE ===== */
+
+@media (max-width: 768px) {
+  .sub-nav {
+    margin-left: 1rem;
+  }
+
+  .sub-item {
+    font-size: 0.85rem;
+    padding-left: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .sub-nav {
+    margin-left: 0.5rem;
+  }
+
+  .sub-item {
+    padding-left: 1.5rem;
+    font-size: 0.8rem;
+  }
 }
 </style>

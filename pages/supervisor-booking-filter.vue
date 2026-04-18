@@ -42,9 +42,13 @@
     </div>
     <!-- Data Table -->
     <div class="table-container">
+      <div v-if="!isFormReady" class="selection-message">
+        <i class="fas fa-info-circle mr-2"></i>
+        <span>กรุณาเลือกอย่างน้อย 1 รายการ เพื่อแสดงข้อมูล</span>
+      </div>
       <!-- Skeleton Loading -->
       <div v-if="loading" class="skeleton-table">
-        <table class="table table-striped">
+        <table v-if="isFormReady" class="table table-striped">
           <thead>
             <tr>
               <th v-for="field in tableFields" :key="field.key">{{ field.label }}</th>
@@ -621,6 +625,14 @@ export default {
       correctionReason: ''
     }
   },
+  computed: {
+    isFormReady() {
+      return (
+        (this.filters.subdistrict && this.filters.subdistrict !== 'all') ||
+        (this.filters.visitor && this.filters.visitor !== 'all')
+      )
+    }
+  },
   async mounted() {
     // jsPDF and html2canvas imported directly, no need for CDN
 
@@ -692,7 +704,7 @@ export default {
         const isSuccess = response.message === 'success' || response.statusCode === 200
         if (isSuccess && response.results) {
           this.subdistrictOptions = [
-            { value: 'all', text: '--ทั้งหมด--' },
+            { value: 'all', text: '--เลือกตำบล--' },
             ...response.results.map(item => ({
               value: item.amp_code || item.code,
               text: item.amp_nameT || item.name
@@ -711,7 +723,7 @@ export default {
         const isSuccess = response.message === 'success' || response.statusCode === 200
         if (isSuccess && response.results) {
           this.subdistrictOptions = [
-            { value: 'all', text: '--ทั้งหมด--' },
+            { value: 'all', text: '--เลือกตำบล--' },
             ...response.results.map(item => ({
               value: item.tambon_code || item.code,
               text: item.tambon_nameT || item.tambon
@@ -731,7 +743,7 @@ export default {
         if (isSuccess && response.results) {
           // ใช้ทุก user ที่มี และใช้ username เป็น key สำหรับ map กับ recby
           this.visitorOptions = [
-            { value: 'all', text: '--ทั้งหมด--' },
+            { value: 'all', text: '--เลือกผู้เยี่ยมบ้าน--' },
             ...response.results.map(item => ({
               value: item.username,  // ใช้ username ให้ตรงกับ recby
               text: `${item.fname || ''} ${item.lname || ''}`.trim() || item.username
@@ -755,7 +767,12 @@ export default {
         if (this.filters.visitor && this.filters.visitor !== 'all') {
           params.append('user_id', this.filters.visitor)
         }
-        
+        // 🔥 ถ้าไม่มี params เลย → ไม่ต้องเรียก API
+        if (!params.toString()) {
+          console.log('no params → skip API')
+          this.tableData = [] // หรือไม่ต้องทำอะไรเลยก็ได้
+          return
+        }
         // ดึงข้อมูลจาก 2 API พร้อมกัน
         const [resultDataResponse, resultListResponse] = await Promise.all([
           // API หลัก - ข้อมูลผลการเยี่ยมบ้าน

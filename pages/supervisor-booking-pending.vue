@@ -2,7 +2,7 @@
   <div class="supervisor-booking">
     <!-- Page Header -->
     <div class="page-header">
-      <h1 class="page-title">ยืนยันการเยี่ยมบ้าน</h1>
+      <h1 class="page-title">ยืนยันการเยี่ยมบ้าน (รายการรออนุมัติ)</h1>
     </div>
 
     <!-- Filters -->
@@ -33,6 +33,22 @@
           <option
             v-for="(option, index) in visitorOptions"
             :key="'visitor-' + index"
+            :value="option.value"
+          >
+            {{ option.text }}
+          </option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">สถานะ</label>
+        <select
+          v-model="filters.reviewStatus"
+          class="filter-select select2"
+          ref="reviewStatusSelect"
+        >
+          <option
+            v-for="(option, index) in reviewStatusOptions"
+            :key="'reviewStatus-' + index"
             :value="option.value"
           >
             {{ option.text }}
@@ -525,7 +541,8 @@ export default {
       loadingPDF: false,
       filters: {
         subdistrict: 'all',
-        visitor: 'all'
+        visitor: 'all',
+        reviewStatus: 'all'
       },
       subdistrictOptions: [
         { value: 'all', text: '--ทั้งหมด--' }
@@ -618,7 +635,13 @@ export default {
       // Correction Modal
       showCorrectionModal: false,
       correctionItem: null,
-      correctionReason: ''
+      correctionReason: '',
+      reviewStatusOptions: [
+        { value: 'all', text: '--ทั้งหมด--' },
+        { value: 'pending', text: 'รอตรวจสอบ' },
+        { value: 'correction_requested', text: 'แจ้งให้แก้ไข' },
+        { value: 'edited', text: 'แก้ไขแล้ว (รอตรวจ)' }
+      ]
     }
   },
   async mounted() {
@@ -651,6 +674,18 @@ export default {
             const newVal = window.$(this.$refs.visitorSelect).val()
             if (this.filters.visitor !== newVal) {
               this.filters.visitor = newVal
+              this.fetchTableData()
+            }
+          })
+        }
+        // Status
+        if (this.$refs.reviewStatusSelect) {
+          this.$select2.init(this.$refs.reviewStatusSelect)
+          // Sync v-model with select2 - เรียก fetchTableData เฉพาะจาก event นี้เท่านั้น
+          window.$(this.$refs.reviewStatusSelect).on('change', () => {
+            const newVal = window.$(this.$refs.reviewStatusSelect).val()
+            if (this.filters.reviewStatus !== newVal) {
+              this.filters.reviewStatus = newVal
               this.fetchTableData()
             }
           })
@@ -742,20 +777,26 @@ export default {
         console.error('Error fetching visitor options:', error)
       }
     },
-
+    mapApproveStatus(status) {
+      const s = Number(status)
+      if (s === 1) return 'confirmed'
+      if (s === -1) return 'correction_requested'
+      if (s === -2) return 'edited'
+      return 'pending'
+    },
     // ดึงข้อมูลตารางผลการเยี่ยมบ้าน
     async fetchTableData() {
       this.loading = true
       this.selectedItems = [] // เคลียร์รายการที่เลือกเมื่อรีเฟรสข้อมูล
       try {
         const params = new URLSearchParams()
+        params.append('action', 'pending')
         if (this.filters.subdistrict && this.filters.subdistrict !== 'all') {
           params.append('amp_code', this.filters.subdistrict)
         }
         if (this.filters.visitor && this.filters.visitor !== 'all') {
           params.append('user_id', this.filters.visitor)
         }
-        
         // ดึงข้อมูลจาก 2 API พร้อมกัน
         const [resultDataResponse, resultListResponse] = await Promise.all([
           // API หลัก - ข้อมูลผลการเยี่ยมบ้าน
@@ -793,6 +834,12 @@ export default {
           let filteredResults = resultDataResponse.results
           if (this.filters.visitor && this.filters.visitor !== 'all') {
             filteredResults = resultDataResponse.results.filter(item => item.recby === this.filters.visitor)
+          }
+
+          if (this.filters.reviewStatus && this.filters.reviewStatus !== 'all') {
+            filteredResults = resultDataResponse.results.filter(item =>
+              this.mapApproveStatus(item.approve_status) === this.filters.reviewStatus
+            )
           }
           this.tableData = filteredResults.map((item, index) => {
             // ดึง approve status จาก resultlist API โดยใช้ stid และ time_visit เป็น key
