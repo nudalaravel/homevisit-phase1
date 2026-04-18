@@ -306,7 +306,8 @@
             <h6>รูปภาพที่ 1: รูปของเล่น สื่ออุปกรณ์ที่ใช้ในครั้งนี้</h6>
             <div v-if="photoModalData.images[0]" class="current-image-section">
               <div class="image-preview-large">
-                <img :src="photoModalData.images[0]" alt="รูปของเล่น สื่ออุปกรณ์">
+                <!--img :src="photoModalData.images[0]" alt="รูปของเล่น สื่ออุปกรณ์"-->
+                <img :src="getImageUrl(photoModalData.images[0])" alt="รูปของเล่น สื่ออุปกรณ์">
               </div>
             </div>
             <div v-else class="no-image-section">
@@ -320,7 +321,8 @@
             <h6>รูปภาพที่ 2: รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม</h6>
             <div v-if="photoModalData.images[1]" class="current-image-section">
               <div class="image-preview-large">
-                <img :src="photoModalData.images[1]" alt="รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม">
+                <!--img :src="photoModalData.images[1]" alt="รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม"-->
+                <img :src="getImageUrl(photoModalData.images[1])" alt="รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม">
               </div>
             </div>
             <div v-else class="no-image-section">
@@ -684,6 +686,17 @@ export default {
     }
   },
   methods: {
+    getImageUrl(img) {
+      if (!img) return ''
+
+      // 🔥 ถ้าเป็น base64 (data:image)
+      if (img.startsWith('data:image')) {
+        return img
+      }
+
+      // 🔥 ถ้าเป็น URL ปกติ
+      return `${img}?t=${Date.now()}`
+    },
     // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
     async fetchAmphoeOptions() {
       try {

@@ -518,7 +518,11 @@
             <h6>รูปภาพที่ 1: รูปของเล่น สื่ออุปกรณ์ที่ใช้ในครั้งนี้</h6>
             <div v-if="editPhotoForm.currentImages[0]" class="current-image-section">
               <div class="image-preview-large">
-                <img :src="editPhotoForm.currentImages[0]" alt="Current photo 1">
+                <!--img :src="editPhotoForm.currentImages[0]" alt="Current photo 1"-->
+                <img 
+                  :src="getImageUrl(editPhotoForm.currentImages[0])"
+                  alt="Current photo 1"
+                />
                 <button class="btn-remove-current" @click="removeCurrentImage(0)">
                   <i class="fas fa-times"></i>
                 </button>
@@ -541,7 +545,11 @@
             <h6>รูปภาพที่ 2: รูปขณะที่เด็กและผู้ปกครองทำกิจกรรม</h6>
             <div v-if="editPhotoForm.currentImages[1]" class="current-image-section">
               <div class="image-preview-large">
-                <img :src="editPhotoForm.currentImages[1]" alt="Current photo 2">
+                <!--img :src="editPhotoForm.currentImages[1]" alt="Current photo 2"-->
+                <img 
+                  :src="getImageUrl(editPhotoForm.currentImages[1])"
+                  alt="Current photo 2"
+                />
                 <button class="btn-remove-current" @click="removeCurrentImage(1)">
                   <i class="fas fa-times"></i>
                 </button>
@@ -922,6 +930,17 @@ export default {
     }
   },
   methods: {
+    getImageUrl(img) {
+      if (!img) return ''
+
+      // 🔥 ถ้าเป็น base64 (data:image)
+      if (img.startsWith('data:image')) {
+        return img
+      }
+
+      // 🔥 ถ้าเป็น URL ปกติ
+      return `${img}?t=${Date.now()}`
+    },
     updateVisitorsCount() {
       this.$store.commit('setPatientsCount', this.visitors.length)
     },
