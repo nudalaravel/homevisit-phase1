@@ -456,7 +456,12 @@
         ></b-form-textarea>
 
         <div class="time-end-section">
-          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม</label>
+          <label class="time-end-label">เวลาสิ้นสุดการเยี่ยม
+            <span v-if="requiredEndTime" class="text-danger">*</span>
+            <span style="color:#6c757d;font-size:18px">
+              <small v-html="timeEndHint"></small>
+            </span>
+        </label>
         <div class="dropdown-row">
           <b-form-select
               v-model="answers.endHour"
@@ -470,6 +475,9 @@
             class="select-field"
           ></b-form-select>
           </div>
+          <small v-if="requiredEndTime" class="text-danger">
+            กรุณากรอกเวลาสิ้นสุดการเยี่ยม
+          </small>
         </div>
       </div>
 
@@ -477,7 +485,7 @@
         <b-button variant="primary" size="lg" @click="prevStep">
           ย้อนกลับ
         </b-button>
-        <b-button variant="info" size="lg" @click="nextStep">
+        <b-button variant="info" size="lg" @click="nextStep" :disabled="requiredEndTime">
           ถัดไป
         </b-button>
       </div>
@@ -561,11 +569,8 @@
     </div>
 
     <!-- Step 12: นัดหมายการเยี่ยมบ้านครั้งถัดไป -->
-    <div v-if="currentStep === 12" class="survey-step">
-     
-      
+    <div v-if="currentStep === 12" class="survey-step">    
       <h4 class="question-title">10.นัดหมายการเยี่ยมบ้านครั้งต่อไป</h4>
-      
       <div class="appointment-form-wrapper">
         <div class="appointment-form-grid">
           <div class="appointment-field">
@@ -933,7 +938,8 @@ export default {
         appointmentDay: null,
         appointmentMonth: null,
         appointmentYear: null,
-        appointmentTime: '09:00 น.',
+        appointmentTime: null,
+        appointmentMonthAge: null,
         monthAge: null,
         timeActivity: 1,
         activities: []
@@ -941,7 +947,8 @@ export default {
       
       monthOptions: MONTH_OPTIONS,
       yearOptions: [],
-      timeOptions: TIME_OPTIONS
+      timeOptions: TIME_OPTIONS,
+      timeEndHint: '(ตัวอย่าง: เริ่มเยี่ยม 11:00 และสิ้นสุดการเยี่ยม 11:30  → กรอก 11:30)'
     }
   },
   computed: {
@@ -1012,6 +1019,9 @@ export default {
         return this.normalizeImageUrl(rawUrl)
       }
       return this.normalizeImageUrl(img)
+    },
+    requiredEndTime() {
+      return !this.answers.endHour || !this.answers.endMinute
     }
   },
   async mounted() {
@@ -1032,9 +1042,10 @@ export default {
       this.minuteOptions = minuteOptions
       
       // Set default to current time
-      const now = new Date()
-      this.answers.endHour = String(now.getHours()).padStart(2, '0')
-      this.answers.endMinute = String(now.getMinutes()).padStart(2, '0')
+      // P'Kei เวลา ให้ว่างไว้ ไม่ต้องขึ้น default ถ้าไม่กรอกไปต่อไม่ได้ | 6.4.2026
+      // const now = new Date()
+      // this.answers.endHour = String(now.getHours()).padStart(2, '0')
+      // this.answers.endMinute = String(now.getMinutes()).padStart(2, '0')
     },
     
     showActivityDetailModal(activity) {
@@ -1288,7 +1299,6 @@ export default {
                 const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(stid)
                 timeVisit = completedSurveys.length + 1
               }
-              
               this.visitorData = {
                 stid: stid,
                 name: visitor.cname || visitor.name,
@@ -1384,6 +1394,8 @@ export default {
       this.recEnd = survey.recEnd || null
       // เพิ่มตรงนี้ เพื่อเช็คว่า เป็นหน้าแก้ไข หรือไม่
       const urlParams = this.$route.query
+      console.log(this.visitorData)
+      console.log(survey)
       if (survey.completed && urlParams.mode === 'edit') {
         this.timeStart = this.visitorData.appointmentTime || null
       } else {
@@ -1397,13 +1409,11 @@ export default {
 
       if (survey.completed) {
         const allSurveys = await this.$indexedDB.getAllSurveysByStid(survey.stid)
-        
         const surveyTimes = allSurveys
           .map(s => Number(s.time_visit))
           .filter(t => !isNaN(t) && t > 0)
         const maxTime = surveyTimes.length > 0 ? Math.max(...surveyTimes) : 0
         const currentTime = Number(survey.time_visit || 0)
-        
         if (maxTime > currentTime) {
           this.shouldDisableStep12 = true
         } else {
@@ -2597,7 +2607,6 @@ export default {
       if (!this.validateCurrentStep()) {
         return
       }
-      
       // บันทึก timeEnd และ recEnd เมื่อออกจาก Step 10 (บันทึกผู้เยี่ยมบ้าน)
       if (this.currentStep === 10) {
         const now = new Date()
@@ -2855,6 +2864,10 @@ export default {
       
         this.processing = true
         
+        if (!this.newAppointment.appointmentTime) {
+          this.$toast.warning('กรุณาบันทึก เวลา นัดหมายการเยี่ยมบ้านครั้งถัดไป')
+          return false
+        }
         // ตรวจสอบว่าเป็นการแก้ไขแบบสอบถามที่เสร็จแล้วหรือไม่
         const existingSurvey = await this.$indexedDB.getSurveyProgressById(this.surveyId)
         const wasCompleted = existingSurvey?.completed || false
@@ -2913,6 +2926,10 @@ export default {
       try {
         this.processing = true
         
+        if (!this.newAppointment.appointmentTime) {
+          this.$toast.warning('กรุณาบันทึก เวลา นัดหมายการเยี่ยมบ้านครั้งถัดไป')
+          return false
+        }
         // อัปเดต recEnd
         this.recEnd = toMySQLDateTime()
         
@@ -3141,7 +3158,9 @@ export default {
             this.newAppointment.appointmentDay = q10Date.getDate()
             this.newAppointment.appointmentMonth = q10Date.getMonth() + 1
             this.newAppointment.appointmentYear = q10Date.getFullYear() + 543
-            this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || '09:00 น.'
+            // ลบ Default ออก 6.4.2026
+            // this.newAppointment.appointmentTime = this.answers.q10_appTime || this.visitorData.appointmentTime || '16:30 น.'
+            this.newAppointment.appointmentTime = this.answers.q10_appTime || ''
             await this.recalculateMonthAgeAndActivities()
             return
           }
@@ -3168,11 +3187,12 @@ export default {
         this.newAppointment.appointmentYear = nextVisit.getFullYear() + 543
         
         // ใช้เวลาจาก appointmentTime หรือค่า default
-        if (this.visitorData.appointmentTime) {
-          this.newAppointment.appointmentTime = this.visitorData.appointmentTime
-        } else {
-          this.newAppointment.appointmentTime = '09:00 น.'
-        }
+        // if (this.visitorData.appointmentTime) {
+        //   this.newAppointment.appointmentTime = this.visitorData.appointmentTime
+        // } else {
+        //   // ลบ default 6.4.2026
+        //   this.newAppointment.appointmentTime = null
+        // }
       }
       await this.recalculateMonthAgeAndActivities()
     },

@@ -164,6 +164,11 @@ export function prepareVisitorData(visitor, booking, completedSurveys, allSurvey
     lastSyncedAt: visitor.lastSyncedAt || null,
     needsPreviousVisit: parseInt(timeVisit) >= 2 && !previousCompletedSurvey,
     needsNextAppointment,
+    // เพิ่มตัวนี้
+    hasPreviousSurvey:
+      parseInt(timeVisit) === 1
+      ? true
+      : (previousCompletedSurvey?.completed || false),
     latestSurveySynced: previousCompletedSurvey?.synced || false,
     latestSurveyApproved: previousCompletedSurvey?.approve_status === 1,
     currentSurveyCompleted: currentVisitSurvey?.completed || false,
@@ -271,7 +276,6 @@ export function calculateMonthAgeAndTime(
       }
     } else if (daysSinceLastAppointment >= 0) {
       // 0-21 days: increment sequence
-
       // Special case: after 4th visit (creating 5th appointment)
       if (existingBooking.time === MAX_VISIT_TIME) {
         // ครบครั้งที่ 4 แล้ว: ภายใน 21 วัน

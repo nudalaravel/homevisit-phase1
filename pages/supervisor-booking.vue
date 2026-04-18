@@ -40,12 +40,15 @@
         </select>
       </div>
     </div>
-
     <!-- Data Table -->
     <div class="table-container">
+      <div v-if="!isFormReady" class="selection-message">
+        <i class="fas fa-info-circle mr-2"></i>
+        <span>กรุณาเลือกอย่างน้อย 1 รายการ เพื่อแสดงข้อมูล</span>
+      </div>
       <!-- Skeleton Loading -->
       <div v-if="loading" class="skeleton-table">
-        <table class="table table-striped">
+        <table v-if="isFormReady" class="table table-striped">
           <thead>
             <tr>
               <th v-for="field in tableFields" :key="field.key">{{ field.label }}</th>
@@ -620,11 +623,20 @@ export default {
       correctionReason: ''
     }
   },
+  computed: {
+    isFormReady() {
+      return (
+        (this.filters.subdistrict && this.filters.subdistrict !== 'all') ||
+        (this.filters.visitor && this.filters.visitor !== 'all')
+      )
+    }
+  },
   async mounted() {
     // jsPDF and html2canvas imported directly, no need for CDN
 
     // Load data from APIs
-    await this.fetchAmphoeOptions()
+    // await this.fetchAmphoeOptions()
+    await this.fetchTambonOptions()
     await this.fetchVisitorOptions()
     await this.fetchTableData()
 
@@ -679,10 +691,29 @@ export default {
         const isSuccess = response.message === 'success' || response.statusCode === 200
         if (isSuccess && response.results) {
           this.subdistrictOptions = [
-            { value: 'all', text: '--ทั้งหมด--' },
+            { value: 'all', text: '--เลือกตำบล--' },
             ...response.results.map(item => ({
               value: item.amp_code || item.code,
               text: item.amp_nameT || item.name
+            }))
+          ]
+        }
+      } catch (error) {
+        console.error('Error fetching amphoe options:', error)
+      }
+    },
+
+    // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
+    async fetchTambonOptions() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/gettambon.php')
+        const isSuccess = response.message === 'success' || response.statusCode === 200
+        if (isSuccess && response.results) {
+          this.subdistrictOptions = [
+            { value: 'all', text: '--เลือกตำบล--' },
+            ...response.results.map(item => ({
+              value: item.tambon_code || item.code,
+              text: item.tambon_nameT || item.tambon
             }))
           ]
         }
@@ -699,7 +730,7 @@ export default {
         if (isSuccess && response.results) {
           // ใช้ทุก user ที่มี และใช้ username เป็น key สำหรับ map กับ recby
           this.visitorOptions = [
-            { value: 'all', text: '--ทั้งหมด--' },
+            { value: 'all', text: '--เลือกผู้เยี่ยมบ้าน--' },
             ...response.results.map(item => ({
               value: item.username,  // ใช้ username ให้ตรงกับ recby
               text: `${item.fname || ''} ${item.lname || ''}`.trim() || item.username
@@ -723,7 +754,12 @@ export default {
         if (this.filters.visitor && this.filters.visitor !== 'all') {
           params.append('user_id', this.filters.visitor)
         }
-        
+        // 🔥 ถ้าไม่มี params เลย → ไม่ต้องเรียก API
+        if (!params.toString()) {
+          console.log('no params → skip API')
+          this.tableData = [] // หรือไม่ต้องทำอะไรเลยก็ได้
+          return
+        }
         // ดึงข้อมูลจาก 2 API พร้อมกัน
         const [resultDataResponse, resultListResponse] = await Promise.all([
           // API หลัก - ข้อมูลผลการเยี่ยมบ้าน
@@ -731,12 +767,11 @@ export default {
           // API เสริม - ข้อมูล approve_status และ approve_comment
           this.$axios.$get(`/api/parenting2025_census/get/homevisit/sup/gethomevisit_resultlist.php${params.toString() ? '?' + params.toString() : ''}`)
         ])
-        
         // สร้าง lookup map สำหรับ approve_status และ approve_comment จาก resultlist API
         // key = stid_time_visit
         const approveStatusMap = {}
-        if (resultListResponse?.results) {
-          resultListResponse.results.forEach(item => {
+        if (resultDataResponse?.results) {
+          resultDataResponse.results.forEach(item => {
             const key = `${item.stid}_${item.time_visit}`
             approveStatusMap[key] = {
               approve_status: item.approve_status !== null && item.approve_status !== undefined 
@@ -748,7 +783,6 @@ export default {
             }
           })
         }
-        
         const isSuccess = resultDataResponse.message === 'success' || resultDataResponse.statusCode === 200
         if (isSuccess && resultDataResponse.results) {
           // สร้าง lookup map: username -> ชื่อเต็ม จาก visitorOptions
@@ -764,7 +798,6 @@ export default {
           if (this.filters.visitor && this.filters.visitor !== 'all') {
             filteredResults = resultDataResponse.results.filter(item => item.recby === this.filters.visitor)
           }
-          console.log(filteredResults)
           this.tableData = filteredResults.map((item, index) => {
             // ดึง approve status จาก resultlist API โดยใช้ stid และ time_visit เป็น key
             const approveKey = `${item.stid}_${item.time_visit}`
@@ -1365,6 +1398,7 @@ export default {
             try {
               const stid = item.stid || item.rawData?.stid
               const timeVisit = item.rawData?.time_visit || '1'
+              const recBy = item.recby || item.rawData?.recby
               
               const payload = {
                 variable: [
@@ -1379,8 +1413,8 @@ export default {
                   '',                            // approve_comment (ไม่มี comment สำหรับการอนุมัติ)
                   supervisorUsername             // approve_by
                 ],
-                pk: ['stid', 'time_visit'],
-                pkval: [stid, String(timeVisit)],
+                pk: ['stid', 'time_visit', 'recby'],
+                pkval: [stid, String(timeVisit), recBy],
                 tb: 'homevisitor_app'
               }
               
@@ -1486,6 +1520,8 @@ export default {
         // Get stid and time_visit from correctionItem
         const stid = this.correctionItem.stid || this.correctionItem.rawData?.stid
         const timeVisit = this.correctionItem.rawData?.time_visit || '1'
+        // เพิ่ม pk จาก stid,time_visit, เป็น recby
+        const recBy = this.correctionItem.recby || this.correctionItem.rawData?.recby
         
         const payload = {
           variable: [
@@ -1500,8 +1536,9 @@ export default {
             this.correctionReason.trim(),    // approve_comment (reason)
             supervisorUsername               // approve_by
           ],
-          pk: ['stid', 'time_visit'],
-          pkval: [stid, String(timeVisit)],
+          // เพิ่ม pk จาก stid,time_visit, เป็น recby
+          pk: ['stid', 'time_visit', 'recby'],
+          pkval: [stid, String(timeVisit), recBy],
           tb: 'homevisitor_app'
         }
         
@@ -2598,6 +2635,24 @@ export default {
 .page-break-after {
   page-break-after: always;
   break-after: page;
+}
+
+
+.selection-message {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid #ffc107;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.selection-message i {
+  font-size: 1.1rem;
+  margin-right: 0.5rem;
 }
 </style>
 

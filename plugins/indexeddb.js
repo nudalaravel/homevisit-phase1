@@ -1261,6 +1261,10 @@ export default function ({ app, store }, inject) {
       }
     }
 
+    async deleteBookingV2(id) {
+      return await this.delete("bookings_v2", id);
+    }
+
     /** ล้างการนัดหมายทั้งหมด */
     async clearBookings() {
       const initialized = await this.ensureInitialized();
@@ -1382,7 +1386,6 @@ export default function ({ app, store }, inject) {
         console.warn("IndexedDB is not available, operation skipped");
         return [];
       }
-
       return new Promise((resolve, reject) => {
         const transaction = this.db.transaction(["survey_progress"], "readonly");
         const store = transaction.objectStore("survey_progress");
@@ -1417,6 +1420,7 @@ export default function ({ app, store }, inject) {
           const cursor = event.target.result;
           if (cursor) {
             const survey = cursor.value;
+
             // Filter เฉพาะ surveys ที่เสร็จแล้ว (logic เดิม)
             if (survey.completed === true) {
               completedSurveys.push(survey);
@@ -1439,7 +1443,8 @@ export default function ({ app, store }, inject) {
       const duplicates = [];
 
       completedSurveys.forEach((s) => {
-        const key = `${s.stid}_${s.time}`;
+        // const key = `${s.stid}_${s.time}`;
+        const key = `${s.stid}_${s.time_visit}`;
         if (uniqueKeys.has(key)) {
           duplicates.push(key);
         } else {
@@ -1536,7 +1541,8 @@ export default function ({ app, store }, inject) {
         // จัดกลุ่มตาม stid + time
         const groupedSurveys = new Map();
         allSurveys.forEach((survey) => {
-          const key = `${survey.stid}_${survey.time}`;
+          // const key = `${survey.stid}_${survey.time}`;
+          const key = `${survey.stid}_${survey.time_visit}`;
           if (!groupedSurveys.has(key)) {
             groupedSurveys.set(key, []);
           }
