@@ -1111,7 +1111,7 @@ export default {
     },
     async syncDataInBackground(username) {
       try {
-        /*
+        /* old ver
         // ซิงค์ข้อมูลในพื้นหลัง (ไม่แสดง loading overlay)
         
         // ซิงค์ผู้รับบริการ
