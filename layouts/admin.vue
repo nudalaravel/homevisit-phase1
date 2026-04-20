@@ -118,6 +118,12 @@ export default {
   mounted() {
     // โหลดค่าจาก cookie เมื่อ component mount
     this.loadSidebarState()
+    // ไม่อนุญาติให้ Homevisit เข้าใช้งาน Admin & Sup
+    let user = this.$store.state.auth?.user;
+    let userLevel = user?.level;
+    if (![1, 2].includes(userLevel)) {
+      this.$router.replace('/')
+    }
   },
   methods: {
     loadSidebarState() {

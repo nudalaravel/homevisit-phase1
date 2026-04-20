@@ -89,7 +89,8 @@
                รอส่งข้อมูล
               </div-->
               <div v-else-if="parseInt(visitor.time_visit) >= 2 && !visitor.latestSurveySynced && !visitor.hasPreviousSurvey" class="visit-text-disabled">
-               รอส่งข้อมูล
+                รอส่งข้อมูล
+                <div v-if="getReason(visitor)" class="visit-sub">({{ getReason(visitor) }})</div>
               </div>
               <!-- กรณีมีนัดหมายและพร้อมบันทึก -->
               <div v-else-if="visitor.appointmentDate" class="visit-text">
@@ -892,7 +893,7 @@ export default {
       if (targetVisitor) {
         // รอให้ render เสร็จก่อนเปิด modal
         await this.$nextTick()
-        this.scheduleAppointment(targetVisitor)
+        await this.scheduleAppointment(targetVisitor)
       }
     }
     
@@ -930,6 +931,13 @@ export default {
     }
   },
   methods: {
+    getReason(visitor) {
+      const reasons = []
+      if (parseInt(visitor.time_visit) < 2) reasons.push('ยังไม่ถึงครั้งที่ 2')
+      if (!visitor.latestSurveySynced) reasons.push('ยังไม่ sync แบบล่าสุด')
+      if (!visitor.hasPreviousSurvey) reasons.push('ยังไม่มี previous survey')
+      return reasons.join(' / ')
+    },
     getImageUrl(img) {
       if (!img) return ''
 
@@ -1075,9 +1083,24 @@ export default {
         await this.loadVisitors()
         
         // ซิงค์ในพื้นหลังถ้าออนไลน์ (ไม่ block UI)
+        // const username = this.$offlineAuth?.getUser?.()?.username
+        // if (this.$store.state.isOnline && username) {
+        //   await this.syncDataInBackground(username)
+        // }
+        // ซิงค์ในพื้นหลังถ้าออนไลน์ (ไม่ block UI)
         const username = this.$offlineAuth?.getUser?.()?.username
+        const hasLocal = this.visitors && this.visitors.length > 0
+
         if (this.$store.state.isOnline && username) {
-          this.syncDataInBackground(username)
+          if (!hasLocal) {
+            console.log('ถ้าไม่มีข้อมูล → รอ sync เลย')
+            // ถ้าไม่มีข้อมูล → รอ sync เลย
+            await this.syncDataInBackground(username)
+          } else {
+            console.log('มีข้อมูลแล้ว → sync background')
+            // มีข้อมูลแล้ว → sync background
+            this.syncDataInBackground(username)
+          }
         }
         
         this.loading = false
@@ -1088,6 +1111,7 @@ export default {
     },
     async syncDataInBackground(username) {
       try {
+        /* old ver
         // ซิงค์ข้อมูลในพื้นหลัง (ไม่แสดง loading overlay)
         
         // ซิงค์ผู้รับบริการ
@@ -1106,10 +1130,29 @@ export default {
         
         // โหลดข้อมูลใหม่หลังซิงค์เสร็จ
         await this.loadVisitors()
+        await this.$nextTick()
         
         // Preload รูปภาพจาก S3 เพื่อให้ Service Worker cache ไว้
         this.preloadSurveyImages() // ไม่ await เพื่อไม่ block
         
+        this.$toast.success('ซิงค์ข้อมูลเสร็จสิ้น')
+        */
+       // 1) ส่งข้อมูล local ที่ค้างขึ้น server ก่อน
+        await Promise.all([
+          this.$systemInit.pushBookingsToAPI(),
+          this.$systemInit.pushSurveyResultsToAPI()
+        ])
+
+        // 2) ค่อยดึงข้อมูลล่าสุดจาก server ลง local
+        await this.$systemInit.syncVisitors(username)
+        await this.$systemInit.syncBookings(username)
+        await this.$systemInit.syncSurveyResults(username)
+
+        // 3) โหลดข้อมูลใหม่
+        await this.loadVisitors()
+        await this.$nextTick()
+
+        this.preloadSurveyImages()
         this.$toast.success('ซิงค์ข้อมูลเสร็จสิ้น')
       } catch (error) {
         console.error('Background sync failed:', error)
@@ -2587,8 +2630,29 @@ export default {
       return checkCanRecordVisit(visitor)
     },
     
-    // แสดงประวัติการเยี่ยมบ้าน
     async showVisitHistory(patient) {
+      try {
+        await this.loadVisitHistory(patient)
+
+        this.showVisitHistoryModal = true
+
+        const username = this.$offlineAuth?.getUser?.()?.username
+        // ถ้าอ่านอย่างเดียว / ไม่มี local pending เพราะเป็นรายการ Push เเล้ว
+        if (this.$store.state.isOnline && username) {
+          const hasPending = await this.$indexedDB.getUnsyncedSurveys()
+          console.log(hasPending.length)
+          if (hasPending) {
+            await this.$systemInit.pushSurveyResultsToAPI()
+          }
+          await this.$systemInit.syncSurveyResults(username)
+          await this.loadVisitHistory(patient)
+        }
+      } catch (error) {
+        console.error('showVisitHistory error:', error)
+      }
+    },
+    // แสดงประวัติการเยี่ยมบ้าน
+    async loadVisitHistory(patient) {
       try {
         // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
@@ -3934,6 +3998,11 @@ export default {
   font-size: 1.4rem;
   line-height: 1.6;
   font-weight: 300;
+}
+
+.visit-sub {
+  font-size: 10px;
+  color: #999;
 }
 
 .visit-text-success {
