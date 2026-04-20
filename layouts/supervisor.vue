@@ -151,6 +151,12 @@ export default {
   },
   mounted() {
     this.loadSidebarState()
+    // ไม่อนุญาติให้ Homevisit เข้าใช้งาน Admin & Sup
+    let user = this.$store.state.auth?.user;
+    let userLevel = user?.level;
+    if (![1, 2].includes(userLevel)) {
+      this.$router.replace('/')
+    }
     // ตรวจสอบว่าเป็น admin ที่สลับโหมดมาหรือไม่
     if (process.client) {
       this.isAdminSwitched = localStorage.getItem('admin_active_mode') === 'supervisor'
