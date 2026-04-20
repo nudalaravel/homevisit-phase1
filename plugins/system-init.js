@@ -3056,7 +3056,8 @@ export default function ({ app, store, $axios }, inject) {
             // อัพเดทสถานะเป็น synced
             const SurveyId = `${survey.stid}_${survey.time_visit}`;
             const existing = await app.$indexedDB.getSurveyProgressById(SurveyId)
-            console.log('existing:'+existing)
+            console.log('SurveyId: ' + SurveyId)
+            console.log('existing: ' + existing?.approve_status)
             await app.$indexedDB.updateSurveySyncStatus(survey.id, true, existing?.approve_status ?? 0);
             // await app.$indexedDB.updateSurveySyncStatus(survey.id, true, 0);
 
