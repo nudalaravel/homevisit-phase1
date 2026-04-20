@@ -115,15 +115,25 @@ export default {
       return process.env.BUILD_VERSION || '0.0.0'
     }
   },
+  beforeMount() {
+    // Check if already authenticated, redirect based on user level
+    if (process.client) {
+      const isAuthenticated = this.$store.state.auth?.loggedIn
+      if (isAuthenticated) {
+        const user = this.$store.state.auth?.user
+        const userLevel = user?.level
+        
+        if (userLevel === 3) {
+          console.log('Already authenticated (Level 3), redirecting to home')
+          this.$router.push('/')
+        }
+      }
+    }
+  },
   mounted() {
     // โหลดค่าจาก cookie เมื่อ component mount
     this.loadSidebarState()
-    // ไม่อนุญาติให้ Homevisit เข้าใช้งาน Admin & Sup
-    let user = this.$store.state.auth?.user;
-    let userLevel = user?.level;
-    if (![1, 2].includes(userLevel)) {
-      this.$router.replace('/')
-    }
+    
   },
   methods: {
     loadSidebarState() {

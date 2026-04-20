@@ -149,14 +149,23 @@ export default {
       return this.$route.path.startsWith('/supervisor-booking')
     }
   },
+  beforeMount() {
+    // Check if already authenticated, redirect based on user level
+    if (process.client) {
+      const isAuthenticated = this.$store.state.auth?.loggedIn
+      if (isAuthenticated) {
+        const user = this.$store.state.auth?.user
+        const userLevel = user?.level
+        
+        if (userLevel === 3) {
+          console.log('Already authenticated (Level 3), redirecting to home')
+          this.$router.push('/')
+        }
+      }
+    }
+  },
   mounted() {
     this.loadSidebarState()
-    // ไม่อนุญาติให้ Homevisit เข้าใช้งาน Admin & Sup
-    let user = this.$store.state.auth?.user;
-    let userLevel = user?.level;
-    if (![1, 2].includes(userLevel)) {
-      this.$router.replace('/')
-    }
     // ตรวจสอบว่าเป็น admin ที่สลับโหมดมาหรือไม่
     if (process.client) {
       this.isAdminSwitched = localStorage.getItem('admin_active_mode') === 'supervisor'
