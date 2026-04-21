@@ -825,7 +825,8 @@ export default {
       monthOptions: [],
       yearOptions: [],
       timeOptions: [],
-      visitorData: null
+      visitorData: null,
+      showSyncSuccessModal: false
     }
   },
   computed: {
@@ -1154,6 +1155,7 @@ export default {
 
         this.preloadSurveyImages()
         this.$toast.success('ซิงค์ข้อมูลเสร็จสิ้น')
+        this.showSyncSuccessModal = true
       } catch (error) {
         console.error('Background sync failed:', error)
         // ไม่แสดง error toast เพราะเป็น background task
@@ -2629,7 +2631,6 @@ export default {
     canRecordVisit(visitor) {
       return checkCanRecordVisit(visitor)
     },
-    
     async showVisitHistory(patient) {
       await this.loadVisitHistory(patient)
       this.showVisitHistoryModal = true

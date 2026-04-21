@@ -1551,7 +1551,6 @@ export default function ({ app, store }, inject) {
 
         let removedCount = 0;
         let mergedCount = 0;
-
         // ตรวจสอบแต่ละกลุ่ม
         for (const [key, surveys] of groupedSurveys) {
           if (surveys.length > 1) {
@@ -1623,7 +1622,6 @@ export default function ({ app, store }, inject) {
             // ใช้ id มาตรฐาน
             bestSurvey.id = key;
             bestSurvey.lastUpdated = new Date().toISOString();
-
             // บันทึก bestSurvey
             await this.saveSurveyProgress(bestSurvey);
 
