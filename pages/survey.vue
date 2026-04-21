@@ -624,7 +624,7 @@
               v-model="newAppointment.appointmentTime"
             :options="timeOptions"
               class="appointment-select"
-              :disabled="shouldDisableStep12"
+              :disabled="shouldDisableStep12Time"
               @change="onTimeChange"
           ></b-form-select>
           </div>
@@ -883,6 +883,7 @@ export default {
       // Flag to indicate if step 12 (appointment) should be disabled
       // (when editing completed survey that has next survey already)
       shouldDisableStep12: false,
+      shouldDisableStep12Time: false,
       
       // Image upload
       surveyImages: [],
@@ -1415,11 +1416,18 @@ export default {
         const maxTime = surveyTimes.length > 0 ? Math.max(...surveyTimes) : 0
         const currentTime = Number(survey.time_visit || 0)
         if (maxTime > currentTime) {
+          if(urlParams.mode === 'edit') {
+            this.shouldDisableStep12Time = true
+          } else {
+            this.shouldDisableStep12Time = false
+          }
           this.shouldDisableStep12 = true
         } else {
+          this.shouldDisableStep12Time = false
           this.shouldDisableStep12 = false
         }
       } else {
+        this.shouldDisableStep12Time = false
         this.shouldDisableStep12 = false
       }
       
@@ -2829,7 +2837,7 @@ export default {
       }
       
       // Additional validation for step 12
-      if (this.currentStep === 12 && !this.shouldDisableStep12) {
+      if (this.currentStep === 12 && !this.shouldDisableStep12 && !this.shouldDisableStep12Time) {
         if (!this.newAppointment.appointmentDay || !this.newAppointment.appointmentMonth || 
             !this.newAppointment.appointmentYear || !this.newAppointment.appointmentTime) {
           this.$toast.warning('กรุณากรอกข้อมูลนัดหมายให้ครบถ้วน')
