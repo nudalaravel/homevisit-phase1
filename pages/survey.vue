@@ -1417,9 +1417,9 @@ export default {
         const currentTime = Number(survey.time_visit || 0)
         if (maxTime > currentTime) {
           if(urlParams.mode === 'edit') {
-            this.shouldDisableStep12Time = true
-          } else {
             this.shouldDisableStep12Time = false
+          } else {
+            this.shouldDisableStep12Time = true
           }
           this.shouldDisableStep12 = true
         } else {
