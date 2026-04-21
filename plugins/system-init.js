@@ -506,7 +506,7 @@ export default function ({ app, store, $axios }, inject) {
         });
         // Nuda Add เพื่อ กรองรายการนี้ออกก่อนเข้า loop
         const apiBookings = [];
-
+        /*
         for (const result of apiResultsRaw) {
           if (result.deleted_at) {
             const deleteSurveyId = `${result.stid}_${result.time_visit}`;
@@ -524,6 +524,113 @@ export default function ({ app, store, $axios }, inject) {
           }
 
           apiBookings.push(result);
+        }
+        */
+        const currentHomevisitor = username
+        const visitorCache = new Map()
+
+        const getVisitorByStid = async (stid) => {
+          const key = String(stid)
+          if (!visitorCache.has(key)) {
+            const visitor = await app.$indexedDB.getVisitor(stid)
+            visitorCache.set(key, visitor || null)
+          }
+          return visitorCache.get(key)
+        }
+
+        const getRecbyFromVisitor = (visitor) => {
+          return visitor?.homevisitor_raw || visitor?.homevisitor || ''
+        }
+
+        const getSurveyScore = (survey) => {
+          return (
+            (survey.completed ? 10 : 0) +
+            (survey.synced ? 5 : 0) +
+            Object.keys(survey.answers || {}).length
+          )
+        }
+
+        const isCurrentHomevisitor = (recby) => {
+          return String(recby || '').trim() === String(currentHomevisitor || '').trim()
+        }
+
+        const pickBetterSurvey = (best, current) => {
+          if (!best) return current
+
+          const bestIsCurrent = isCurrentHomevisitor(best.recby)
+          const currentIsCurrent = isCurrentHomevisitor(current.recby)
+
+          // 1) เอาของ homevisitor ปัจจุบันก่อน
+          if (currentIsCurrent && !bestIsCurrent) return current
+          if (bestIsCurrent && !currentIsCurrent) return best
+
+          // 2) ค่อยเช็ค score
+          const bestScore = getSurveyScore(best)
+          const currentScore = getSurveyScore(current)
+
+          if (currentScore > bestScore) return current
+          if (bestScore > currentScore) return best
+
+          // 3) ถ้าเท่ากัน เอาอันใหม่กว่า
+          const bestTime = new Date(best.lastUpdated || best.timeupload || 0).getTime()
+          const currentTime = new Date(current.lastUpdated || current.timeupload || 0).getTime()
+
+          return currentTime > bestTime ? current : best
+        }
+
+        for (const result of apiResultsRaw) {
+          if (result.deleted_at) {
+            const matchedSurveys = allSurveyProgressForApproval.filter(
+              (s) =>
+                String(s.stid) === String(result.stid) &&
+                String(s.time_visit) === String(result.time_visit)
+            )
+
+            if (matchedSurveys.length > 0) {
+              const enrichedSurveys = await Promise.all(
+                matchedSurveys.map(async (survey) => {
+                  const visitor = await getVisitorByStid(survey.stid)
+                  return {
+                    ...survey,
+                    recby: getRecbyFromVisitor(visitor)
+                  }
+                })
+              )
+
+              const bestSurvey = enrichedSurveys.reduce((best, current) => {
+                return pickBetterSurvey(best, current)
+              }, null)
+
+              for (const survey of enrichedSurveys) {
+                if (bestSurvey && survey.id === bestSurvey.id) {
+                  console.log('Booking: keep best survey for deleted_at:', {
+                    id: survey.id,
+                    stid: survey.stid,
+                    time_visit: survey.time_visit,
+                    recby: survey.recby
+                  })
+                  continue
+                }
+
+                try {
+                  await app.$indexedDB.deleteSurveyProgress(survey.id)
+                  console.log('deleted survey for deleted_at:', {
+                    id: survey.id,
+                    stid: survey.stid,
+                    time_visit: survey.time_visit,
+                    recby: survey.recby
+                  })
+                } catch (error) {
+                  console.error(`Failed to remove ${survey.id}:`, error)
+                }
+              }
+            }
+
+            skippedCount++
+            continue
+          }
+
+          apiBookings.push(result)
         }
         for (const booking of apiBookings) {
           if (booking.stid && booking.time_visit) {
@@ -1231,7 +1338,7 @@ export default function ({ app, store, $axios }, inject) {
               for (const survey of enrichedSurveys) {
                 // เก็บตัวที่ดีที่สุดไว้
                 if (bestSurvey && survey.id === bestSurvey.id) {
-                  console.log('keep best survey:', {
+                  console.log('Result: keep best survey:', {
                     id: survey.id,
                     stid: survey.stid,
                     time_visit: survey.time_visit,
