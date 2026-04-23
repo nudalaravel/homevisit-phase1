@@ -144,6 +144,9 @@ export function prepareVisitorData(visitor, booking, completedSurveys, allSurvey
     (s) => String(s.time_visit) === String(previousTimeVisit)
   );
 
+  const previousSurvey = allSurveys.find(
+    (s) => String(s.time_visit) === String(previousTimeVisit)
+  );
   // ตรวจสอบว่าต้องการสร้างนัดหมายใหม่หรือไม่
   // เงื่อนไข: มี completed surveys แต่ไม่มี booking.appointmentDate
   const needsNextAppointment = completedSurveys.length > 0 && !booking?.appointmentDate;
@@ -168,7 +171,8 @@ export function prepareVisitorData(visitor, booking, completedSurveys, allSurvey
     hasPreviousSurvey:
       parseInt(timeVisit) === 1
       ? true
-      : (previousCompletedSurvey?.completed || false),
+      : !!previousSurvey,
+      // : (previousCompletedSurvey?.completed || false),
     latestSurveySynced: previousCompletedSurvey?.synced || false,
     latestSurveyApproved: previousCompletedSurvey?.approve_status === 1,
     currentSurveyCompleted: currentVisitSurvey?.completed || false,
