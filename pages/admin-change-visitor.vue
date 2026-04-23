@@ -185,7 +185,8 @@
           </label>
           <select
             v-model="changeForm.newVisitor"
-            class="filter-select w-100"
+            class="filter-select w-100 select2"
+            ref="newVisitorSelect"
             @change="onNewVisitorChange"
           >
             <option value="">-- เลือกผู้เยี่ยมบ้าน --</option>
@@ -419,6 +420,10 @@ export default {
       window.$(this.$refs.visitorSelect).off('change')
       this.$select2.destroy(this.$refs.visitorSelect)
     }
+    if (this.$refs.newVisitorSelect && window.$) {
+      window.$(this.$refs.newVisitorSelect).off('change')
+      this.$select2.destroy(this.$refs.newVisitorSelect)
+    }
   },
   async mounted() {
     await this.fetchData()
@@ -437,6 +442,18 @@ export default {
     })
   },
   methods: {
+    initNewVisitorSelect2() {
+      this.$nextTick(() => {
+        if (this.$select2 && this.$refs.newVisitorSelect) {
+          this.$select2.init(this.$refs.newVisitorSelect)
+          window.$(this.$refs.newVisitorSelect).on('change', () => {
+            const newVal = window.$(this.$refs.newVisitorSelect).val()
+            this.changeForm.newVisitor = newVal
+            this.onNewVisitorChange()
+          })
+        }
+      })
+    },
     // ดึงข้อมูลผู้เยี่ยมบ้านสำหรับ dropdown
     async fetchVisitorOptions() {
       try {
@@ -575,6 +592,7 @@ export default {
         reason: item.reason_change ?? ''
       }
       this.showChangeModal = true
+      this.initNewVisitorSelect2() // ← เพิ่มตรงนี้
     },
 
     onNewVisitorChange() {
