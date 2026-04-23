@@ -1,11 +1,12 @@
 <template>
   <div class="admin-change-visitor">
     <!-- Page Header -->
-    <div class="page-header">
-      <h1 class="page-title">เปลี่ยนผู้ชื่อผู้ดูแลเด็ก</h1>
-      <p class="page-subtitle">จัดการการเชื่อมโยงข้อมูลเด็กกับผู้เยี่ยมบ้าน</p>
+    <div class="page-header" style="display:flex; align-items:center; gap:0.75rem;">
+      <h1 class="page-title" style="margin:0;">เปลี่ยนผู้ดูแลเด็ก</h1>
+      <span class="badge-no-data">
+        <i class="fas fa-lock"></i> เฉพาะผู้ได้รับสิทธิ์
+      </span>
     </div>
-
     <!-- Filters -->
     <div class="filters-section">
       <div class="filter-group">
@@ -19,11 +20,11 @@
         />
       </div>
       <div class="filter-group">
-        <label class="filter-label">ผู้เยี่ยมบ้านปัจจุบัน</label>
+        <label class="filter-label">ผู้เยี่ยมบ้าน</label>
         <select
           v-model="filters.visitor"
-          class="filter-select"
-          @change="filterTableData"
+          class="filter-select select2"
+          ref="visitorSelect"
         >
           <option
             v-for="(option, index) in visitorOptions"
@@ -101,16 +102,12 @@
 
         <template #cell(lastVisit)="row">
           <div class="visit-cells">
-            <div v-if="row.item.lastTimeVisit" class="last-visit">
-              <span class="visit-label">ล่าสุด</span>
-              ครั้งที่ {{ row.item.lastTimeVisit }}
-              <div class="last-visit-date text-muted">{{ row.item.lastVisitDate }}</div>
+            <div v-if="row.item.lastTimeVisit">
+              <span class="visit-label">ล่าสุด</span>ครั้งที่ {{ row.item.lastTimeVisit }} ({{ row.item.lastVisitDate }})
             </div>
             <span v-else class="text-muted small">ยังไม่มีผลการเยี่ยม</span>
-            <div v-if="row.item.hasNextApp" class="next-visit">
-              <span class="visit-label next">ถัดไป</span>
-              ครั้งที่ {{ row.item.nextTimeVisit }}
-              <div class="last-visit-date text-muted">{{ row.item.nextVisitDate }}</div>
+            <div v-if="row.item.hasNextApp">
+              <span class="visit-label next">ถัดไป</span>ครั้งที่ {{ row.item.nextTimeVisit }} ({{ row.item.nextVisitDate }})
             </div>
           </div>
         </template>
@@ -153,7 +150,7 @@
             <i class="fas fa-history"></i>
             <div>
               <strong>เคยมีการเปลี่ยนผู้ดูแลมาก่อน</strong>
-              <p>เปลี่ยนโดย: <strong>{{ changeForm.prevUpdatedBy }}</strong> เมื่อ {{ changeForm.prevUpdatedAt }}</p>
+              <p>ครั้งล่าสุด เปลี่ยนโดย: <strong>{{ changeForm.prevUpdatedBy }}</strong> เมื่อ {{ changeForm.prevUpdatedAt }}</p>
               <p v-if="changeForm.prevReasonChange">เหตุผล: <em>{{ changeForm.prevReasonChange }}</em></p>
               <p v-if="changeForm.currentVisitorRaw">ผู้ดูแลเดิม (ก่อนเปลี่ยนครั้งล่าสุด): {{ changeForm.currentVisitorRaw }} <span class="username-badge">{{ changeForm.prevVisitor }}</span></p>
             </div>
@@ -176,7 +173,7 @@
             <div>
               <strong>พบนัดหมายครั้งถัดไป</strong>
               <p>ครั้งที่ <strong>{{ changeForm.nextTimeVisit }}</strong> ({{ changeForm.nextVisitDate }}) ยังไม่มีผลการเยี่ยม</p>
-              <p>ระบบจะเปลี่ยน <code>recby</code> ในนัดหมายครั้งนี้ด้วย</p>
+              <p>ระบบจะเปลี่ยน <code>รหัสผู้เยี่ยมบ้าน</code> ในนัดหมายครั้งนี้ด้วย</p>
             </div>
           </div>
         </div>
@@ -265,11 +262,47 @@
     >
       <div class="confirm-body">
         <i class="fas fa-exclamation-triangle confirm-icon"></i>
-        <p>คุณต้องการเปลี่ยนผู้ดูแลเด็ก <strong>{{ changeForm.childName }}</strong> ใช่หรือไม่?</p>
-        <ul class="confirm-list">
-          <li>ตาราง <code>sample_homevisit_link</code> จะถูกอัพเดต homevisitor</li>
-          <li v-if="changeForm.hasNextApp">ตาราง <code>homevisitor_app</code> ครั้งที่ {{ changeForm.nextTimeVisit }} จะถูกอัพเดต recby</li>
-        </ul>
+        <p>
+          ยืนยันเปลี่ยนผู้ดูแล <strong>{{ changeForm.childName }}</strong> เป็น<br />
+          <strong class="text-new">{{ changeForm.newVisitorName }}</strong> ใช่หรือไม่?
+        </p>
+        <!-- รายละเอียดเล็กๆ สำหรับ dev -->
+        <div class="confirm-detail">
+          <span>homevisitor_sample_students: homevisitor → {{ changeForm.newVisitor }}</span>
+          <span v-if="changeForm.hasNextApp">
+            homevisitor_app: ครั้งที่ {{ changeForm.nextTimeVisit }} → recby = {{ changeForm.newVisitor }}
+          </span>
+        </div>
+      </div>
+      <!-- dry_run preview -->
+      <div v-if="dryRunResult" class="dryrun-preview">
+        <p class="dryrun-title"><i class="fas fa-eye"></i> ตัวอย่างข้อมูลที่จะเปลี่ยน</p>
+        <table class="dryrun-table">
+          <tr>
+            <td>ตาราง</td>
+            <td>homevisitor_sample_students</td>
+          </tr>
+          <tr>
+            <td>homevisitor (เดิม)</td>
+            <td>{{ dryRunResult.old_homevisitor }}</td>
+          </tr>
+          <tr>
+            <td>homevisitor (ใหม่)</td>
+            <td class="text-new">{{ dryRunResult.new_homevisitor }}</td>
+          </tr>
+          <tr>
+            <td>homevisitor_raw</td>
+            <td>{{ dryRunResult.homevisitor_raw }}</td>
+          </tr>
+          <tr v-if="dryRunResult.app_updated">
+            <td>homevisitor_app ครั้งที่</td>
+            <td class="text-new">{{ dryRunResult.app_time_visit }} → recby = {{ dryRunResult.new_homevisitor }}</td>
+          </tr>
+          <tr v-else>
+            <td>homevisitor_app</td>
+            <td class="text-muted">ไม่มีนัดหมายถัดไป</td>
+          </tr>
+        </table>
       </div>
       <template #modal-footer>
         <b-button variant="secondary" @click="showConfirmModal = false">
@@ -295,6 +328,7 @@ export default {
       saving: false,
       showChangeModal: false,
       showConfirmModal: false,
+      dryRunResult: null,
       filters: {
         search: '',
         visitor: 'all'
@@ -380,8 +414,27 @@ export default {
       dataAll: []
     }
   },
+  beforeDestroy() {
+    if (this.$select2 && this.$refs.visitorSelect && window.$) {
+      window.$(this.$refs.visitorSelect).off('change')
+      this.$select2.destroy(this.$refs.visitorSelect)
+    }
+  },
   async mounted() {
     await this.fetchData()
+
+    this.$nextTick(() => {
+      if (this.$select2 && this.$refs.visitorSelect) {
+        this.$select2.init(this.$refs.visitorSelect)
+        window.$(this.$refs.visitorSelect).on('change', () => {
+          const newVal = window.$(this.$refs.visitorSelect).val()
+          if (this.filters.visitor !== newVal) {
+            this.filters.visitor = newVal
+            this.filterTableData()
+          }
+        })
+      }
+    })
   },
   methods: {
     // ดึงข้อมูลผู้เยี่ยมบ้านสำหรับ dropdown
@@ -458,6 +511,8 @@ export default {
             prevVisitorName: visitorMap[link.homevisitor_raw] || link.homevisitor_raw,
             currentVisitor: link.homevisitor,
             currentVisitorName: visitorMap[link.homevisitor] || link.homevisitor,
+            updated_by: link.updated_by,
+            updated_at: link.updated_at,
             reason_change: link.reason_change,
             // ครั้งล่าสุด (app + result)
             lastTimeVisit: lastCompleted ? lastCompleted.time_visit : null,
@@ -498,7 +553,6 @@ export default {
     },
 
     openChangeModal(item) {
-      console.log(item)
       const hasChanged = !!(item.prevVisitor && item.currentVisitor !== item.prevVisitor)
       this.changeForm = {
         stid: item.stid,
@@ -509,8 +563,8 @@ export default {
         currentVisitorRaw: item.prevVisitorName ?? null, // ของเดิมก่อนเปลี่ยน
         hasChanged,                                    // ← flag ว่าเคยเปลี่ยนมาก่อน
         prevReasonChange: hasChanged ? (item.reason_change ?? null) : null,
-        prevUpdatedBy:    hasChanged ? (item.updated_by   ?? '-') : '-',
-        prevUpdatedAt:    hasChanged ? (item.updated_at   ?? '-') : '-',
+        prevUpdatedBy:    item.updated_by   ?? '-',
+        prevUpdatedAt:    item.updated_at   ?? '-',
         newVisitor: '',
         newVisitorName: '',
         lastTimeVisit: item.lastTimeVisit,
@@ -518,7 +572,7 @@ export default {
         hasNextApp: item.hasNextApp,
         nextTimeVisit: item.nextTimeVisit,
         nextVisitDate: item.nextVisitDate,
-        reason: ''
+        reason: item.reason_change ?? ''
       }
       this.showChangeModal = true
     },
@@ -528,15 +582,36 @@ export default {
       this.changeForm.newVisitorName = found ? found.text : ''
     },
 
-    confirmChange() {
+    async confirmChange() {
       if (!this.changeForm.newVisitor || this.changeForm.newVisitor === this.changeForm.currentVisitor) return
+      
+      // dry_run ดูผลก่อน
+      /*
+      try {
+        const res = await this.$axios.$post('/api/parenting2025_census/post/homevisit/change_homevisitor.php', {
+          dry_run:       true,
+          stid:          this.changeForm.stid,
+          newVisitor:    this.changeForm.newVisitor,
+          oldVisitor:    this.changeForm.currentVisitor,
+          reason_change: this.changeForm.reason,
+          hasNextApp:    this.changeForm.hasNextApp,
+          nextTimeVisit: this.changeForm.nextTimeVisit
+        })
+        
+        // เก็บผล dry_run ไว้แสดงใน confirm modal
+        this.dryRunResult = res.preview ?? null
+      } catch (err) {
+        console.error(err)
+      }
+      */
+      
       this.showConfirmModal = true
     },
-
     async doChange() {
       this.saving = true
       try {
-        await this.$axios.$post('/api/parenting2025_census/post/homevisit/admin/change_homevisitor.php', {
+        await this.$axios.$post('/api/parenting2025_census/post/homevisit/change_homevisitor.php', {
+          dry_run:          false,
           stid:             this.changeForm.stid,
           newVisitor:       this.changeForm.newVisitor,
           oldVisitor:       this.changeForm.currentVisitor,  // จะกลายเป็น homevisitor_raw
@@ -587,12 +662,17 @@ export default {
 
 /* Header */
 .page-header {
-  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
 }
 .page-title {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #3551a4;
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: #2c3e50;
   margin: 0;
 }
 .page-subtitle {
@@ -636,6 +716,32 @@ export default {
   border-color: #3551a4;
   box-shadow: 0 0 0 2px rgba(53, 81, 164, 0.15);
 }
+
+
+
+::v-deep .select2-container {
+  width: 100% !important;
+}
+
+::v-deep .select2-container--default .select2-selection--single {
+  height: 40px;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: center;
+}
+
+::v-deep .select2-container--default .select2-selection--single .select2-selection__rendered {
+  line-height: 40px;
+  padding-left: 12px;
+  padding-right: 20px;
+}
+
+::v-deep .select2-container--default .select2-selection--single .select2-selection__arrow {
+  height: 38px;
+  right: 8px;
+}
+
 .w-100 { width: 100%; }
 
 /* Table */
@@ -954,6 +1060,71 @@ export default {
   font-size: 0.8rem;
   margin-top: 0.25rem;
   display: block;
+}
+
+.dryrun-preview {
+  margin-top: 1rem;
+  text-align: left;
+}
+.dryrun-title {
+  font-weight: 600;
+  color: #3551a4;
+  margin-bottom: 0.5rem;
+}
+.dryrun-table {
+  width: 100%;
+  font-size: 0.88rem;
+  border-collapse: collapse;
+}
+.dryrun-table td {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #dee2e6;
+}
+.dryrun-table td:first-child {
+  font-weight: 600;
+  color: #495057;
+  width: 45%;
+  background: #f8f9fa;
+}
+.text-new { color: #155724; font-weight: 700; }
+.confirm-icon {
+  font-size: 2.5rem;
+  color: #3551a4;
+  margin-bottom: 0.75rem;
+  display: block;
+  text-align: center;
+}
+.confirm-body p {
+  font-size: 1rem;
+  text-align: center;
+}
+.text-new { color: #3551a4; }
+.confirm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8f9fa;
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  color: #6c757d;
+  text-align: left;
+}
+.visit-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.visit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.visit-separator {
+  color: #dee2e6;
+  font-size: 1rem;
 }
 @media (max-width: 768px) {
   .admin-change-visitor { padding: 1rem; }

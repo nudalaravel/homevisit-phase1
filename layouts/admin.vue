@@ -83,6 +83,17 @@
           <i class="fas fa-clipboard-list"></i>
           <span v-if="!sidebarCollapsed">สรุปการสังเกตจากทีมพื้นที่</span>
         </nuxt-link>
+        <!-- เมนูเปลี่ยนผู้ดูแลเด็ก — เฉพาะ nuda@ruped.org -->
+        <nuxt-link
+          v-if="isChange"
+          to="/admin-change-visitor"
+          class="nav-item"
+          :class="{ active: isActiveRoute('admin-change-visitor') }"
+          :title="sidebarCollapsed ? 'เปลี่ยนผู้ดูแลเด็ก' : ''"
+        >
+          <i class="fas fa-user-edit"></i>
+          <span v-if="!sidebarCollapsed">เปลี่ยนผู้ดูแลเด็ก</span>
+        </nuxt-link>
       </nav>
 
       <!-- Switch Mode Button -->
@@ -113,7 +124,36 @@ export default {
   computed: {
     buildVersion() {
       return process.env.BUILD_VERSION || '0.0.0'
-    }
+    },
+    isChange() {
+      // แหล่งที่ 1: store
+      let email = this.$store.state.auth?.user?.email
+        || this.$store.state.auth?.user?.username
+
+      // แหล่งที่ 2: offlineAuth
+      if (!email && this.$offlineAuth) {
+        const user = this.$offlineAuth.getUser()
+        email = user?.email || user?.username
+      }
+
+      // แหล่งที่ 3: localStorage
+      if (!email) {
+        try {
+          const raw = localStorage.getItem('offline_auth_data')
+          if (raw) {
+            const u = JSON.parse(raw)?.user
+            email = u?.email || u?.username
+          }
+        } catch (e) {}
+      }
+
+      const allowedUsers = [
+        'nuda@riped.utcc.ac.th',
+        'kei@riped.utcc.ac.th',
+        // 'dariga.riped@gmail.com'
+      ]
+      return allowedUsers.includes(email)
+    },
   },
   beforeMount() {
     // Check if already authenticated, redirect based on user level
