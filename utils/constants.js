@@ -48,16 +48,27 @@ export const THAI_MONTHS_FULL = [
 
 export const TIME_OPTIONS = [
   { value: "08:00 น.", text: "08:00 น." },
+  { value: "08:30 น.", text: "08:30 น." },
   { value: "09:00 น.", text: "09:00 น." },
+  { value: "09:30 น.", text: "09:30 น." },
   { value: "10:00 น.", text: "10:00 น." },
+  { value: "10:30 น.", text: "10:30 น." },
   { value: "11:00 น.", text: "11:00 น." },
+  { value: "11:30 น.", text: "11:30 น." },
   { value: "12:00 น.", text: "12:00 น." },
+  { value: "12:30 น.", text: "12:30 น." },
   { value: "13:00 น.", text: "13:00 น." },
+  { value: "13:30 น.", text: "13:30 น." },
   { value: "14:00 น.", text: "14:00 น." },
+  { value: "14:30 น.", text: "14:30 น." },
   { value: "15:00 น.", text: "15:00 น." },
+  { value: "15:30 น.", text: "15:30 น." },
   { value: "16:00 น.", text: "16:00 น." },
+  { value: "16:30 น.", text: "16:30 น." },
   { value: "17:00 น.", text: "17:00 น." },
+  { value: "17:30 น.", text: "17:30 น." },
   { value: "18:00 น.", text: "18:00 น." },
+  { value: "18:30 น.", text: "18:30 น." },
 ];
 
 export const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
