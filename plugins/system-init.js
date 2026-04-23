@@ -585,8 +585,47 @@ export default function ({ app, store, $axios }, inject) {
                 String(s.stid) === String(result.stid) &&
                 String(s.time_visit) === String(result.time_visit)
             )
-
-            if (matchedSurveys.length > 0) {
+            // เช็คว่าใน apiResultsRaw มี stid+time_visit เดียวกันกี่ตัว (นับทั้ง deleted และไม่ deleted)
+            const matchedInApiBooking = apiResultsRaw.filter(
+              (r) =>
+                String(r.stid) === String(result.stid) &&
+                String(r.time_visit) === String(result.time_visit)
+            )
+            const hasOtherActiveInApi = matchedInApiBooking.some((r) => !r.deleted_at)
+            console.log(result.stid + '_' + result.time_visit)
+            if (matchedSurveys.length === 0 && !hasOtherActiveInApi) {
+              console.log('ไม่มีใน allSurveyProgressForApproval และไม่มี active booking อื่นใน api')
+              try {
+                const surveyToDelete = await app.$indexedDB.getBookingByStidAndTimeVisit(
+                  result.stid,
+                  result.time_visit
+                )
+                if (surveyToDelete) {
+                  await app.$indexedDB.deleteBookingV2(surveyToDelete.id)
+                  console.log('deleted survey (not in deleteBookingV2) for deleted_at:', {
+                    id: surveyToDelete.id,
+                    stid: result.stid,
+                    time_visit: result.time_visit
+                  })
+                }
+              } catch (error) {
+                console.error(`Failed to remove survey stid=${result.stid} time_visit=${result.time_visit}:`, error)
+              }
+            } else if (matchedSurveys.length === 1 && !hasOtherActiveInApi) {
+              console.log('มีแค่ตัวเดียวใน allSurveyProgress และไม่มี active booking อื่น → ลบเลย')
+              try {
+                await app.$indexedDB.deleteSurveyProgress(matchedSurveys[0].id)
+                console.log('deleted sole survey for deleted_at:', {
+                  id: matchedSurveys[0].id,
+                  stid: matchedSurveys[0].stid,
+                  time_visit: matchedSurveys[0].time_visit
+                })
+              } catch (error) {
+                console.error(`Failed to remove ${matchedSurveys[0].id}:`, error)
+              }
+            
+            } else if (matchedSurveys.length > 1) {
+            // if (matchedSurveys.length > 0) {
               const enrichedSurveys = await Promise.all(
                 matchedSurveys.map(async (survey) => {
                   const visitor = await getVisitorByStid(survey.stid)
@@ -614,7 +653,7 @@ export default function ({ app, store, $axios }, inject) {
 
                 try {
                   await app.$indexedDB.deleteSurveyProgress(survey.id)
-                  console.log('deleted survey for deleted_at:', {
+                  console.log('Booking: deleted survey for deleted_at:', {
                     id: survey.id,
                     stid: survey.stid,
                     time_visit: survey.time_visit,
