@@ -21,19 +21,38 @@
       </div>
       <div class="filter-group">
         <label class="filter-label">ผู้เยี่ยมบ้าน</label>
-        <select
-          v-model="filters.visitor"
-          class="filter-select select2"
-          ref="visitorSelect"
-        >
-          <option
-            v-for="(option, index) in visitorOptions"
-            :key="'visitor-' + index"
-            :value="option.value"
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+          <select
+            v-model="filters.visitor"
+            class="filter-select select2"
+            ref="visitorSelect"
           >
-            {{ option.text }}
-          </option>
-        </select>
+            <option
+              v-for="(option, index) in visitorOptions"
+              :key="'visitor-' + index"
+              :value="option.value"
+            >
+              {{ option.text }}
+            </option>
+          </select>
+          <!-- ปุ่มแสดงเมื่อเลือก ผยบ แล้ว -->
+          <button
+            v-if="filters.visitor && filters.visitor !== 'all'"
+            class="btn-check"
+            @click="openEditVisitorModal"
+            title="ข้อมูลผู้เยี่ยมบ้าน"
+          >
+            <i class="fas fa-user-edit"></i>
+          </button>
+        </div>
+      </div>
+      <!-- ปุ่มชิดขวาสุด -->
+      <div class="filter-group" style="justify-content:flex-end; margin-left:auto;">
+        <label class="filter-label">&nbsp;</label>
+        <button class="btn-add-visitor" @click="openAddVisitorModal">
+          <i class="fas fa-user-plus"></i>
+          เพิ่มผู้เยี่ยมบ้านใหม่
+        </button>
       </div>
     </div>
 
@@ -316,6 +335,155 @@
         </b-button>
       </template>
     </b-modal>
+
+    <!-- Add Visitor Modal -->
+    <b-modal
+      id="addVisitorModal"
+      v-model="showAddVisitorModal"
+      title="เพิ่มผู้เยี่ยมบ้านใหม่"
+      size="lg"
+      no-close-on-backdrop
+      @hidden="resetAddVisitorForm"
+      header-class="modal-header-change"
+      no-enforce-focus
+    >
+      <template #modal-header>
+        <div class="modal-header-content">
+          <h5 class="modal-title">
+            {{ addForm.mode === 'edit' ? 'แก้ไขข้อมูลผู้เยี่ยมบ้าน' : 'เพิ่มผู้เยี่ยมบ้านใหม่' }}
+          </h5>
+          <p style="color:rgba(255,255,255,0.8); font-size:0.85rem; margin:0.25rem 0 0;">
+            ข้อมูลจะถูกบันทึกลง spa.user_sup และ spa.username_login
+          </p>
+        </div>
+      </template>
+
+      <div class="change-form">
+        <!-- Step 1: กรอกเบอร์โทรก่อน -->
+        <div v-if="addForm.mode !== 'edit'" class="form-section">
+          <label class="form-label">เบอร์โทร (username/password) <span class="required">*</span></label>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input
+              v-model="addForm.tel"
+              type="text"
+              class="filter-input w-100"
+              placeholder="0812345678"
+              maxlength="10"
+            />
+            <i v-if="checkingUsername" class="fas fa-spinner fa-spin" style="color:#3551a4; font-size:1.2rem;"></i>
+            <i v-else-if="addForm.checkResult && !addForm.checkResult.exists" class="fas fa-check-circle" style="color:#27ae60; font-size:1.2rem;"></i>
+            <i v-else-if="addForm.checkResult && addForm.checkResult.exists" class="fas fa-times-circle" style="color:#e74c3c; font-size:1.2rem;"></i>
+          </div>
+          <small v-if="!addForm.tel" class="form-hint">กรอกเบอร์โทรก่อน เพื่อตรวจสอบสิทธิ์</small>
+          <small v-else-if="addForm.tel.length < 9" class="form-hint">กรอกเบอร์ให้ครบ</small>
+          <small v-else-if="checkingUsername" class="form-hint">กำลังตรวจสอบ...</small>
+          <small v-else-if="addForm.checkResult && addForm.checkResult.exists" class="form-hint" style="color:#e74c3c;">มี username นี้ในระบบแล้ว ไม่สามารถเพิ่มได้</small>
+          <small v-else-if="addForm.checkResult && !addForm.checkResult.exists" class="form-hint" style="color:#27ae60;">✓ username นี้ยังไม่มีในระบบ กรอกข้อมูลต่อได้เลย</small>
+        </div>
+        <!-- ตอน edit แสดง username แบบ readonly -->
+        <div v-if="addForm.mode === 'edit'" class="form-section">
+          <label class="form-label">username</label>
+          <input :value="addForm.username" class="filter-input w-100" readonly style="background:#f8f9fa; color:#6c757d;" />
+        </div>
+
+        <!-- Step 2: ฟอร์มส่วนที่เหลือ แสดงเมื่อผ่านการเช็คแล้ว -->
+        <template v-if="addForm.mode === 'edit' || (addForm.checkResult && !addForm.checkResult.exists)">
+
+          <!-- ข้อมูลส่วนตัว -->
+          <div class="form-section-title">ข้อมูลส่วนตัว</div>
+
+          <div class="form-row-2">
+            <div class="form-section">
+              <label class="form-label">คำนำหน้า</label>
+              <select v-model="addForm.prefix" class="filter-select w-100">
+                <option value="">-- เลือก --</option>
+                <option value="นาย">นาย</option>
+                <option value="นาง">นาง</option>
+                <option value="นางสาว">นางสาว</option>
+              </select>
+            </div>
+            <div class="form-section">
+              <label class="form-label">เลขบัตรประชาชน (PID)</label>
+              <input v-model="addForm.PID" type="text" class="filter-input w-100" maxlength="13" placeholder="13 หลัก" />
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-section">
+              <label class="form-label">ชื่อ <span class="required">*</span></label>
+              <input v-model="addForm.fname" type="text" class="filter-input w-100" placeholder="ชื่อ" />
+            </div>
+            <div class="form-section">
+              <label class="form-label">นามสกุล <span class="required">*</span></label>
+              <input v-model="addForm.lname" type="text" class="filter-input w-100" placeholder="นามสกุล" />
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">อีเมล</label>
+            <input v-model="addForm.Email" type="email" class="filter-input w-100" placeholder="example@email.com" />
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">ที่อยู่</label>
+            <textarea v-model="addForm.Address" class="form-textarea" rows="2" placeholder="ที่อยู่..."></textarea>
+          </div>
+
+          <!-- ข้อมูลบัญชีธนาคาร -->
+          <div class="form-section-title">ข้อมูลบัญชีธนาคาร</div>
+
+          <div class="form-row-2">
+            <div class="form-section">
+              <label class="form-label">ธนาคาร</label>
+              <select v-model="addForm.accBank" class="filter-select w-100 select2" ref="accBankSelect">
+                <option value="">-- เลือกธนาคาร --</option>
+                <option v-for="(b, i) in bankList" :key="'bank-'+i" :value="b.name">
+                  {{ b.fnameT }}
+                </option>
+              </select>
+            </div>
+            <div class="form-section">
+              <label class="form-label">รหัสสาขา (accCode)</label>
+              <input v-model="addForm.accCode" type="text" class="filter-input w-100" placeholder="รหัสสาขา" />
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-section">
+              <label class="form-label">เลขบัญชี (accNumber)</label>
+              <input v-model="addForm.accNumber" type="text" class="filter-input w-100" placeholder="เลขบัญชี" />
+            </div>
+            <div class="form-section">
+              <label class="form-label">ชื่อบัญชี (accName)</label>
+              <input v-model="addForm.accName" type="text" class="filter-input w-100" placeholder="ชื่อบัญชี" />
+            </div>
+          </div>
+
+          <!-- fixed values -->
+          <div class="form-section">
+            <div class="fixed-values-box">
+              <span><i class="fas fa-lock"></i> level = <strong>staff</strong></span>
+              <span><i class="fas fa-lock"></i> activehv2026 = <strong>1</strong></span>
+              <span><i class="fas fa-lock"></i> projectid = <strong>15</strong></span>
+              <span><i class="fas fa-lock"></i> level_input = <strong>1</strong></span>
+            </div>
+          </div>
+
+        </template>
+
+      </div>
+
+      <template #modal-footer>
+        <b-button variant="secondary" @click="showAddVisitorModal = false">
+          <i class="fas fa-times"></i> ยกเลิก
+        </b-button>
+        <b-button variant="success" @click="doAddVisitor" :disabled="!canSubmitAdd || savingAdd">
+          <i v-if="savingAdd" class="fas fa-spinner fa-spin"></i>
+          <i v-else :class="addForm.mode === 'edit' ? 'fas fa-save' : 'fas fa-user-plus'"></i>
+          {{ savingAdd ? 'กำลังบันทึก...' : addForm.mode === 'edit' ? 'บันทึกการแก้ไข' : 'เพิ่มผู้เยี่ยมบ้าน' }}
+        </b-button>
+      </template>
+    </b-modal>
   </div>
 </template>
 
@@ -412,7 +580,25 @@ export default {
         { value: 'hv003', text: 'นางสาว รัตนา สุขใจ' },
         { value: 'hv004', text: 'นาย ประเสริฐ ทำดี' }
       ],
-      dataAll: []
+      dataAll: [],
+      showAddVisitorModal: false,
+      checkingUsername: false,
+      savingAdd: false,
+      bankList: [],
+      addForm: {
+        prefix: '',
+        fname: '',
+        lname: '',
+        tel: '',
+        Email: '',
+        PID: '',
+        Address: '',
+        accBank: '',
+        accCode: '',
+        accNumber: '',
+        accName: '',
+        checkResult: null
+      }
     }
   },
   beforeDestroy() {
@@ -440,6 +626,31 @@ export default {
         })
       }
     })
+  },
+  watch: {
+    'addForm.tel'(val) {
+      this.addForm.checkResult = null
+      clearTimeout(this._telTimer)
+      if (val && val.length >= 9) {
+        this._telTimer = setTimeout(() => {
+          this.checkUsername()  // เช็คอัตโนมัติหลังหยุดพิมพ์ 600ms
+        }, 600)
+      }
+    }
+  },
+  computed: {
+    canSubmitAdd() {
+      if (this.addForm.mode === 'edit') {
+        return this.addForm.fname && this.addForm.lname
+      }
+      return (
+        this.addForm.fname &&
+        this.addForm.lname &&
+        this.addForm.tel &&
+        this.addForm.checkResult &&
+        !this.addForm.checkResult.exists
+      )
+    }
   },
   methods: {
     initNewVisitorSelect2() {
@@ -606,7 +817,7 @@ export default {
       // dry_run ดูผลก่อน
       /*
       try {
-        const res = await this.$axios.$post('/api/parenting2025_census/post/homevisit/change_homevisitor.php', {
+        const res = await this.$axios.$post('/api/parenting2025_census/post/homevisit/admin_change_homevisitor.php', {
           dry_run:       true,
           stid:          this.changeForm.stid,
           newVisitor:    this.changeForm.newVisitor,
@@ -628,7 +839,7 @@ export default {
     async doChange() {
       this.saving = true
       try {
-        await this.$axios.$post('/api/parenting2025_census/post/homevisit/change_homevisitor.php', {
+        await this.$axios.$post('/api/parenting2025_census/post/homevisit/admin_change_homevisitor.php', {
           dry_run:          false,
           stid:             this.changeForm.stid,
           newVisitor:       this.changeForm.newVisitor,
@@ -652,6 +863,163 @@ export default {
       }
     },
 
+    // ===== ADD VISITOR =====
+    openAddVisitorModal() {
+      this.resetAddVisitorForm()
+      // โหลด bankList ถ้ายังไม่มี
+      if (this.bankList.length === 0) this.fetchBankList()
+      this.showAddVisitorModal = true
+
+      setTimeout(() => {
+        if (this.$select2 && this.$refs.accBankSelect) {
+          try { this.$select2.destroy(this.$refs.accBankSelect) } catch (e) {}
+          this.$select2.init(this.$refs.accBankSelect)
+          window.$(this.$refs.accBankSelect).on('change', () => {
+            this.addForm.accBank = window.$(this.$refs.accBankSelect).val()
+          })
+        }
+      }, 300)
+    },
+
+     async fetchBankList() {
+      try {
+        const res = await this.$axios.$get('/api/parenting2025_census/get/homevisit/admin/getbanklist.php')
+        if (res.results) this.bankList = res.results
+      } catch (err) {
+        console.error('fetchBankList error:', err)
+      }
+    },
+ 
+    async checkUsername() {
+      if (!this.addForm.tel) return
+      this.checkingUsername = true
+      this.addForm.checkResult = null
+      try {
+        const res = await this.$axios.$post('/api/parenting2025_census/post/homevisit/admin_add_visitor.php', {
+          action: 'check',
+          username: this.addForm.tel
+        })
+        this.addForm.checkResult = { exists: res.exists }
+      } catch (err) {
+        console.error('checkUsername error:', err)
+      } finally {
+        this.checkingUsername = false
+      }
+    },
+
+    async doAddVisitor() {
+      if (!this.canSubmitAdd) return
+      this.savingAdd = true
+      try {
+        const action = this.addForm.mode === 'edit' ? 'edit' : 'insert'
+        const res = await this.$axios.$post('/api/parenting2025_census/post/homevisit/admin_add_visitor.php', {
+          action,
+          prefix:     this.addForm.prefix,
+          fname:      this.addForm.fname,
+          lname:      this.addForm.lname,
+          tel:        this.addForm.username,
+          Email:      this.addForm.Email,
+          PID:        this.addForm.PID,
+          Address:    this.addForm.Address,
+          accBank:    this.addForm.accBank,
+          accCode:    this.addForm.accCode,
+          accNumber:  this.addForm.accNumber,
+          accName:    this.addForm.accName,
+          // insert only
+          username:   this.addForm.username,
+          password:   this.addForm.mode === 'edit' ? undefined : this.addForm.username,
+          level:      'staff',
+          activehv2026: '1',
+          projectid:  '15',
+          level_input: '1'
+        })
+        if (res.message === 'success') {
+          this.showAddVisitorModal = false
+          this.$bvToast?.toast(
+            this.addForm.mode === 'edit'
+              ? `แก้ไขข้อมูล ${this.addForm.fname} เรียบร้อยแล้ว`
+              : `เพิ่มผู้เยี่ยมบ้าน ${this.addForm.fname} เรียบร้อยแล้ว`,
+            { title: 'สำเร็จ', variant: 'success', solid: true }
+          )
+          // this.$bvToast?.toast(`เพิ่มผู้เยี่ยมบ้าน ${this.addForm.fname} ${this.addForm.lname} เรียบร้อยแล้ว`, {
+          //   title: 'สำเร็จ', variant: 'success', solid: true
+          // })
+          // refresh visitor list
+          await this.fetchVisitorOptions()
+          // ถ้า edit อยู่ ให้ reset filter แล้ว filterTableData ใหม่
+          if (this.addForm.mode === 'edit') {
+            await this.fetchData()  // โหลดตารางเด็กใหม่ด้วย เผื่อชื่อ ผยบ เปลี่ยน
+          }
+
+        } else {
+          alert(res.message || 'เกิดข้อผิดพลาด')
+        }
+      } catch (err) {
+        console.error('doAddVisitor error:', err)
+        alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      } finally {
+        this.savingAdd = false
+      }
+    },
+
+    async openEditVisitorModal() {
+      if (!this.filters.visitor || this.filters.visitor === 'all') return
+      try {
+        const res = await this.$axios.$get(
+          `/api/parenting2025_census/get/homevisit/getuser.php?username=${this.filters.visitor}`
+        )
+        const user = res.results?.[0] ?? {}
+        const fname = user.fname ?? ''
+        const prefixList = ['นาย', 'นางสาว', 'นาง']
+        let extractedPrefix = ''
+        let extractedFname = fname
+
+        for (const p of prefixList) {
+          if (fname.startsWith(p)) {
+            extractedPrefix = p
+            extractedFname = fname.slice(p.length)
+            break
+          }
+        }
+        this.addForm = {
+          mode:      'edit',
+          username:  user.username  ?? '',
+          prefix:    extractedPrefix,   // ← แยกออกมา
+          fname:     extractedFname,    // ← เหลือแค่ชื่อ
+          lname:     user.lname     ?? '',
+          tel:       user.tel       ?? '',
+          Email:     user.Email     ?? '',
+          PID:       user.PID       ?? '',
+          Address:   user.Address   ?? '',
+          accBank:   user.accBank   ?? '',
+          accCode:   user.accCode   ?? '',
+          accNumber: user.accNumber ?? '',
+          accName:   user.accName   ?? '',
+          checkResult: { exists: false } // ข้าม step เช็ค
+        }
+        this.showAddVisitorModal = true
+      } catch (err) {
+        console.error('openEditVisitorModal error:', err)
+      }
+    },
+
+    resetAddVisitorForm() {
+      this.addForm = {
+        prefix: '',
+        fname: '',
+        lname: '',
+        tel: '',
+        Email: '',
+        PID: '',
+        Address: '',
+        accBank: '',
+        accCode: '',
+        accNumber: '',
+        accName: '',
+        checkResult: null
+      }
+    },
+
     resetChangeForm() {
       this.changeForm = {
         stid: '',
@@ -667,7 +1035,8 @@ export default {
         nextVisitDate: null,
         reason: ''
       }
-    }
+    },
+
   }
 }
 </script>
@@ -1144,6 +1513,42 @@ export default {
   color: #dee2e6;
   font-size: 1rem;
 }
+
+/* Add Visitor Button */
+.btn-add-visitor {
+  background: #27ae60;
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Kanit', sans-serif;
+  white-space: nowrap;
+}
+.btn-add-visitor:hover { background: #219a52; }
+ 
+/* Check button */
+.btn-check {
+  background: #3551a4;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.4rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Kanit', sans-serif;
+  white-space: nowrap;
+}
+.btn-check:disabled { opacity: 0.6; cursor: not-allowed; }
+ 
 @media (max-width: 768px) {
   .admin-change-visitor { padding: 1rem; }
   .filters-section { flex-direction: column; }

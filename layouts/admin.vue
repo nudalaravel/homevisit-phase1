@@ -150,7 +150,8 @@ export default {
       const allowedUsers = [
         'nuda@riped.utcc.ac.th',
         'kei@riped.utcc.ac.th',
-        // 'dariga.riped@gmail.com'
+        'dariga.riped@gmail.com',
+        'tuannurlaila.riped@gmail.com'
       ]
       return allowedUsers.includes(email)
     },
