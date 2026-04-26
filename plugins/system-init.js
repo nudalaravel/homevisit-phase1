@@ -504,12 +504,11 @@ export default function ({ app, store, $axios }, inject) {
           const key = `${s.stid}_${s.time_visit}`;
           surveyMapByStidTimeVisit.set(key, s);
         });
-
         // Nuda Add เพื่อ กรองรายการนี้ออกก่อนเข้า loop
         const apiBookings = [];
-
+        /*
         for (const result of apiResultsRaw) {
-          if (result.deleted_at || !result.recby) {
+          if (result.deleted_at) {
             const deleteSurveyId = `${result.stid}_${result.time_visit}`;
             const existingLocal = surveyMapByStidTimeVisit.get(deleteSurveyId);
             if (existingLocal) {
@@ -526,7 +525,152 @@ export default function ({ app, store, $axios }, inject) {
 
           apiBookings.push(result);
         }
+        */
+        const currentHomevisitor = username
+        const visitorCache = new Map()
 
+        const getVisitorByStid = async (stid) => {
+          const key = String(stid)
+          if (!visitorCache.has(key)) {
+            const visitor = await app.$indexedDB.getVisitor(stid)
+            visitorCache.set(key, visitor || null)
+          }
+          return visitorCache.get(key)
+        }
+
+        const getRecbyFromVisitor = (visitor) => {
+          return visitor?.homevisitor_raw || visitor?.homevisitor || ''
+        }
+
+        const getSurveyScore = (survey) => {
+          return (
+            (survey.completed ? 10 : 0) +
+            (survey.synced ? 5 : 0) +
+            Object.keys(survey.answers || {}).length
+          )
+        }
+
+        const isCurrentHomevisitor = (recby) => {
+          return String(recby || '').trim() === String(currentHomevisitor || '').trim()
+        }
+
+        const pickBetterSurvey = (best, current) => {
+          if (!best) return current
+
+          const bestIsCurrent = isCurrentHomevisitor(best.recby)
+          const currentIsCurrent = isCurrentHomevisitor(current.recby)
+
+          // 1) เอาของ homevisitor ปัจจุบันก่อน
+          if (currentIsCurrent && !bestIsCurrent) return current
+          if (bestIsCurrent && !currentIsCurrent) return best
+
+          // 2) ค่อยเช็ค score
+          const bestScore = getSurveyScore(best)
+          const currentScore = getSurveyScore(current)
+
+          if (currentScore > bestScore) return current
+          if (bestScore > currentScore) return best
+
+          // 3) ถ้าเท่ากัน เอาอันใหม่กว่า
+          const bestTime = new Date(best.lastUpdated || best.timeupload || 0).getTime()
+          const currentTime = new Date(current.lastUpdated || current.timeupload || 0).getTime()
+
+          return currentTime > bestTime ? current : best
+        }
+
+        for (const result of apiResultsRaw) {
+          if (result.deleted_at) {
+            const matchedSurveys = allSurveyProgressForApproval.filter(
+              (s) =>
+                String(s.stid) === String(result.stid) &&
+                String(s.time_visit) === String(result.time_visit)
+            )
+            // เช็คว่าใน apiResultsRaw มี stid+time_visit เดียวกันกี่ตัว (นับทั้ง deleted และไม่ deleted)
+            const matchedInApiBooking = apiResultsRaw.filter(
+              (r) =>
+                String(r.stid) === String(result.stid) &&
+                String(r.time_visit) === String(result.time_visit)
+            )
+            const hasOtherActiveInApi = matchedInApiBooking.some((r) => !r.deleted_at)
+            console.log(result.stid + '_' + result.time_visit)
+            if (matchedSurveys.length === 0 && !hasOtherActiveInApi) {
+              console.log('ไม่มีใน allSurveyProgressForApproval และไม่มี active booking อื่นใน api')
+              try {
+                const surveyToDelete = await app.$indexedDB.getBookingByStidAndTimeVisit(
+                  result.stid,
+                  result.time_visit
+                )
+                if (surveyToDelete) {
+                  await app.$indexedDB.deleteBookingV2(surveyToDelete.id)
+                  console.log('deleted survey (not in deleteBookingV2) for deleted_at:', {
+                    id: surveyToDelete.id,
+                    stid: result.stid,
+                    time_visit: result.time_visit
+                  })
+                }
+              } catch (error) {
+                console.error(`Failed to remove survey stid=${result.stid} time_visit=${result.time_visit}:`, error)
+              }
+            } else if (matchedSurveys.length === 1 && !hasOtherActiveInApi) {
+              console.log('มีแค่ตัวเดียวใน allSurveyProgress และไม่มี active booking อื่น → ลบเลย')
+              try {
+                await app.$indexedDB.deleteSurveyProgress(matchedSurveys[0].id)
+                console.log('deleted sole survey for deleted_at:', {
+                  id: matchedSurveys[0].id,
+                  stid: matchedSurveys[0].stid,
+                  time_visit: matchedSurveys[0].time_visit
+                })
+              } catch (error) {
+                console.error(`Failed to remove ${matchedSurveys[0].id}:`, error)
+              }
+            
+            } else if (matchedSurveys.length > 1) {
+            // if (matchedSurveys.length > 0) {
+              const enrichedSurveys = await Promise.all(
+                matchedSurveys.map(async (survey) => {
+                  const visitor = await getVisitorByStid(survey.stid)
+                  return {
+                    ...survey,
+                    recby: getRecbyFromVisitor(visitor)
+                  }
+                })
+              )
+
+              const bestSurvey = enrichedSurveys.reduce((best, current) => {
+                return pickBetterSurvey(best, current)
+              }, null)
+
+              for (const survey of enrichedSurveys) {
+                if (bestSurvey && survey.id === bestSurvey.id) {
+                  console.log('Booking: keep best survey for deleted_at:', {
+                    id: survey.id,
+                    stid: survey.stid,
+                    time_visit: survey.time_visit,
+                    recby: survey.recby
+                  })
+                  continue
+                }
+
+                try {
+                  await app.$indexedDB.deleteSurveyProgress(survey.id)
+                  console.log('Booking: deleted survey for deleted_at:', {
+                    id: survey.id,
+                    stid: survey.stid,
+                    time_visit: survey.time_visit,
+                    recby: survey.recby
+                  })
+                } catch (error) {
+                  console.error(`Failed to remove ${survey.id}:`, error)
+                }
+              }
+            }
+
+            skippedCount++
+            continue
+          }
+
+          apiBookings.push(result)
+        }
         for (const booking of apiBookings) {
           if (booking.stid && booking.time_visit) {
             const lookupKey = `${booking.stid}_${booking.time_visit}`;
@@ -540,17 +684,89 @@ export default function ({ app, store, $axios }, inject) {
                 ? parseInt(booking.approve_status) 
                 : existingSurvey.approve_status || 0;
               const approveComment = booking.approve_comment || null;
-              if (
-                existingSurvey.approve_status !== parsedApproveStatus ||
-                existingSurvey.approve_comment !== approveComment
-              ) {
-                await app.$indexedDB.saveSurveyProgress({
+
+              // console.log('lookupKey:', lookupKey)
+              // console.log('booking.approve_status:', booking.approve_status)
+              // console.log('existingSurvey.approve_status:', existingSurvey.approve_status)
+              // console.log('parsedApproveStatus:', parsedApproveStatus)
+
+              // 🧠 เปรียบเทียบเวลา
+              const localTime = new Date(existingSurvey.timeupload || existingSurvey.lastUpdated || 0).getTime()
+              const apiTime = new Date(booking.approve_date || 0).getTime()
+              
+              // console.log('localTime:', localTime)
+              // console.log('apiTime:', apiTime)
+              // ถ้า local ใหม่กว่า → ข้าม
+              if (localTime > apiTime) {
+                console.log('ข้าม: local ใหม่กว่า API')
+                continue
+              } else {
+                console.log('ทำต่อ: API ใหม่กว่าหรือเท่ากับ local')
+              }
+
+              const isApproveStatusChanged =
+                Number(existingSurvey.approve_status ?? 0) !== Number(parsedApproveStatus)
+
+              const isApproveCommentChanged =
+                String(existingSurvey.approve_comment ?? '') !== String(approveComment ?? '')
+
+              // console.log('isApproveStatusChanged:', isApproveStatusChanged)
+              // console.log('isApproveCommentChanged:', isApproveCommentChanged)
+
+              if (isApproveStatusChanged || isApproveCommentChanged) {
+                const updatedSurvey = {
                   ...existingSurvey,
+                  synced: true,
                   approve_status: parsedApproveStatus,
                   approve_comment: approveComment,
                   lastUpdated: new Date().toISOString(),
-                });
+                }
+
+                console.log('before update:', {
+                  id: existingSurvey.id,
+                  approve_status: existingSurvey.approve_status,
+                  approve_comment: existingSurvey.approve_comment,
+                })
+                // await app.$indexedDB.saveSurveyProgress({
+                //   ...existingSurvey,
+                //   approve_status: parsedApproveStatus,
+                //   approve_comment: approveComment,
+                //   lastUpdated: new Date().toISOString(),
+                // });
+                await app.$indexedDB.saveSurveyProgress(updatedSurvey)
+
+                // อ่านกลับมาหลัง update
+                const savedSurvey = await app.$indexedDB.getSurveyProgressById(updatedSurvey.id)
+
+                const updatedSuccess =
+                  Number(savedSurvey?.approve_status ?? 0) === Number(parsedApproveStatus) &&
+                  String(savedSurvey?.approve_comment ?? '') === String(approveComment ?? '')
+
+                console.log('after update:', {
+                  id: savedSurvey?.id,
+                  approve_status: savedSurvey?.approve_status,
+                  approve_comment: savedSurvey?.approve_comment,
+                })
+
+                console.log('updatedSuccess:', updatedSuccess)
+
+                if (!updatedSuccess) {
+                  console.warn('อัปเดตแล้วแต่ค่าไม่ตรง', {
+                    lookupKey,
+                    expected: {
+                      approve_status: parsedApproveStatus,
+                      approve_comment: approveComment,
+                    },
+                    actual: {
+                      approve_status: savedSurvey?.approve_status,
+                      approve_comment: savedSurvey?.approve_comment,
+                    },
+                  })
+                }
+              } else {
+                console.log('ไม่มีการเปลี่ยนแปลง approve_status / approve_comment')
               }
+              console.log('----------------------------------------------------')
             }
           }
         }
@@ -1057,16 +1273,144 @@ export default function ({ app, store, $axios }, inject) {
 
         const apiResultsRaw = response.results;
 
-        let newCount = 0;
-        let updatedCount = 0;
-        let skippedCount = 0;
-
+        let newCount = 0
+        let updatedCount = 0
+        let skippedCount = 0
         // Cache survey_progress ทั้งหมดก่อน loop เพื่อหลีกเลี่ยง N+1 query
-        const allSurveyProgress = await app.$indexedDB.getAll("survey_progress");
-        const apiResults = [];
+        const allSurveyProgress = await app.$indexedDB.getAll('survey_progress')
+        const apiResults = []
+
+        const currentHomevisitor = username
+
+        const visitorCache = new Map()
+
+        const getVisitorByStid = async (stid) => {
+          const key = String(stid)
+          if (!visitorCache.has(key)) {
+            const visitor = await app.$indexedDB.getVisitor(stid)
+            visitorCache.set(key, visitor || null)
+          }
+          return visitorCache.get(key)
+        }
+
+        const getRecbyFromVisitor = (visitor) => {
+          return visitor?.homevisitor_raw || visitor?.homevisitor || ''
+        }
+
+        const getSurveyScore = (survey) => {
+          return (
+            (survey.completed ? 10 : 0) +
+            (survey.synced ? 5 : 0) +
+            Object.keys(survey.answers || {}).length
+          )
+        }
+
+        const isCurrentHomevisitor = (recby) => {
+          return String(recby || '').trim() === String(currentHomevisitor || '').trim()
+        }
+
+        const pickBetterSurvey = (best, current) => {
+          if (!best) return current
+
+          const bestIsCurrent = isCurrentHomevisitor(best.recby)
+          const currentIsCurrent = isCurrentHomevisitor(current.recby)
+
+          // priority 1: ของ homevisitor ปัจจุบันชนะก่อน
+          if (currentIsCurrent && !bestIsCurrent) return current
+          if (bestIsCurrent && !currentIsCurrent) return best
+
+          // priority 2: score
+          const bestScore = getSurveyScore(best)
+          const currentScore = getSurveyScore(current)
+
+          if (currentScore > bestScore) return current
+          if (bestScore > currentScore) return best
+
+          // priority 3: ถ้าคะแนนเท่ากัน เอาตัวที่อัปเดตล่าสุด
+          const bestTime = new Date(best.lastUpdated || best.timeupload || 0).getTime()
+          const currentTime = new Date(current.lastUpdated || current.timeupload || 0).getTime()
+
+          return currentTime > bestTime ? current : best
+        }
 
         for (const result of apiResultsRaw) {
-          if (result.deleted_at || !result.recby) {
+          if (result.deleted_at) {
+            const matchedSurveys = allSurveyProgress.filter(
+              (s) =>
+                String(s.stid) === String(result.stid) &&
+                String(s.time_visit) === String(result.time_visit)
+            )
+
+            if (matchedSurveys.length > 0) {
+              // enrich ด้วย recby จาก visitor
+              const enrichedSurveys = await Promise.all(
+                matchedSurveys.map(async (survey) => {
+                  const visitor = await getVisitorByStid(survey.stid)
+                  return {
+                    ...survey,
+                    recby: getRecbyFromVisitor(visitor)
+                  }
+                })
+              )
+
+              const bestSurvey = enrichedSurveys.reduce((best, current) => {
+                return pickBetterSurvey(best, current)
+              }, null)
+
+              console.log('deleted_at target:', {
+                stid: result.stid,
+                time_visit: result.time_visit,
+                matchedCount: enrichedSurveys.length,
+                bestSurvey: bestSurvey
+                  ? {
+                      id: bestSurvey.id,
+                      stid: bestSurvey.stid,
+                      time_visit: bestSurvey.time_visit,
+                      recby: bestSurvey.recby,
+                      completed: bestSurvey.completed,
+                      synced: bestSurvey.synced,
+                      score: getSurveyScore(bestSurvey)
+                    }
+                  : null
+              })
+
+              for (const survey of enrichedSurveys) {
+                // เก็บตัวที่ดีที่สุดไว้
+                if (bestSurvey && survey.id === bestSurvey.id) {
+                  console.log('Result: keep best survey:', {
+                    id: survey.id,
+                    stid: survey.stid,
+                    time_visit: survey.time_visit,
+                    recby: survey.recby,
+                    completed: survey.completed,
+                    synced: survey.synced,
+                    score: getSurveyScore(survey)
+                  })
+                  continue
+                }
+
+                try {
+                  await app.$indexedDB.deleteSurveyProgress(survey.id)
+                  console.log('deleted duplicate/incorrect survey:', {
+                    id: survey.id,
+                    stid: survey.stid,
+                    time_visit: survey.time_visit,
+                    recby: survey.recby,
+                    completed: survey.completed,
+                    synced: survey.synced,
+                    score: getSurveyScore(survey)
+                  })
+                } catch (error) {
+                  console.error(`Failed to remove ${survey.id}:`, error)
+                }
+              }
+            }
+
+            skippedCount++
+            continue
+          }
+          /*
+          if (result.deleted_at) {
             const deleteSurveyId = `${result.stid}_${result.time_visit}`;
             const existingLocal = await app.$indexedDB.getSurveyProgressById(deleteSurveyId);
             if (existingLocal) {
@@ -1080,10 +1424,13 @@ export default function ({ app, store, $axios }, inject) {
             skippedCount++;
             continue;
           }
+          */
 
           apiResults.push(result);
         }
-        // Nuda เพิ่มตรงนี้ให้เหมือนกับฝั่ง synsBooking() ดึงข้อมูล api มาอัพเดตตัวแปร Approve 
+        // Nuda เพิ่มตรงนี้ให้เหมือนกับฝั่ง synsBooking() ดึงข้อมูล api มาอัพเดตตัวแปร Approve
+        // เอาออก เพราะมันดึงมาตอน Booking เเล้ส  21.4.2026 
+        /*
         const surveyMapByStidTimeVisit = new Map();
         allSurveyProgress.forEach((s) => {
           const key = `${s.stid}_${s.time_visit}`;
@@ -1123,7 +1470,7 @@ export default function ({ app, store, $axios }, inject) {
             // console.log('saved approve_comment:', savedSurvey?.approve_comment)
           }
         }
-        
+        */
         // Process each result from API
         for (const result of apiResults) {
           try {
@@ -1315,6 +1662,7 @@ export default function ({ app, store, $axios }, inject) {
               stid: result.stid,
               time: String(timeValue), // Map จาก time ของ API เป็น time
               time_visit: result.time_visit || null,
+              recby: result.recby,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
               month_age: localSurvey?.month_age || result.month_age,
               // ⚠️ FIX: เก็บ recStart/recEnd จาก local → fallback API → ป้องกันหาย

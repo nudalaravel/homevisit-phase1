@@ -620,13 +620,13 @@
               <i class="fas fa-clock"></i>
               เวลา
             </label>
-          <b-form-select
-              v-model="newAppointment.appointmentTime"
-            :options="timeOptions"
-              class="appointment-select"
-              :disabled="shouldDisableStep12"
-              @change="onTimeChange"
-          ></b-form-select>
+            <b-form-select
+                v-model="newAppointment.appointmentTime"
+                :options="timeOptions"
+                class="appointment-select"
+                :disabled="shouldDisableStep12"
+                @change="onTimeChange"
+            ></b-form-select>
           </div>
         </div>
 
@@ -1183,8 +1183,9 @@ export default {
         const completedSurveys = await this.$indexedDB.getCompletedSurveysByStid(editData.stid)
         timeVisit = completedSurveys.length + 1
       }
-      
-      // ตั้งค่าข้อมูลผู้รับบริการ
+      // เพิ่มตรงนี้กรณีเข้ามาแก้ไขข้อมูล ให้โชวข้อมูลเดิม
+      const timeVisitNext = parseInt(timeVisit) + 1
+      const bookingNext = await this.$indexedDB.getBookingByStidAndTimeVisit(editData.stid, timeVisitNext)
       this.visitorData = {
         stid: editData.stid,
         name: editData.name,
@@ -1193,7 +1194,9 @@ export default {
         time_visit: timeVisit,
         month_age: monthAge,
         appointmentDate: survey.appointmentDate,
-        appointmentTime: editData.appointmentTime
+        appointmentTime: editData.appointmentTime,
+        q10_appDate: bookingNext?.appointmentDate,
+        q10_appTime: bookingNext?.appointmentTime
       }
       // เปลี่ยนเป็น เอาเวลา หน้าแก้ไขข้อมูล แทน
       // appointmentTime: survey.appointmentTime
@@ -1255,6 +1258,8 @@ export default {
         timeVisit = completedSurveys.length + 1
       }
       
+      const timeVisitNext = parseInt(timeVisit) + 1
+      const bookingNext = await this.$indexedDB.getBookingByStidAndTimeVisit(survey.stid, timeVisitNext)
       // ตั้งค่าข้อมูลผู้รับบริการ
       this.visitorData = {
         stid: survey.stid,
@@ -1264,9 +1269,10 @@ export default {
         time_visit: timeVisit,
         month_age: monthAge,
         appointmentDate: survey.appointmentDate,
-        appointmentTime: survey.appointmentTime
+        appointmentTime: survey.appointmentTime,
+        q10_appDate: bookingNext?.appointmentDate,
+        q10_appTime: bookingNext?.appointmentTime
       }
-      
       // โหลดข้อมูลแบบสอบถามเดิม
       await this.loadExistingSurvey(survey)
       this.$toast.info('กำลังแก้ไขบันทึกการเยี่ยมบ้าน')
@@ -1392,10 +1398,9 @@ export default {
       
       this.recStart = survey.recStart || null
       this.recEnd = survey.recEnd || null
+
       // เพิ่มตรงนี้ เพื่อเช็คว่า เป็นหน้าแก้ไข หรือไม่
       const urlParams = this.$route.query
-      console.log(this.visitorData)
-      console.log(survey)
       if (survey.completed && urlParams.mode === 'edit') {
         this.timeStart = this.visitorData.appointmentTime || null
       } else {
@@ -1594,6 +1599,10 @@ export default {
       if (survey.newAppointment) {
         this.newAppointment = survey.newAppointment
       }
+      if (urlParams.mode === 'edit') {
+        this.newAppointment.appointmentTime = this.visitorData.q10_appTime
+      }
+      console.log(this.newAppointment)
       
       // โหลด timestamps สำหรับ Q5/Q9
       if (survey.q5Timestamps) {
@@ -3149,7 +3158,6 @@ export default {
       const hasExistingAppointment = this.newAppointment.appointmentDay && 
                                      this.newAppointment.appointmentMonth && 
                                      this.newAppointment.appointmentYear
-      
       if (!hasExistingAppointment) {
         // ลองใช้ q10_appDate จาก answers ก่อน (กรณีแก้ไข survey ที่ sync จาก API ซึ่ง newAppointment เป็น null)
         if (this.answers.q10_appDate) {
@@ -3185,7 +3193,6 @@ export default {
         this.newAppointment.appointmentDay = nextVisit.getDate()
         this.newAppointment.appointmentMonth = nextVisit.getMonth() + 1
         this.newAppointment.appointmentYear = nextVisit.getFullYear() + 543
-        
         // ใช้เวลาจาก appointmentTime หรือค่า default
         // if (this.visitorData.appointmentTime) {
         //   this.newAppointment.appointmentTime = this.visitorData.appointmentTime

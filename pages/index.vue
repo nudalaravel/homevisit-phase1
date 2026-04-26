@@ -825,7 +825,8 @@ export default {
       monthOptions: [],
       yearOptions: [],
       timeOptions: [],
-      visitorData: null
+      visitorData: null,
+      showSyncSuccessModal: false
     }
   },
   computed: {
@@ -1154,6 +1155,7 @@ export default {
 
         this.preloadSurveyImages()
         this.$toast.success('ซิงค์ข้อมูลเสร็จสิ้น')
+        this.showSyncSuccessModal = true
       } catch (error) {
         console.error('Background sync failed:', error)
         // ไม่แสดง error toast เพราะเป็น background task
@@ -2592,7 +2594,7 @@ export default {
         //   this.$toast.error('กรุณาระบุเวลาเริ่มต้น')
         //   return
         // }
-        // Store complete survey data
+        // Store completed survey data
         // แยก appointmentTime (เวลานัดหมาย) กับ startTime (เวลาเริ่มบันทึก)
         const isStartTimeChanged = finalAppointmentTime !== finalStartTime
         const surveyData = {
@@ -2629,24 +2631,26 @@ export default {
     canRecordVisit(visitor) {
       return checkCanRecordVisit(visitor)
     },
-    
     async showVisitHistory(patient) {
+      await this.loadVisitHistory(patient)
+      this.showVisitHistoryModal = true
+      return
       try {
-        await this.loadVisitHistory(patient)
-
-        this.showVisitHistoryModal = true
-
         const username = this.$offlineAuth?.getUser?.()?.username
-        // ถ้าอ่านอย่างเดียว / ไม่มี local pending เพราะเป็นรายการ Push เเล้ว
+
         if (this.$store.state.isOnline && username) {
-          const hasPending = await this.$indexedDB.getUnsyncedSurveys()
-          console.log(hasPending.length)
-          if (hasPending) {
+          const pendingSurveys = await this.$indexedDB.getUnsyncedSurveys()
+          console.log('pendingSurveys:', pendingSurveys.length)
+
+          if (pendingSurveys.length > 0) {
             await this.$systemInit.pushSurveyResultsToAPI()
           }
+
           await this.$systemInit.syncSurveyResults(username)
-          await this.loadVisitHistory(patient)
         }
+
+        await this.loadVisitHistory(patient)
+        this.showVisitHistoryModal = true
       } catch (error) {
         console.error('showVisitHistory error:', error)
       }
@@ -2687,7 +2691,7 @@ export default {
           visits: visits,
           totalVisits: 48
         }
-        this.showVisitHistoryModal = true
+        // this.showVisitHistoryModal = true
       } catch (error) {
         this.$toast.error('ไม่สามารถโหลดประวัติการเยี่ยมบ้านได้')
       }

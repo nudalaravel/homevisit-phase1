@@ -314,6 +314,32 @@ export default {
   async mounted() {
     await this.fetchTableData()
   },
+  beforeMount() {
+    // แหล่งที่ 1: store
+    let userLevel = this.$store.state.auth?.user?.level
+
+    // แหล่งที่ 2: offlineAuth
+    if (userLevel === undefined && this.$offlineAuth) {
+      userLevel = this.$offlineAuth.getUser()?.level
+    }
+
+    // แหล่งที่ 3: localStorage
+    if (userLevel === undefined) {
+      try {
+        const raw = localStorage.getItem('offline_auth_data')
+        if (raw) {
+          userLevel = JSON.parse(raw)?.user?.level
+        }
+      } catch (e) {}
+    }
+
+    // console.log('userLevel:', userLevel)
+
+    if (userLevel === 3) {
+      this.$router.replace('/')
+    }
+    // level 1 → อยู่หน้านี้ได้เลย
+  },
   methods: {
     // ดึงข้อมูลตารางจาก API
     async fetchTableData() {
