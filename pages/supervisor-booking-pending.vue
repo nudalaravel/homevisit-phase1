@@ -73,6 +73,7 @@
               <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-button"></div></td>
+              <td><div class="skeleton-cell skeleton-text"></div></td>
               <td><div class="skeleton-cell skeleton-button-small"></div></td>
               <td><div class="skeleton-cell skeleton-checkbox"></div></td>
             </tr>
@@ -135,6 +136,19 @@
           <span v-else class="no-photos">
             <i class="fas fa-times"></i>
           </span>
+        </template>
+
+        <template #cell(approveComment)="row">
+          <button
+            v-if="row.item.approveComment"
+            class="btn-comment"
+            @click="openCommentModal(row.item)"
+            title="ดูคอมเมนต์"
+          >
+            <i class="fas fa-comment-dots"></i>
+          </button>
+
+          <span v-else class="text-muted">-</span>
         </template>
 
         <template #cell(confirm)="row">
@@ -524,6 +538,52 @@
         </b-button>
       </template>
     </b-modal>
+    <b-modal
+      v-model="showCommentModal"
+      title="รายละเอียดข้อเสนอแนะ"
+      size="md"
+      centered
+      header-class="modal-header-visit"
+    >
+      <div v-if="commentModalData" class="comment-modal-content">
+        <p><strong>ชื่อเด็ก:</strong> {{ commentModalData.childName }}</p>
+        <p><strong>ผู้เยี่ยมบ้าน:</strong> {{ commentModalData.visitorName }}</p>
+        <p><strong>วันที่เยี่ยม:</strong> {{ commentModalData.visitDate }}</p>
+
+        <hr>
+
+        <div class="mb-2">
+          <strong>สถานะ:</strong>
+          <span :class="getStatusClass(commentModalData.approveStatus)">
+            {{ getStatusText(commentModalData.approveStatus) }}
+          </span>
+        </div>
+
+        <div class="mb-2">
+          <strong>วันที่อนุมัติ:</strong>
+          {{ formatThaiDate(commentModalData.approveDate) || '-' }}
+        </div>
+
+        <div class="mb-2">
+          <strong>ผู้อนุมัติ:</strong>
+          {{ commentModalData.approveBy || '-' }}
+        </div>
+
+        <div class="mt-3">
+          <strong>ข้อเสนอแนะ:</strong>
+          <div class="comment-box mt-1">
+            {{ commentModalData.approveComment || '-' }}
+          </div>
+        </div>
+      </div>
+
+      <template #modal-footer="{ cancel }">
+        <b-button variant="secondary" @click="cancel()">
+          <i class="fas fa-times"></i>
+          ปิด
+        </b-button>
+      </template>
+    </b-modal>
   </div>
 </template>
 
@@ -579,6 +639,11 @@ export default {
         {
           key: 'photos',
           label: 'รูปกิจกรรม',
+          thClass: 'table-header'
+        },
+        {
+          key: 'approveComment',
+          label: 'คอมเมนต์',
           thClass: 'table-header'
         },
         {
@@ -641,7 +706,9 @@ export default {
         { value: 'pending', text: 'รอตรวจสอบ' },
         { value: 'correction_requested', text: 'แจ้งให้แก้ไข' },
         { value: 'edited', text: 'แก้ไขแล้ว (รอตรวจ)' }
-      ]
+      ],
+      showCommentModal: false,
+      commentModalData: null,
     }
   },
   async mounted() {
@@ -735,6 +802,25 @@ export default {
     // level 1 → อยู่หน้านี้ได้เลย
   },
   methods: {
+    getStatusText(status) {
+      const s = Number(status)
+      if (s === 1) return 'อนุมัติแล้ว'
+      if (s === -1) return 'แจ้งให้แก้ไข'
+      if (s === -2) return 'แก้ไขแล้ว (รอตรวจ)'
+      return 'รอตรวจสอบ'
+    },
+
+    getStatusClass(status) {
+      const s = Number(status)
+      if (s === 1) return 'text-success'
+      if (s === -1) return 'text-danger'
+      if (s === -2) return 'text-info'
+      return 'text-warning'
+    },
+    openCommentModal(item) {
+      this.commentModalData = item
+      this.showCommentModal = true
+    },
     getImageUrl(img) {
       if (!img) return ''
 
@@ -2722,6 +2808,40 @@ export default {
 .selection-message i {
   font-size: 1.1rem;
   margin-right: 0.5rem;
+}
+
+.btn-comment {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-comment:hover {
+  background-color: #138496;
+  transform: scale(1.05);
+}
+
+.comment-modal-content p {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.comment-box {
+  background-color: #f8f9fa;
+  border-left: 4px solid #17a2b8;
+  padding: 0.85rem 1rem;
+  border-radius: 0.375rem;
+  color: #2c3e50;
+  line-height: 1.7;
+  white-space: pre-wrap;
 }
 </style>
 
