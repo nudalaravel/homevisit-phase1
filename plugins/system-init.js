@@ -251,6 +251,29 @@ export default function ({ app, store, $axios }, inject) {
 
           // บันทึกเวลาที่อัพเดท
           await app.$indexedDB.setSetting("activities_last_update", Date.now());
+
+          // ✅ วน loop ทุก activity
+          for (const activity of response.results) {
+            if (activity.picture) {
+              try {
+                const url = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${activity.picture}`
+                const res = await fetch(url)
+                const blob = await res.blob()
+
+                // แปลง blob → base64
+                await new Promise((resolve) => {
+                  const reader = new FileReader()
+                  reader.readAsDataURL(blob)
+                  reader.onloadend = async () => {
+                    await app.$indexedDB.saveImage(`activity_${activity.picture}`, reader.result)
+                    resolve()
+                  }
+                })
+              } catch (err) {
+                console.warn(`โหลดรูปไม่สำเร็จ: ${activity.picture}`, err)
+              }
+            }
+          }
           return true;
         }
         return false;

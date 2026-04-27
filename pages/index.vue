@@ -294,6 +294,14 @@
               </div>
             </b-col>
           </b-row>
+          <!-- ✅ เพิ่มรูปภาพ -->
+          <div class="mt-3 text-center" v-if="appointmentForm.activityPicture">
+            <img 
+              :src="appointmentForm.activityPicture" 
+              alt="รูปกิจกรรม"
+              style="max-width: 100%; max-height: 300px; border-radius: 8px;"
+            />
+          </div>
         </div>
         <div v-else class="alert alert-info">
           <i class="fas fa-info-circle"></i>
@@ -770,6 +778,7 @@ export default {
         appointmentTimeVisit: null,
         timeActivity: null,
         activities: [],
+        activityPicture: null,   // ← ตัวแปรใหม่เก็บ URL รูป
         visitorBirthMonth: null,
         visitorBirthYear: null,
         existingBooking: null
@@ -1584,6 +1593,14 @@ export default {
         timeActivity
       )
       this.appointmentForm.activities = activities || []
+      // ✅ เพิ่มตรงนี้
+      const pic = activities && activities[0]?.picture
+      if (pic) {
+        const imageObj = await this.$indexedDB.getImage(`activity_${pic}`)
+        this.appointmentForm.activityPicture = imageObj
+          ? imageObj.data  // ← base64 ใช้ใส่ src ได้เลย
+          : `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+      }
     },
     // จัดการเมื่อเปลี่ยนเดือน
     async onMonthChange() {
@@ -1963,6 +1980,10 @@ export default {
           appointmentTimeVisit: timeVisit,
           timeActivity: timeActivity,
           activities: activities || [],
+          // ✅ เพิ่ม field นี้
+          activityPicture: activities && activities[0]?.picture
+            ? `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${activities[0].picture}`
+            : null,
           visitorBirthMonth: parseInt(visitor.month_birth),
           visitorBirthYear: parseInt(visitor.year_birth),
           existingBooking: existingBooking
@@ -2446,6 +2467,7 @@ export default {
         appointmentMonthAge: null,
         timeActivity: null,
         activities: [],
+        activityPicture: null,
         visitorBirthMonth: null,
         visitorBirthYear: null,
         existingBooking: null
