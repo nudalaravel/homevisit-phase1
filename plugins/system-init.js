@@ -256,18 +256,28 @@ export default function ({ app, store, $axios }, inject) {
           for (const activity of response.results) {
             if (activity.picture) {
               try {
-                const url = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${activity.picture}`
-                const res = await fetch(url)
-                const blob = await res.blob()
+                const existing = await app.$indexedDB.getImage(`activity_${activity.picture}`)
+                if (existing) continue
 
-                // แปลง blob → base64
-                await new Promise((resolve) => {
-                  const reader = new FileReader()
-                  reader.readAsDataURL(blob)
-                  reader.onloadend = async () => {
-                    await app.$indexedDB.saveImage(`activity_${activity.picture}`, reader.result)
+                if (!navigator.onLine) continue
+
+                // ✅ ใช้ Image + canvas แทน fetch เลี่ยง CORS
+                await new Promise((resolve, reject) => {
+                  const img = new Image()
+                  img.crossOrigin = 'anonymous'
+                  img.src = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${activity.picture}`
+                  
+                  img.onload = async () => {
+                    const canvas = document.createElement('canvas')
+                    canvas.width = img.width
+                    canvas.height = img.height
+                    canvas.getContext('2d').drawImage(img, 0, 0)
+                    const base64 = canvas.toDataURL('image/png')
+                    await app.$indexedDB.saveImage(`activity_${activity.picture}`, base64)
                     resolve()
                   }
+                  
+                  img.onerror = reject
                 })
               } catch (err) {
                 console.warn(`โหลดรูปไม่สำเร็จ: ${activity.picture}`, err)

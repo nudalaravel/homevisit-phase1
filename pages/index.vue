@@ -734,6 +734,7 @@ import { convertToWebP, extractImageUrls, preloadImages } from '~/utils/imageHel
 import EditPatientModal from '~/components/EditPatientModal.vue'
 import PatientListItem from '~/components/PatientListItem.vue'
 import VisitRecordModal from '~/components/VisitRecordModal.vue'
+import { BIconChevronCompactLeft } from 'bootstrap-vue'
 
 export default {
   name: 'IndexPage',
@@ -1597,9 +1598,22 @@ export default {
       const pic = activities && activities[0]?.picture
       if (pic) {
         const imageObj = await this.$indexedDB.getImage(`activity_${pic}`)
-        this.appointmentForm.activityPicture = imageObj
-          ? imageObj.data  // ← base64 ใช้ใส่ src ได้เลย
-          : `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+        
+        if (imageObj) {
+          // มีใน IDB ใช้ได้เลย
+          console.log('มีใน IDB ใช้ได้เลย')
+          this.appointmentForm.activityPicture = imageObj.data
+        } else {
+          // ไม่มีใน IDB — เช็คเน็ต
+          if (navigator.onLine) {
+            // มีเน็ต ดึงจาก S3 ตามเดิม
+            this.appointmentForm.activityPicture = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+          } else {
+            // ไม่มีเน็ต + ไม่มีรูปใน IDB
+            this.appointmentForm.activityPicture = null
+            this.$toast.warning('ไม่พบรูปภาพกิจกรรมในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบเพื่อดึงข้อมูลรูปภาพ')
+          }
+        }
       }
     },
     // จัดการเมื่อเปลี่ยนเดือน
