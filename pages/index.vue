@@ -1995,12 +1995,25 @@ export default {
           timeActivity: timeActivity,
           activities: activities || [],
           // ✅ เพิ่ม field นี้
-          activityPicture: activities && activities[0]?.picture
-            ? `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${activities[0].picture}`
-            : null,
+          activityPicture: null,  // ✅ ตั้ง null ไว้ก่อน แล้วค่อย set ทีหลัง,
           visitorBirthMonth: parseInt(visitor.month_birth),
           visitorBirthYear: parseInt(visitor.year_birth),
           existingBooking: existingBooking
+        }
+        // ✅ set รูปทีหลัง อ่านจาก IDB ก่อนเสมอ
+        const pic = activities && activities[0]?.picture
+        if (pic) {
+          const imageObj = await this.$indexedDB.getImage(`activity_${pic}`)
+          if (imageObj) {
+            // มีใน IDB → ใช้ base64
+            this.appointmentForm.activityPicture = imageObj.data
+          } else if (navigator.onLine) {
+            // ไม่มีใน IDB แต่มีเน็ต → ใช้ URL
+            this.appointmentForm.activityPicture = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+          } else {
+            // ไม่มีทั้งคู่
+            this.$toast.warning('ไม่พบรูปภาพในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบ')
+          }
         }
         this.appointmentFormErrors = {}
         this.showAppointmentModal = true
