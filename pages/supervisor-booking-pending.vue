@@ -571,17 +571,55 @@
 
         <div class="mt-3">
           <strong>ข้อเสนอแนะ:</strong>
-          <div class="comment-box mt-1">
+
+          <!-- VIEW MODE -->
+          <div v-if="!isEditingComment" class="comment-box mt-1">
             {{ commentModalData.approveComment || '-' }}
           </div>
+
+          <!-- EDIT MODE -->
+          <textarea
+            v-else
+            v-model="editingComment"
+            class="form-control mt-2"
+            rows="10"
+            maxlength="255"
+          ></textarea>
+          <small v-if="isEditingComment" class="text-muted d-block text-end">
+            {{ editingComment.length }}/255 ตัวอักษร
+          </small>
         </div>
       </div>
 
-      <template #modal-footer="{ cancel }">
-        <b-button variant="secondary" @click="cancel()">
-          <i class="fas fa-times"></i>
-          ปิด
-        </b-button>
+      <template #modal-footer>
+        <!-- VIEW MODE -->
+        <template v-if="!isEditingComment">
+          <b-button variant="secondary" @click="showCommentModal = false">
+            ปิด
+          </b-button>
+
+          <b-button
+            variant="warning"
+            @click="startEditComment"
+          >
+            <i class="fas fa-edit"></i> แก้ไข
+          </b-button>
+        </template>
+
+        <!-- EDIT MODE -->
+        <template v-else>
+          <b-button variant="secondary" @click="cancelEditComment">
+            ยกเลิก
+          </b-button>
+
+          <b-button
+            variant="primary"
+            :disabled="!editingComment.trim()"
+            @click="saveComment"
+          >
+            <i class="fas fa-save"></i> บันทึก
+          </b-button>
+        </template>
       </template>
     </b-modal>
   </div>
@@ -709,6 +747,8 @@ export default {
       ],
       showCommentModal: false,
       commentModalData: null,
+      isEditingComment: false,
+      editingComment: ''
     }
   },
   async mounted() {
@@ -1752,6 +1792,72 @@ export default {
         return `${day} ${month} ${year}`
       } catch (error) {
         return dateString
+      }
+    },
+    startEditComment() {
+      this.isEditingComment = true
+      this.editingComment = this.commentModalData.approveComment || ''
+    },
+
+    cancelEditComment() {
+      this.isEditingComment = false
+      this.editingComment = ''
+    },
+
+    async saveComment() {
+      if (!this.commentModalData || !this.editingComment.trim()) {
+        return
+      }
+
+      try {
+        const user = this.$offlineAuth?.getUser?.()
+        const supervisorUsername = user?.username || 'supervisor'
+
+        const now = new Date()
+        const mysqlDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+
+        const item = this.commentModalData
+
+        const stid = item.stid || item.rawData?.stid
+        const timeVisit = item.timeVisit || item.rawData?.time_visit || '1'
+        const recBy = item.recby || item.rawData?.recby
+
+        const payload = {
+          variable: [
+            'approve_comment',
+            'approve_date',
+            'approve_by'
+          ],
+          value: [
+            this.editingComment.trim(),
+            mysqlDate,
+            supervisorUsername
+          ],
+          pk: ['stid', 'time_visit', 'recby'],
+          pkval: [stid, String(timeVisit), recBy],
+          tb: 'homevisitor_app'
+        }
+
+        console.log('Update Comment Payload:', payload)
+
+        await this.$axios.$put(
+          '/api/parenting2025_census/put/homevisit/putdata.php',
+          payload
+        )
+
+        this.$toast.success(
+          'บันทึกข้อเสนอแนะเรียบร้อยแล้ว โดยสถานะยังคงเดิม'
+        )
+        
+        this.commentModalData.approveComment = this.editingComment.trim()
+        this.commentModalData.approveDate = mysqlDate
+        this.commentModalData.approveBy = supervisorUsername
+
+        this.isEditingComment = false
+        await this.fetchTableData()
+      } catch (error) {
+        console.error('Error updating comment:', error)
+        this.$toast.error('เกิดข้อผิดพลาดในการบันทึกข้อเสนอแนะ')
       }
     }
   }
