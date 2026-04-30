@@ -1281,32 +1281,54 @@ export default {
 
               let previousBooking = null
               let previousAppointmentDate = null
-
+              
               if (booking.time_visit > 1) {
+                console.log('==========================================')
+                console.log('stid:' + booking?.stid)
+                console.log('booking:' + booking?.appointmentDate)
+
                 // หา survey ครั้งก่อนหน้า เพื่อใช้เป็น existingBooking
                 const prevTimeVisit = booking.time_visit - 1
-                const prevSurvey = completedSurveys.find(s =>
+                const prevSurveyBook = completedSurveys.find(s =>
                   String(s.time_visit) === String(prevTimeVisit) && s.completed
                 )
+                console.log('*bookingprev: completedSurveys : ' + prevSurveyBook?.date_visit)
 
+                // เปลี่ยนจากที่ดูรายการนัดหมายจาก result เอามากจาก Booking เลย | appointmentDate คือ date_visit
+                // เพราะ completedSurveys ไม่มี date_visit
+                const prevSurvey = await this.$indexedDB.getBookingByStidAndTimeVisit(booking.stid, prevTimeVisit)
+                console.log('bookingprev: getBookingByStidAndTimeVisit : ' + prevSurvey?.appointmentDate)
+                
                 previousAppointmentDate = prevSurvey?.appointmentDate || null
-                // มันมีข้อมูล Booking อยู่เเล้ว
-                // if (booking && booking?.appointmentDate) {
-                //   previousBooking = {
-                //     appointmentDate: new Date(booking?.appointmentDate),
-                //     month_age: Number(booking?.month_age),
-                //     time: Number(booking?.time)
-                //   }
-                // }
-                if (prevSurvey && prevSurvey.appointmentDate) {
+
+                console.log('==========================================')
+                // กรณีเช็คจาก Booking
+                if (prevSurveyBook && prevSurveyBook.date_visit) {
                   previousBooking = {
-                    appointmentDate: new Date(prevSurvey.appointmentDate),
-                    month_age: Number(prevSurvey.month_age),
-                    time: Number(prevSurvey.time)
+                    appointmentDate: new Date(prevSurveyBook.date_visit),
+                    month_age: Number(prevSurveyBook.month_age),
+                    time: Number(prevSurveyBook.time)
                   }
                 }
-              }
 
+                // กรณีเช็คจาก Result
+                // if (prevSurvey && prevSurvey.appointmentDate) {
+                //   previousBooking = {
+                //     appointmentDate: new Date(prevSurvey.appointmentDate),
+                //     month_age: Number(prevSurvey.month_age),
+                //     time: Number(prevSurvey.time)
+                //   }
+                // }
+
+                // Code ที่ผิด ห้ามใช้เลยส่วนนี้ ที่ทำให้ time กระโดด เเสดงผิด
+                // if (booking && booking?.appointmentDate) {
+                //   previousBooking = {
+                //   appointmentDate: new Date(booking?.appointmentDate),
+                //   month_age: Number(booking?.month_age),
+                //   time: Number(booking?.time)
+                //   }
+                // }
+              }
               const calculated = calculateMonthAgeAndTime(
                 parseInt(visitor.month_birth),
                 parseInt(visitor.year_birth),

@@ -1694,6 +1694,7 @@ export default function ({ app, store, $axios }, inject) {
               id: surveyId,
               stid: result.stid,
               time: String(timeValue), // Map จาก time ของ API เป็น time
+              date_visit: result.date_visit,
               time_visit: result.time_visit || null,
               recby: result.recby,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด
