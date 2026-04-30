@@ -94,6 +94,17 @@
           <i class="fas fa-user-edit"></i>
           <span v-if="!sidebarCollapsed">เปลี่ยนผู้ดูแลเด็ก</span>
         </nuxt-link>
+        
+        <nuxt-link
+          v-if="isAudit"
+          to="/admin-visit-audit"
+          class="nav-item"
+          :class="{ active: isActiveRoute('admin-visit-audit') }"
+          :title="sidebarCollapsed ? 'ตรวจสอบความถูกต้อง (month/time)' : ''"
+        >
+          <i class="fas fa-search-plus"></i>
+          <span v-if="!sidebarCollapsed">ตรวจสอบความถูกต้อง (month/time)</span>
+        </nuxt-link>
       </nav>
 
       <!-- Switch Mode Button -->
@@ -152,6 +163,34 @@ export default {
         'kei@riped.utcc.ac.th',
         'dariga.riped@gmail.com',
         'tuannurlaila.riped@gmail.com'
+      ]
+      return allowedUsers.includes(email)
+    },
+    isAudit() {
+      // แหล่งที่ 1: store
+      let email = this.$store.state.auth?.user?.email
+        || this.$store.state.auth?.user?.username
+
+      // แหล่งที่ 2: offlineAuth
+      if (!email && this.$offlineAuth) {
+        const user = this.$offlineAuth.getUser()
+        email = user?.email || user?.username
+      }
+
+      // แหล่งที่ 3: localStorage
+      if (!email) {
+        try {
+          const raw = localStorage.getItem('offline_auth_data')
+          if (raw) {
+            const u = JSON.parse(raw)?.user
+            email = u?.email || u?.username
+          }
+        } catch (e) {}
+      }
+
+      const allowedUsers = [
+        'nuda@riped.utcc.ac.th',
+        'kei@riped.utcc.ac.th'
       ]
       return allowedUsers.includes(email)
     },
