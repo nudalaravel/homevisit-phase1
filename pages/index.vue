@@ -294,6 +294,14 @@
               </div>
             </b-col>
           </b-row>
+          <!-- ✅ เพิ่มรูปภาพ -->
+          <div class="mt-3 text-center" v-if="appointmentForm.activityPicture">
+            <img 
+              :src="appointmentForm.activityPicture" 
+              alt="รูปกิจกรรม"
+              style="max-width: 100%; max-height: 300px; border-radius: 8px;"
+            />
+          </div>
         </div>
         <div v-else class="alert alert-info">
           <i class="fas fa-info-circle"></i>
@@ -726,6 +734,7 @@ import { convertToWebP, extractImageUrls, preloadImages } from '~/utils/imageHel
 import EditPatientModal from '~/components/EditPatientModal.vue'
 import PatientListItem from '~/components/PatientListItem.vue'
 import VisitRecordModal from '~/components/VisitRecordModal.vue'
+import { BIconChevronCompactLeft } from 'bootstrap-vue'
 
 export default {
   name: 'IndexPage',
@@ -770,6 +779,7 @@ export default {
         appointmentTimeVisit: null,
         timeActivity: null,
         activities: [],
+        activityPicture: null,   // ← ตัวแปรใหม่เก็บ URL รูป
         visitorBirthMonth: null,
         visitorBirthYear: null,
         existingBooking: null
@@ -1271,32 +1281,54 @@ export default {
 
               let previousBooking = null
               let previousAppointmentDate = null
-
+              
               if (booking.time_visit > 1) {
+                console.log('==========================================')
+                console.log('stid:' + booking?.stid)
+                console.log('booking:' + booking?.appointmentDate)
+
                 // หา survey ครั้งก่อนหน้า เพื่อใช้เป็น existingBooking
                 const prevTimeVisit = booking.time_visit - 1
-                const prevSurvey = completedSurveys.find(s =>
+                const prevSurveyBook = completedSurveys.find(s =>
                   String(s.time_visit) === String(prevTimeVisit) && s.completed
                 )
+                console.log('*bookingprev: completedSurveys : ' + prevSurveyBook?.date_visit)
 
+                // เปลี่ยนจากที่ดูรายการนัดหมายจาก result เอามากจาก Booking เลย | appointmentDate คือ date_visit
+                // เพราะ completedSurveys ไม่มี date_visit
+                const prevSurvey = await this.$indexedDB.getBookingByStidAndTimeVisit(booking.stid, prevTimeVisit)
+                console.log('bookingprev: getBookingByStidAndTimeVisit : ' + prevSurvey?.appointmentDate)
+                
                 previousAppointmentDate = prevSurvey?.appointmentDate || null
-                // มันมีข้อมูล Booking อยู่เเล้ว
-                // if (booking && booking?.appointmentDate) {
-                //   previousBooking = {
-                //     appointmentDate: new Date(booking?.appointmentDate),
-                //     month_age: Number(booking?.month_age),
-                //     time: Number(booking?.time)
-                //   }
-                // }
-                if (prevSurvey && prevSurvey.appointmentDate) {
+
+                console.log('==========================================')
+                // กรณีเช็คจาก Booking
+                if (prevSurveyBook && prevSurveyBook.date_visit) {
                   previousBooking = {
-                    appointmentDate: new Date(prevSurvey.appointmentDate),
-                    month_age: Number(prevSurvey.month_age),
-                    time: Number(prevSurvey.time)
+                    appointmentDate: new Date(prevSurveyBook.date_visit),
+                    month_age: Number(prevSurveyBook.month_age),
+                    time: Number(prevSurveyBook.time)
                   }
                 }
-              }
 
+                // กรณีเช็คจาก Result
+                // if (prevSurvey && prevSurvey.appointmentDate) {
+                //   previousBooking = {
+                //     appointmentDate: new Date(prevSurvey.appointmentDate),
+                //     month_age: Number(prevSurvey.month_age),
+                //     time: Number(prevSurvey.time)
+                //   }
+                // }
+
+                // Code ที่ผิด ห้ามใช้เลยส่วนนี้ ที่ทำให้ time กระโดด เเสดงผิด
+                // if (booking && booking?.appointmentDate) {
+                //   previousBooking = {
+                //   appointmentDate: new Date(booking?.appointmentDate),
+                //   month_age: Number(booking?.month_age),
+                //   time: Number(booking?.time)
+                //   }
+                // }
+              }
               const calculated = calculateMonthAgeAndTime(
                 parseInt(visitor.month_birth),
                 parseInt(visitor.year_birth),
@@ -1584,6 +1616,27 @@ export default {
         timeActivity
       )
       this.appointmentForm.activities = activities || []
+      // ✅ เพิ่มตรงนี้
+      const pic = activities && activities[0]?.picture
+      if (pic) {
+        const imageObj = await this.$indexedDB.getImage(`activity_${pic}`)
+        
+        if (imageObj) {
+          // มีใน IDB ใช้ได้เลย
+          console.log('มีใน IDB ใช้ได้เลย')
+          this.appointmentForm.activityPicture = imageObj.data
+        } else {
+          // ไม่มีใน IDB — เช็คเน็ต
+          if (navigator.onLine) {
+            // มีเน็ต ดึงจาก S3 ตามเดิม
+            this.appointmentForm.activityPicture = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+          } else {
+            // ไม่มีเน็ต + ไม่มีรูปใน IDB
+            this.appointmentForm.activityPicture = null
+            this.$toast.warning('ไม่พบรูปภาพกิจกรรมในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบเพื่อดึงข้อมูลรูปภาพ')
+          }
+        }
+      }
     },
     // จัดการเมื่อเปลี่ยนเดือน
     async onMonthChange() {
@@ -1963,9 +2016,26 @@ export default {
           appointmentTimeVisit: timeVisit,
           timeActivity: timeActivity,
           activities: activities || [],
+          // ✅ เพิ่ม field นี้
+          activityPicture: null,  // ✅ ตั้ง null ไว้ก่อน แล้วค่อย set ทีหลัง,
           visitorBirthMonth: parseInt(visitor.month_birth),
           visitorBirthYear: parseInt(visitor.year_birth),
           existingBooking: existingBooking
+        }
+        // ✅ set รูปทีหลัง อ่านจาก IDB ก่อนเสมอ
+        const pic = activities && activities[0]?.picture
+        if (pic) {
+          const imageObj = await this.$indexedDB.getImage(`activity_${pic}`)
+          if (imageObj) {
+            // มีใน IDB → ใช้ base64
+            this.appointmentForm.activityPicture = imageObj.data
+          } else if (navigator.onLine) {
+            // ไม่มีใน IDB แต่มีเน็ต → ใช้ URL
+            this.appointmentForm.activityPicture = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+          } else {
+            // ไม่มีทั้งคู่
+            this.$toast.warning('ไม่พบรูปภาพในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบ')
+          }
         }
         this.appointmentFormErrors = {}
         this.showAppointmentModal = true
@@ -2446,6 +2516,7 @@ export default {
         appointmentMonthAge: null,
         timeActivity: null,
         activities: [],
+        activityPicture: null,
         visitorBirthMonth: null,
         visitorBirthYear: null,
         existingBooking: null

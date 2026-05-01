@@ -251,6 +251,39 @@ export default function ({ app, store, $axios }, inject) {
 
           // บันทึกเวลาที่อัพเดท
           await app.$indexedDB.setSetting("activities_last_update", Date.now());
+
+          // ✅ วน loop ทุก activity
+          for (const activity of response.results) {
+            if (activity.picture) {
+              try {
+                const existing = await app.$indexedDB.getImage(`activity_${activity.picture}`)
+                if (existing) continue
+
+                if (!navigator.onLine) continue
+
+                // ✅ ใช้ Image + canvas แทน fetch เลี่ยง CORS
+                await new Promise((resolve, reject) => {
+                  const img = new Image()
+                  img.crossOrigin = 'anonymous'
+                  img.src = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${activity.picture}`
+                  
+                  img.onload = async () => {
+                    const canvas = document.createElement('canvas')
+                    canvas.width = img.width
+                    canvas.height = img.height
+                    canvas.getContext('2d').drawImage(img, 0, 0)
+                    const base64 = canvas.toDataURL('image/png')
+                    await app.$indexedDB.saveImage(`activity_${activity.picture}`, base64)
+                    resolve()
+                  }
+                  
+                  img.onerror = reject
+                })
+              } catch (err) {
+                console.warn(`โหลดรูปไม่สำเร็จ: ${activity.picture}`, err)
+              }
+            }
+          }
           return true;
         }
         return false;
@@ -1661,6 +1694,7 @@ export default function ({ app, store, $axios }, inject) {
               id: surveyId,
               stid: result.stid,
               time: String(timeValue), // Map จาก time ของ API เป็น time
+              date_visit: result.date_visit,
               time_visit: result.time_visit || null,
               recby: result.recby,
               // ใช้ค่าจาก local ก่อน เพราะ user อาจแก้ไขล่าสุด

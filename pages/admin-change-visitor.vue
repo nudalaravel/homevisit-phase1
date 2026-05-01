@@ -586,6 +586,8 @@ export default {
       savingAdd: false,
       bankList: [],
       addForm: {
+        username: '',
+        password: '',
         prefix: '',
         fname: '',
         lname: '',
@@ -911,13 +913,14 @@ export default {
       if (!this.canSubmitAdd) return
       this.savingAdd = true
       try {
+        console.log(this.addForm)
         const action = this.addForm.mode === 'edit' ? 'edit' : 'insert'
         const res = await this.$axios.$post('/api/parenting2025_census/post/homevisit/admin_add_visitor.php', {
           action,
           prefix:     this.addForm.prefix,
           fname:      this.addForm.fname,
           lname:      this.addForm.lname,
-          tel:        this.addForm.username,
+          tel:        this.addForm.tel,
           Email:      this.addForm.Email,
           PID:        this.addForm.PID,
           Address:    this.addForm.Address,
@@ -926,13 +929,14 @@ export default {
           accNumber:  this.addForm.accNumber,
           accName:    this.addForm.accName,
           // insert only
-          username:   this.addForm.username,
-          password:   this.addForm.mode === 'edit' ? undefined : this.addForm.username,
+          username:   this.addForm.tel,
+          password:   this.addForm.tel,
           level:      'staff',
           activehv2026: '1',
           projectid:  '15',
           level_input: '1'
         })
+        // console.log(res)
         if (res.message === 'success') {
           this.showAddVisitorModal = false
           this.$bvToast?.toast(
@@ -956,6 +960,7 @@ export default {
         }
       } catch (err) {
         console.error('doAddVisitor error:', err)
+        console.error('response:', err.response?.data)
         alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
       } finally {
         this.savingAdd = false
@@ -1005,6 +1010,8 @@ export default {
 
     resetAddVisitorForm() {
       this.addForm = {
+        username: '',
+        password: '',
         prefix: '',
         fname: '',
         lname: '',
