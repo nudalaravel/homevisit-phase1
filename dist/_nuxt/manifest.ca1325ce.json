@@ -1,0 +1,26 @@
+{
+  "name": "Riped V2 Research",
+  "short_name": "Riped Research",
+  "description": "Research Dashboard Template",
+  "icons": [
+    {
+      "src": "/homevisit/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/homevisit/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/homevisit/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3551a4",
+  "lang": "th",
+  "orientation": "portrait",
+  "scope": "/homevisit/"
+}
