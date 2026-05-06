@@ -2857,7 +2857,7 @@ export default function ({ app, store, $axios }, inject) {
                       base64Data,
                       "toy",
                       survey.stid,
-                      String(survey.time)
+                      String(survey.time_visit)
                     );
                     if (uploadedUrl) {
                       pic1 = uploadedUrl;
@@ -2896,7 +2896,7 @@ export default function ({ app, store, $axios }, inject) {
                       base64Data,
                       "activity",
                       survey.stid,
-                      String(survey.time)
+                      String(survey.time_visit)
                     );
                     if (uploadedUrl) {
                       pic2 = uploadedUrl;
