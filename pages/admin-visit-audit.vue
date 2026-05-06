@@ -44,9 +44,37 @@
           </select>
         </div>
         <div class="filter-group">
-          <span class="filter-label">ค้นหา:</span>
-          <input v-model="search" type="text" placeholder="ชื่อ / stid…" style="width:200px" />
+          <span class="filter-label">ผล survey:</span>
+          <select v-model="filterSurvey">
+            <option value="all">ทั้งหมด</option>
+            <option value="has">มีข้อมูลแล้ว</option>
+            <option value="none">ยังไม่มี</option>
+          </select>
         </div>
+        <div class="filter-group">
+          <span class="filter-label">approve:</span>
+          <select v-model="filterApprove">
+            <option value="all">ทั้งหมด</option>
+            <option value="approved">อนุมัติ</option>
+            <option value="wait">รอแก้ไข</option>
+            <option value="rejected">แจ้งแก้ไข</option>
+            <option value="none">ยังไม่มี</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">payment:</span>
+          <select v-model="filterPayment">
+            <option value="all">ทั้งหมด</option>
+            <option value="paid">จ่ายแล้ว</option>
+            <option value="unpaid">ยังไม่จ่าย</option>
+            <option value="none">ยังไม่มี</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">ค้นหา:</span>
+          <input v-model="search" type="text" placeholder="ชื่อเด็ก / stid / รหัสผยบ…" style="width:220px" />
+        </div>
+        <button class="btn secondary" @click="resetFilters">↺ รีเซ็ต</button>
         <button class="btn secondary" style="margin-left:auto" @click="exportCSV">⬇ Export CSV</button>
       </div>
 
@@ -65,6 +93,9 @@
                 <th>วันเกิด</th>
                 <th>วันนัด (ที่บันทึก)</th>
                 <th>time_visit</th>
+                <th>ผล survey</th>
+                <th>approve</th>
+                <th>payment</th>
                 <th>บันทึก (month/time)</th>
                 <th>คำนวณได้ (month/time)</th>
                 <th>สถานะ</th>
@@ -81,6 +112,26 @@
                   <td class="mono">{{ formatBirth(r) }}</td>
                   <td class="mono">{{ r.appointmentDate }}</td>
                   <td class="mono" style="text-align:center">{{ r.time_visit }}</td>
+                  <!-- ผล survey -->
+                  <td style="text-align:center">
+                    <span v-if="r.recStart" class="pill ok"><span class="dot"></span>มีข้อมูล</span>
+                    <span v-else class="pill warn"><span class="dot"></span>ยังไม่มี</span>
+                    <div v-if="r.visitor" class="stid" style="margin-top:.3rem">{{ r.visitor }}</div>
+                  </td>
+                  <!-- approve_status -->
+                  <td style="text-align:center">
+                    <span v-if="r.approve_status === 1" class="pill ok"><span class="dot"></span>อนุมัติ</span>
+                    <span v-else-if="r.approve_status === -1" class="pill warn"><span class="dot"></span>รอแก้ไข</span>
+                    <span v-else-if="r.approve_status === -2" class="pill err"><span class="dot"></span>แจ้งแก้ไข</span>
+                    <span v-else-if="r.approve_status !== null && r.approve_status !== -1 && r.approve_status !== -2" class="pill err"><span class="dot"></span>แจ้งแก้ไข</span>
+                    <span v-else class="pill" style="background:#f0f0f0;color:#aaa;border-color:#ddd"><span class="dot"></span>-</span>
+                  </td>
+                  <!-- payment_status -->
+                  <td style="text-align:center">
+                    <span v-if="r.payment_status === 1" class="pill ok"><span class="dot"></span>จ่ายแล้ว</span>
+                    <span v-else-if="r.payment_status !== null" class="pill warn"><span class="dot"></span>ยังไม่จ่าย</span>
+                    <span v-else class="pill" style="background:#f0f0f0;color:#aaa;border-color:#ddd"><span class="dot"></span>-</span>
+                  </td>
                   <td>
                     <div class="diff">
                       <div class="diff-row">
@@ -395,6 +446,9 @@ export default {
       loading: false,
       allRows: [],
       filterStatus: 'all',
+      filterSurvey: 'all',
+      filterApprove: 'all',
+      filterPayment: 'all',
       search: '',
       expandedRows: {},
     }
@@ -412,8 +466,27 @@ export default {
       const q = this.search.toLowerCase()
       return this.allRows.filter(r => {
         const matchStatus = this.filterStatus === 'all' || r.status === this.filterStatus
-        const matchSearch = !q || r.name.toLowerCase().includes(q) || r.stid.toLowerCase().includes(q)
-        return matchStatus && matchSearch
+        const matchSurvey = this.filterSurvey === 'all'
+          || (this.filterSurvey === 'has'  &&  r.recStart)
+          || (this.filterSurvey === 'none' && !r.recStart)
+
+        const matchApprove = this.filterApprove === 'all'
+          || (this.filterApprove === 'approved' && r.approve_status === 1)
+          || (this.filterApprove === 'wait'     && r.approve_status === -1)
+          || (this.filterApprove === 'rejected' && r.approve_status !== null && r.approve_status !== 1 && r.approve_status !== -1)
+          || (this.filterApprove === 'none'     && r.approve_status === null)
+
+        const matchPayment = this.filterPayment === 'all'
+          || (this.filterPayment === 'paid'   && r.payment_status === 1)
+          || (this.filterPayment === 'unpaid' && r.payment_status !== null && r.payment_status !== 1)
+          || (this.filterPayment === 'none'   && r.payment_status === null)
+
+        const matchSearch = !q
+          || r.name.toLowerCase().includes(q)
+          || r.stid.toLowerCase().includes(q)
+          || (r.visitor && r.visitor.toLowerCase().includes(q))
+
+        return matchStatus && matchSurvey && matchApprove && matchPayment && matchSearch
       })
     }
   },
@@ -423,6 +496,14 @@ export default {
   },
 
   methods: {
+    resetFilters() {
+      this.filterStatus  = 'all'
+      this.filterSurvey  = 'all'
+      this.filterApprove = 'all'
+      this.filterPayment = 'all'
+      this.search        = ''
+    },
+
     loadMockData() {
       this.loading = true
       this.expandedRows = {}
