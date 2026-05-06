@@ -168,7 +168,9 @@
               <button 
                 v-if="row.item.approveStatus !== -1 && row.item.approveStatus !== -2"
                 class="btn-request-correction" 
+                :class="{ 'btn-disabled': Number(row.item.userTestCase) === 1 }"
                 @click="openCorrectionModal(row.item)"
+                :disabled="Number(row.item.userTestCase) === 1"
                 title="แจ้งให้แก้ไข"
               >
                 <i class="fas fa-edit"></i>
@@ -182,6 +184,7 @@
                 type="checkbox"
                 :checked="selectedItems.includes(row.item)"
                 @change="toggleConfirm(row.item, $event)"
+                :disabled="Number(row.item.userTestCase) === 1"
               />
             </template>
           </div>
@@ -3007,6 +3010,13 @@ export default {
   color: #2c3e50;
   line-height: 1.7;
   white-space: pre-wrap;
+}
+
+.btn-disabled {
+  background-color: #ccc !important;
+  color: #666 !important;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 </style>
 
