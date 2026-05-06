@@ -139,6 +139,9 @@
         </template>
 
         <template #cell(approveComment)="row">
+          <span v-if="row.item.userTestCase == 1" class="badge-correction-pending" @click="openComment(row.item)">
+            ⚠️ ทดสอบระบบ
+          </span>
           <button
             v-if="row.item.approveComment"
             class="btn-comment"
@@ -204,6 +207,15 @@
         <span class="legend-color legend-edited"></span>
         แก้ไขแล้ว รอตรวจ
       </span>
+    </div>
+
+    <div class="color-legend">
+      <span class="legend-item badge-correction-pending">
+        ⚠️ ทดสอบระบบ
+      </span>
+      รายการนี้เป็นข้อมูลสำหรับการทดสอบระบบเท่านั้น
+      ไม่จำเป็นต้องตรวจสอบ ไม่ต้องดำเนินการอนุมัติหรือจ่ายเงินใด ๆ
+      แสดงผลเพื่อให้กระบวนการของระบบและกิจกรรมสามารถทำงานต่อเนื่องได้ตามปกติ
     </div>
 
     <!-- Action Buttons -->
@@ -305,6 +317,16 @@
       </div>
     </div>
 
+    <div v-if="showCommentTest" class="modal-backdrop">
+      <div class="modal-box">
+        <h5>Comment (Test Case)</h5>
+        <p>{{ selectedComment || '-' }}</p>
+
+        <button @click="showCommentTest = false">
+          ปิด
+        </button>
+      </div>
+    </div>
     <!-- Photo View Modal -->
     <b-modal
       v-model="showPhotoModal"
@@ -622,6 +644,31 @@
         </template>
       </template>
     </b-modal>
+    <b-modal
+      v-model="showCommentTest"
+      title="รายละเอียด"
+      size="md"
+      centered
+      header-class="modal-header-visit"
+    >
+      <div class="alert alert-warning">
+        🧪 ข้อมูลนี้เป็น Test Case (สำหรับทดสอบระบบเท่านั้น)
+      </div>
+      <div v-if="commentModalTest" class="comment-modal-content">
+        <div class="mt-3">
+          <strong>ข้อเสนอแนะ:</strong>
+          <div class="comment-box mt-1">
+            {{ commentModalTest.approveComment || '-' }}
+          </div>
+        </div>
+      </div>
+
+      <template #modal-footer>
+        <b-button variant="secondary" @click="showCommentTest = false">
+          ปิด
+        </b-button>
+      </template>
+    </b-modal>
   </div>
 </template>
 
@@ -748,7 +795,9 @@ export default {
       showCommentModal: false,
       commentModalData: null,
       isEditingComment: false,
-      editingComment: ''
+      editingComment: '',
+      showCommentTest: false,
+      commentModalTest: ''
     }
   },
   async mounted() {
@@ -842,6 +891,13 @@ export default {
     // level 1 → อยู่หน้านี้ได้เลย
   },
   methods: {
+    openComment(item) {
+      console.log(item)
+      this.commentModalTest = item
+      this.commentModalTest = item.userTestCaseComment || 'ไม่มี comment'
+      this.showCommentTest = true
+    },
+
     getStatusText(status) {
       const s = Number(status)
       if (s === 1) return 'อนุมัติแล้ว'
@@ -1031,6 +1087,9 @@ export default {
               recby: item.recby,
               tamCode: item.tam_code,
               timeVisit: item.time_visit,
+              //
+              userTestCase: item.userTestCase,
+              userTestCaseComment: item.userTestCase_comment,
               // เก็บ response ดิบไว้สำหรับ modal
               rawData: item
             }

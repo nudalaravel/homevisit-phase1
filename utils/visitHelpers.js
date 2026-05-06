@@ -182,6 +182,8 @@ export function prepareVisitorData(visitor, booking, completedSurveys, allSurvey
     canEditAppointment: canEdit,
     hasSurveyProgress: !!currentVisitSurvey,
     hasCompletedSurveys: completedSurveys.length > 0,
+    // เพิ่มตัวนี้ สำหรับกรณีที่เเจ้งว่าเป็น testcase แต่ระบบต้องเดินต่อไป เพื่อซ่อนไม่ให้ Homevisitor เห็น
+    userTestCase: currentVisitSurvey?.userTestCase,
   };
 }
 

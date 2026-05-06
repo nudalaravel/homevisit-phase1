@@ -436,7 +436,7 @@
         </div>
       </div>
       <div v-if="visitHistoryForm.visits && visitHistoryForm.visits.length > 0" class="visit-history-list">
-        <div v-for="(visit, index) in visitHistoryForm.visits" :key="index" class="visit-history-row">
+        <div v-for="(visit, index) in filteredVisits" :key="index" class="visit-history-row">
           <div class="visit-card visit-card-date">
             <i class="fas fa-calendar-day"></i>
             <div class="visit-card-content">
@@ -848,6 +848,11 @@ export default {
     }
   },
   computed: {
+    filteredVisits() {
+      return (this.visitHistoryForm.visits || []).filter(
+        a => String(a.userTestCase) !== '1'
+      )
+    },
     scheduledCount() {
       return this.visitors.filter(v => v.appointmentDate).length
     },
@@ -3153,6 +3158,7 @@ export default {
     },
     // แสดงประวัติการเยี่ยมบ้าน
     async loadVisitHistory(patient) {
+      console.log(patient)
       try {
         // ดึงแบบสอบถามที่เสร็จแล้วทั้งหมดของผู้รับบริการคนนี้ (filter ตาม stid)
         const surveys = await this.$indexedDB.getCompletedSurveysByStid(patient.stid)
@@ -3226,7 +3232,9 @@ export default {
             correctedMonthAge: recalc?.monthAge ?? null,
             correctedTime: recalc?.timeActivity ?? null,
             // ✅ flag ว่าผิดหรือไม่
-            isWrong: recalc?.isWrong ?? false
+            isWrong: recalc?.isWrong ?? false,
+            // เพิ่มตัวนี้ สำหรับกรณีที่เเจ้งว่าเป็น testcase แต่ระบบต้องเดินต่อไป เพื่อซ่อนไม่ให้ Homevisitor เห็น
+            userTestCase: survey?.userTestCase ?? false
           }
         })
         this.visitHistoryForm = {

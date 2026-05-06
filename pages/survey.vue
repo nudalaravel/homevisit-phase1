@@ -1202,6 +1202,8 @@ export default {
       // appointmentTime: survey.appointmentTime
       
       // โหลดข้อมูลแบบสอบถามเดิม
+      console.log('โหลดข้อมูลแบบสอบถามเดิม')
+      console.log(survey)
       await this.loadExistingSurvey(survey)
       
       // อัพเดท URL ให้มี query parameters (ถ้ายังไม่มี)
@@ -1274,6 +1276,8 @@ export default {
         q10_appTime: bookingNext?.appointmentTime
       }
       // โหลดข้อมูลแบบสอบถามเดิม
+      console.log('url:โหลดข้อมูลแบบสอบถามเดิม')
+      console.log(survey)
       await this.loadExistingSurvey(survey)
       this.$toast.info('กำลังแก้ไขบันทึกการเยี่ยมบ้าน')
     },
@@ -1352,7 +1356,6 @@ export default {
         this.visitorData.stid,
         this.visitorData.time_visit || this.visitorData.time
       )
-      
       if (existingSurvey) {
         // โหลดแบบสอบถามที่ค้างไว้
         await this.loadExistingSurvey(existingSurvey)
@@ -1394,6 +1397,7 @@ export default {
     },
     
     async loadExistingSurvey(survey) {
+      console.log(survey)
       this.surveyId = survey.id
       
       this.recStart = survey.recStart || null
@@ -1443,7 +1447,7 @@ export default {
       
       const baseAnswers = { ...this.answers }
       const savedAnswers = survey.answers || {}
-      
+      console.log(savedAnswers)
       this.answers = {
         ...baseAnswers,
         q1: savedAnswers.q1 != null ? Number(savedAnswers.q1) : null,

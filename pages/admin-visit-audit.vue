@@ -98,6 +98,7 @@
                 <th>payment</th>
                 <th>บันทึก (month/time)</th>
                 <th>คำนวณได้ (month/time)</th>
+                <th>TestCase</th>
                 <th>สถานะ</th>
                 <th></th>
               </tr>
@@ -163,6 +164,10 @@
                         </template>
                       </div>
                     </div>
+                  </td>
+                  <td style="text-align:center">
+                    <span v-if="Number(r.userTestCase) === 1" class="pill err">เคสทดสอบระบบ</span>
+                    <span v-else class="pill" style="background:#f0f0f0;color:#aaa;border-color:#ddd"><span class="dot"></span>-</span>
                   </td>
                   <td>
                     <span :class="['pill', r.status]">

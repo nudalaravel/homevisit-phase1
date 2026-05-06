@@ -582,7 +582,9 @@ export default {
               isPostponed: (parseInt(item.cnt_app) || 0) > 0,
               recStatus: item.recStatus,
               tamCode: item.tam_code,
-              prefix: item.prefix
+              prefix: item.prefix,
+              userTestCase: item.userTestCase,
+              userTestCase_comment: item.userTestCase_comment
             }))
             this.dataFetched = true
           } else {

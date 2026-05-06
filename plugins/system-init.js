@@ -1820,6 +1820,8 @@ export default function ({ app, store, $axios }, inject) {
               currentQ5Index: localSurvey?.currentQ5Index || 0,
               timeupload: result.timeupload,
               lastUpdated: new Date().toISOString(),
+              // เพิ่มตัวนี้ สำหรับกรณีที่เเจ้งว่าเป็น testcase แต่ระบบต้องเดินต่อไป
+              userTestCase: result.userTestCase ?? ''
             };
             // Merge with existing local images to preserve base64
             if (localSurvey && localSurvey.surveyImages) {
@@ -1837,6 +1839,7 @@ export default function ({ app, store, $axios }, inject) {
 
 
             if (!localSurvey) {
+              console.log('ไม่มีข้อมูล local - สร้างใหม่จาก API')
               // ไม่มีข้อมูล local - สร้างใหม่จาก API
               await app.$indexedDB.saveSurveyProgress(apiSurveyData);
               newCount++;
