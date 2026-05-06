@@ -120,16 +120,16 @@
                   </td>
                   <!-- approve_status -->
                   <td style="text-align:center">
-                    <span v-if="r.approve_status === 1" class="pill ok"><span class="dot"></span>อนุมัติ</span>
-                    <span v-else-if="r.approve_status === -1" class="pill warn"><span class="dot"></span>รอแก้ไข</span>
-                    <span v-else-if="r.approve_status === -2" class="pill err"><span class="dot"></span>แจ้งแก้ไข</span>
-                    <span v-else-if="r.approve_status !== null && r.approve_status !== -1 && r.approve_status !== -2" class="pill err"><span class="dot"></span>แจ้งแก้ไข</span>
+                    <span v-if="Number(r.approve_status) === 1" class="pill ok"><span class="dot"></span>อนุมัติ</span>
+                    <span v-else-if="Number(r.approve_status) === -1" class="pill warn"><span class="dot"></span>รอแก้ไข</span>
+                    <span v-else-if="Number(r.approve_status) === -2" class="pill err"><span class="dot"></span>แจ้งแก้ไข</span>
+                    <span v-else-if="r.approve_status === null && r.recStart" class="pill warn"><span class="dot"></span>ยังไม่ตรวจ</span>
                     <span v-else class="pill" style="background:#f0f0f0;color:#aaa;border-color:#ddd"><span class="dot"></span>-</span>
                   </td>
                   <!-- payment_status -->
                   <td style="text-align:center">
-                    <span v-if="r.payment_status === 1" class="pill ok"><span class="dot"></span>จ่ายแล้ว</span>
-                    <span v-else-if="r.payment_status !== null" class="pill warn"><span class="dot"></span>ยังไม่จ่าย</span>
+                    <span v-if="Number(r.payment_status) === 1" class="pill ok"><span class="dot"></span>จ่ายแล้ว</span>
+                    <span v-else-if="r.approve_status && !r.payment_status && r.recStart" class="pill warn"><span class="dot"></span>ยังไม่จ่าย</span>
                     <span v-else class="pill" style="background:#f0f0f0;color:#aaa;border-color:#ddd"><span class="dot"></span>-</span>
                   </td>
                   <td>
