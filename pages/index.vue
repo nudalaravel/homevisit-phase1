@@ -1294,111 +1294,143 @@ export default {
  
               let previousBooking = null
               let previousAppointmentDate = null
-              
               if (booking.time_visit > 1) {
-                console.log('==========================================')
-                console.log('stid:' + booking?.stid)
-                console.log('booking:' + booking?.appointmentDate)
- 
-                // หา survey ครั้งก่อนหน้า เพื่อใช้เป็น existingBooking
+
                 const prevTimeVisit = booking.time_visit - 1
-                const prevSurveyBook = completedSurveys.find(s =>
-                  String(s.time_visit) === String(prevTimeVisit) && s.completed
+
+                const prevSurveyBook = completedSurveys.find(
+                  s =>
+                    String(s.time_visit) === String(prevTimeVisit) &&
+                    s.completed
                 )
-                // console.log('*bookingprev: completedSurveys : ' + prevSurveyBook?.date_visit)
- 
-                // เปลี่ยนจากที่ดูรายการนัดหมายจาก result เอามากจาก Booking เลย | appointmentDate คือ date_visit
-                // เพราะ completedSurveys ไม่มี date_visit
-                const prevSurvey = await this.$indexedDB.getBookingByStidAndTimeVisit(booking.stid, prevTimeVisit)
-                // console.log('bookingprev: getBookingByStidAndTimeVisit : ' + prevSurvey?.appointmentDate)
-                
-                previousAppointmentDate = prevSurvey?.appointmentDate || null
- 
-                // ✅ log เพื่อ debug ค่าจริงของทั้ง 2 source
+
+                // ใช้ booking จาก IndexedDB เป็นหลัก
+                const prevSurvey =
+                  await this.$indexedDB.getBookingByStidAndTimeVisit(
+                    booking.stid,
+                    prevTimeVisit
+                  )
+
+                previousAppointmentDate =
+                  prevSurvey?.appointmentDate || null
+
                 console.log('==========================================')
-                console.log('[prevSurveyBook] date_visit:', prevSurveyBook?.date_visit, '| month_age:', prevSurveyBook?.month_age, '| time:', prevSurveyBook?.time)
-                console.log('[prevSurvey]     appointmentDate:', prevSurvey?.appointmentDate, '| month_age:', prevSurvey?.month_age, '| time:', prevSurvey?.time)
- 
-                // ✅ ย้อนหลัง 4 ชั้น (N-1 ถึง N-4) เพื่อหา anchor ที่เชื่อถือได้
-                // แล้วคำนวณ forward กลับมาทีละขั้นจนถึง N-1
-                const LOOKBACK = prevTimeVisit - 1  // ✅ ย้อนไปถึงครั้งแรก (time_visit=1) เสมอ
+                console.log('stid:', booking?.stid)
+                console.log('time_visit:', booking.time_visit)
+
+                console.log(
+                  '[prevSurvey]',
+                  'appointmentDate:', prevSurvey?.appointmentDate,
+                  '| month_age:', prevSurvey?.month_age,
+                  '| time:', prevSurvey?.time
+                )
+
+                // =====================================================
+                // ✅ โหลด booking ทั้งหมดตั้งแต่ครั้งแรก → ครั้งก่อนหน้า
+                // =====================================================
+
                 if (prevSurvey && prevSurvey.appointmentDate) {
- 
-                  // 1) ดึง booking ย้อนหลัง LOOKBACK ชั้น เก็บเป็น array [N-1, N-2, N-3, N-4, N-5]
-                  const chain = [prevSurvey] // index 0 = N-1
-                  for (let i = 1; i <= LOOKBACK; i++) {
-                    const tv = prevTimeVisit - i
-                    if (tv < 1) break
-                    const s = await this.$indexedDB.getBookingByStidAndTimeVisit(booking.stid, tv)
-                    if (!s || !s.appointmentDate) break
-                    chain.push(s)
-                    console.log(`[chain N-${i+1}] time_visit:${tv} | appointmentDate:${s.appointmentDate} | month_age:${s.month_age} | time:${s.time}`)
+
+                  const allBookings = []
+
+                  for (let tv = 1; tv <= prevTimeVisit; tv++) {
+
+                    const bk =
+                      await this.$indexedDB.getBookingByStidAndTimeVisit(
+                        booking.stid,
+                        tv
+                      )
+
+                    if (!bk || !bk.appointmentDate) {
+                      console.warn(`[skip] ไม่พบ booking time_visit=${tv}`)
+                      continue
+                    }
+
+                    allBookings.push(bk)
+
+                    console.log(
+                      `[booking ${tv}]`,
+                      `appointmentDate:${bk.appointmentDate}`,
+                      `| month_age:${bk.month_age}`,
+                      `| time:${bk.time}`
+                    )
                   }
- 
-                  console.log(`[chain] ย้อนได้ ${chain.length} ชั้น`)
- 
-                  // 2) หา anchor — ชั้นสุดท้ายที่ดึงได้ ใช้ค่าจาก IDB ตรงๆ (เชื่อถือได้มากที่สุด)
+
+                  console.log(
+                    `${booking.stid} [allBookings] ทั้งหมด ${allBookings.length} รายการ`
+                  )
+
+                  // =====================================================
+                  // ✅ RECALCULATE ใหม่ทั้งหมดจากวันเกิดจริง
+                  // ไม่ใช้ month_age/time เดิมจาก DB
+                  // =====================================================
+
                   let runningBooking = null
-                  const anchor = chain[chain.length - 1]
- 
-                  if (chain.length === 1) {
-                    // ย้อนไม่ได้เลย — N-1 คือครั้งแรกหรือไม่มีข้อมูลก่อนหน้า
+
+                  for (let i = 0; i < allBookings.length; i++) {
+
+                    const bk = allBookings[i]
+
+                    const recalc = calculateMonthAgeAndTime(
+                      parseInt(visitor.month_birth),
+                      parseInt(visitor.year_birth),
+                      birthDay,
+                      new Date(bk.appointmentDate),
+                      runningBooking
+                    )
+
+                    const isWrong =
+                      recalc.monthAge !== Number(bk.month_age) ||
+                      recalc.timeActivity !== Number(bk.time)
+
+                    console.log(
+                      `[recalc time_visit=${bk.time_visit}]`,
+                      `appointmentDate:${bk.appointmentDate}`,
+                      `| ควรเป็น ${recalc.monthAge}/${recalc.timeActivity}`,
+                      `| IDB เป็น ${bk.month_age}/${bk.time}`,
+                      isWrong ? '⚠️ ผิด→ใช้ค่าคำนวณใหม่' : '✅ ถูก'
+                    )
+
+                    // ✅ ใช้ค่าที่คำนวณใหม่ต่อ chain เสมอ
                     runningBooking = {
-                      appointmentDate: new Date(anchor.appointmentDate),
-                      month_age: Number(anchor.month_age),
-                      time: Number(anchor.time)
-                    }
-                    console.log('[anchor] ใช้ N-1 จาก IDB โดยตรง (ไม่มีข้อมูลก่อนหน้า)')
-                  } else {
-                    // anchor คือชั้นที่ลึกที่สุด ใช้เป็นจุดเริ่มต้น
-                    runningBooking = {
-                      appointmentDate: new Date(anchor.appointmentDate),
-                      month_age: Number(anchor.month_age),
-                      time: Number(anchor.time)
-                    }
-                    console.log(`[anchor N-${chain.length}] appointmentDate:${anchor.appointmentDate} | month_age:${anchor.month_age} | time:${anchor.time}`)
- 
-                    // 3) คำนวณ forward จาก anchor → N-1 ทีละขั้น
-                    for (let i = chain.length - 2; i >= 0; i--) {
-                      const target = chain[i] // booking ที่จะ recalc
-                      const recalc = calculateMonthAgeAndTime(
-                        parseInt(visitor.month_birth),
-                        parseInt(visitor.year_birth),
-                        birthDay,
-                        new Date(target.appointmentDate),
-                        runningBooking
-                      )
-                      const depth = i + 1 // N-1=1, N-2=2 ...
-                      const isWrong = recalc.monthAge !== Number(target.month_age) || recalc.timeActivity !== Number(target.time)
-                      console.log(
-                        `[recalc N-${depth}] appointmentDate:${target.appointmentDate}`,
-                        `| ควรเป็น ${recalc.monthAge}/${recalc.timeActivity}`,
-                        `| IDB เป็น ${target.month_age}/${target.time}`,
-                        isWrong ? '⚠️ ผิด→แก้' : '✅ ถูก'
-                      )
-                      // ✅ ใช้ค่าที่คำนวณใหม่เสมอ (กัน error สะสม)
-                      runningBooking = {
-                        appointmentDate: new Date(target.appointmentDate),
-                        month_age: recalc.monthAge,
-                        time: recalc.timeActivity
-                      }
+                      appointmentDate: new Date(bk.appointmentDate),
+                      month_age: recalc.monthAge,
+                      time: recalc.timeActivity
                     }
                   }
- 
+
                   previousBooking = runningBooking
-                  console.log('[previousBooking] สุดท้ายที่ใช้คำนวณ N | month_age:', previousBooking.month_age, '| time:', previousBooking.time)
- 
+
+                  console.log(
+                    '[previousBooking final]',
+                    `month_age:${previousBooking?.month_age}`,
+                    `| time:${previousBooking?.time}`
+                  )
+
                 } else if (prevSurveyBook && prevSurveyBook.date_visit) {
+
+                  // fallback
                   previousBooking = {
                     appointmentDate: new Date(prevSurveyBook.date_visit),
                     month_age: Number(prevSurveyBook.month_age),
                     time: Number(prevSurveyBook.time)
                   }
-                  console.warn('[previousBooking] fallback=completedSurveys | date_visit:', prevSurveyBook.date_visit, '| month_age:', prevSurveyBook.month_age, '| time:', prevSurveyBook.time)
+
+                  console.warn(
+                    '[previousBooking fallback]',
+                    `date_visit:${prevSurveyBook.date_visit}`,
+                    `| month_age:${prevSurveyBook.month_age}`,
+                    `| time:${prevSurveyBook.time}`
+                  )
+
                 } else {
-                  console.warn('[previousBooking] ไม่พบข้อมูลครั้งก่อนหน้า — คำนวณจากวันเกิดแทน')
+
+                  console.warn(
+                    '[previousBooking] ไม่พบข้อมูลครั้งก่อนหน้า — คำนวณจากวันเกิดแทน'
+                  )
                 }
               }
+
               const calculated = calculateMonthAgeAndTime(
                 parseInt(visitor.month_birth),
                 parseInt(visitor.year_birth),
@@ -1737,7 +1769,7 @@ export default {
       await this.recalculateMonthAgeAndActivities()
     },
     // คำนวณอายุเดือนและกิจกรรมใหม่ตามวันที่ที่เลือก
-    async recalculateMonthAgeAndActivities() {
+    async recalculateMonthAgeAndActivitiesOff() {
       if (!this.appointmentForm.visitorBirthMonth || !this.appointmentForm.visitorBirthYear) {
         return
       }
@@ -1874,6 +1906,208 @@ export default {
             this.$toast.warning('ไม่พบรูปภาพกิจกรรมในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบเพื่อดึงข้อมูลรูปภาพ')
           }
         }
+      }
+    },
+    async recalculateMonthAgeAndActivities() {
+
+      if (
+        !this.appointmentForm.visitorBirthMonth ||
+        !this.appointmentForm.visitorBirthYear
+      ) {
+        return
+      }
+
+      if (
+        !this.appointmentForm.appointmentMonth ||
+        !this.appointmentForm.appointmentYear ||
+        !this.appointmentForm.appointmentDay
+      ) {
+        return
+      }
+
+      // =========================================
+      // หา patient / visitor
+      // =========================================
+
+      const patient =
+        this.visitors.find(
+          v => v.id === this.appointmentForm.id
+        )
+
+      if (!patient) return
+
+      const visitor =
+        await this.$indexedDB.getVisitor(
+          patient.stid
+        )
+
+      const visitorBirthDay =
+        parseInt(visitor?.day_birth) || 1
+
+      // =========================================
+      // วันที่ที่เลือก
+      // =========================================
+
+      const selectedYear =
+        this.appointmentForm.appointmentYear - 543
+
+      const selectedMonth =
+        this.appointmentForm.appointmentMonth
+
+      const selectedDay =
+        this.appointmentForm.appointmentDay
+
+      const selectedDate =
+        new Date(
+          selectedYear,
+          selectedMonth - 1,
+          selectedDay
+        )
+
+      // =========================================
+      // ใช้ previousBooking ที่ recalc แล้ว
+      // จาก scheduleAppointment()
+      // =========================================
+
+      const previousBooking =
+        this.appointmentForm.correctPreviousBooking || null
+
+      // =========================================
+      // คำนวณ month age ใหม่
+      // =========================================
+
+      const result =
+        calculateMonthAgeAndTime(
+          this.appointmentForm.visitorBirthMonth,
+          this.appointmentForm.visitorBirthYear,
+          visitorBirthDay,
+          selectedDate,
+          previousBooking
+        )
+
+      const monthAge =
+        result.monthAge
+
+      const timeActivity =
+        result.timeActivity
+
+      // =========================================
+      // validation
+      // =========================================
+
+      const birthYear =
+        parseInt(
+          this.appointmentForm.visitorBirthYear
+        ) - 543
+
+      const birthMonth =
+        parseInt(
+          this.appointmentForm.visitorBirthMonth
+        )
+
+      const birthDate =
+        new Date(
+          birthYear,
+          birthMonth - 1,
+          visitorBirthDay
+        )
+
+      // วันนัดก่อนวันเกิด
+      if (selectedDate < birthDate) {
+
+        this.$toast.error(
+          'ไม่สามารถสร้างนัดหมายได้ เนื่องจากวันนัดหมายมาก่อนวันเกิด'
+        )
+
+        this.appointmentForm.appointmentMonthAge = null
+        this.appointmentForm.timeActivity = null
+        this.appointmentForm.activities = []
+
+        return
+      }
+
+      // อายุ <= 0
+      if (monthAge <= 0) {
+
+        this.$toast.error(
+          'ไม่สามารถสร้างนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0'
+        )
+
+        this.appointmentForm.appointmentMonthAge = null
+        this.appointmentForm.timeActivity = null
+        this.appointmentForm.activities = []
+
+        return
+      }
+
+      // =========================================
+      // update form
+      // =========================================
+
+      this.appointmentForm.appointmentMonthAge =
+        monthAge
+
+      this.appointmentForm.timeActivity =
+        timeActivity
+
+      const existingBooking =
+        this.appointmentForm.existingBooking
+
+      const timeVisit =
+        existingBooking?.time_visit || 1
+
+      this.appointmentForm.appointmentTimeVisit =
+        timeVisit
+
+      // =========================================
+      // โหลด activities ใหม่
+      // =========================================
+
+      const activities =
+        await this.$indexedDB.getActivityByMonthAgeAndTime(
+          monthAge,
+          timeActivity
+        )
+
+      this.appointmentForm.activities =
+        activities || []
+
+      // =========================================
+      // โหลดรูปกิจกรรม
+      // =========================================
+
+      const pic =
+        activities?.[0]?.picture
+
+      if (pic) {
+
+        const imageObj =
+          await this.$indexedDB.getImage(
+            `activity_${pic}`
+          )
+
+        if (imageObj) {
+
+          this.appointmentForm.activityPicture =
+            imageObj.data
+
+        } else if (navigator.onLine) {
+
+          this.appointmentForm.activityPicture =
+            `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+
+        } else {
+
+          this.appointmentForm.activityPicture = null
+
+          this.$toast.warning(
+            'ไม่พบรูปภาพกิจกรรมในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบเพื่อดึงข้อมูลรูปภาพ'
+          )
+        }
+
+      } else {
+
+        this.appointmentForm.activityPicture = null
       }
     },
     // จัดการเมื่อเปลี่ยนเดือน
@@ -2111,196 +2345,296 @@ export default {
       const timeValid = this.validateAppointmentTime()
       return dateValid && timeValid
     },
-   async scheduleAppointment(patient) {
+    async scheduleAppointment(patient) {
       try {
+
         let month, day, year
-        
-        // ถ้ามีวันนัดหมายอยู่แล้ว ใช้วันนั้น
+
+        // ================================
+        // ใช้วันนัดเดิม หรือวันปัจจุบัน
+        // ================================
+
         if (patient.appointmentDate) {
-          const appointmentDate = new Date(patient.appointmentDate)
+
+          const appointmentDate =
+            new Date(patient.appointmentDate)
+
           month = appointmentDate.getMonth() + 1
           day = appointmentDate.getDate()
-          year = appointmentDate.getFullYear() + 543 // แปลงเป็นปีพุทธศักราช
+          year = appointmentDate.getFullYear() + 543
+
         } else {
-          // ไม่มีวันนัดให้ใช้วันปัจจุบัน
+
           const now = new Date()
+
           month = now.getMonth() + 1
           day = now.getDate()
           year = now.getFullYear() + 543
         }
-        
-        // ดึงข้อมูลผู้รับบริการเพื่อหาวันเกิด
-        const visitor = await this.$indexedDB.getVisitor(patient.stid)
-        
-        // ตรวจสอบว่ามีข้อมูลวันเกิดหรือไม่
-        if (!visitor || !visitor.month_birth || !visitor.year_birth) {
-          this.$toast.warning('ไม่พบข้อมูลวันเกิดของผู้รับบริการ')
-          // ตั้งค่าเริ่มต้นและแสดงฟอร์ม
-          this.appointmentForm = {
-            id: patient.id,
-            name: `${patient.name} (${patient.nickname})`,
-            appointmentMonth: month,
-            appointmentDay: day,
-            appointmentYear: year,
-            appointmentTime: patient.appointmentTime,
-            appointmentMonthAge: null,
-            appointmentTimeVisit: 1,
-            timeActivity: 1,
-            activities: []
-          }
-          this.appointmentFormErrors = {}
-          this.showAppointmentModal = true
+
+        // ================================
+        // โหลด visitor
+        // ================================
+
+        const visitor =
+          await this.$indexedDB.getVisitor(patient.stid)
+
+        if (
+          !visitor ||
+          !visitor.month_birth ||
+          !visitor.year_birth
+        ) {
+
+          this.$toast.warning(
+            'ไม่พบข้อมูลวันเกิดของผู้รับบริการ'
+          )
+
           return
         }
-        
-        // ดึงข้อมูลการนัดหมายเดิมเพื่อคำนวณตาม logic 21 วัน
-        const existingBooking = await this.$indexedDB.getBooking(patient.stid)
-        
-        let monthAge, timeActivity
+
+        // ================================
+        // ข้อมูลวันเกิด
+        // ================================
+
+        const birthMonth =
+          parseInt(visitor.month_birth)
+
+        const birthYear =
+          parseInt(visitor.year_birth)
+
+        const birthDay =
+          parseInt(visitor.day_birth) || 1
+
+        // ================================
+        // วันนัดที่เลือก
+        // ================================
+
         const selectedYear = year - 543
-        const selectedDate = new Date(selectedYear, month - 1, day)
-        const birthDay = parseInt(visitor.day_birth) || 1
 
-        // ✅ ใช้ chain recalc เหมือน loadVisitors — ย้อนหลังทุกชั้นจนถึงครั้งแรก
-        if (existingBooking && existingBooking.time_visit > 1) {
-          const prevTimeVisit = existingBooking.time_visit - 1
-          const prevSurvey = await this.$indexedDB.getBookingByStidAndTimeVisit(patient.stid, prevTimeVisit)
+        const selectedDate =
+          new Date(selectedYear, month - 1, day)
 
-          if (prevSurvey && prevSurvey.appointmentDate) {
-            // ดึง chain ย้อนหลังทุกชั้นจนถึง time_visit=1
-            const LOOKBACK = prevTimeVisit - 1
-            const chain = [prevSurvey]
+        // ================================
+        // โหลด booking ปัจจุบัน
+        // ================================
 
-            for (let i = 1; i <= LOOKBACK; i++) {
-              const tv = prevTimeVisit - i
-              if (tv < 1) break
-              const s = await this.$indexedDB.getBookingByStidAndTimeVisit(patient.stid, tv)
-              if (!s || !s.appointmentDate) break
-              chain.push(s)
+        const existingBooking =
+          await this.$indexedDB.getBooking(patient.stid)
+
+        let previousBooking = null
+
+        // ================================
+        // recalculate ใหม่ทั้งหมด
+        // ตั้งแต่ครั้งแรก → ครั้งก่อนหน้า
+        // ================================
+
+        if (
+          existingBooking &&
+          existingBooking.time_visit > 1
+        ) {
+
+          const prevTimeVisit =
+            existingBooking.time_visit - 1
+
+          const allBookings = []
+
+          // โหลดทั้งหมด
+          for (let tv = 1; tv <= prevTimeVisit; tv++) {
+
+            const bk =
+              await this.$indexedDB.getBookingByStidAndTimeVisit(
+                patient.stid,
+                tv
+              )
+
+            if (!bk || !bk.appointmentDate) {
+              continue
             }
 
+            allBookings.push(bk)
+          }
 
-            // anchor = ชั้นลึกสุด ใช้ค่าจาก IDB ตรงๆ
-            const anchor = chain[chain.length - 1]
-            let runningBooking = {
-              appointmentDate: new Date(anchor.appointmentDate),
-              month_age: Number(anchor.month_age),
-              time: Number(anchor.time)
-            }
+          // ================================
+          // recalc forward ใหม่ทั้งหมด
+          // ================================
 
-            // คำนวณ forward จาก anchor → N-1
-            for (let i = chain.length - 2; i >= 0; i--) {
-              const target = chain[i]
-              const recalc = calculateMonthAgeAndTime(
-                parseInt(visitor.month_birth),
-                parseInt(visitor.year_birth),
+          let runningBooking = null
+
+          for (const bk of allBookings) {
+
+            const recalc =
+              calculateMonthAgeAndTime(
+                birthMonth,
+                birthYear,
                 birthDay,
-                new Date(target.appointmentDate),
+                new Date(bk.appointmentDate),
                 runningBooking
               )
-              runningBooking = {
-                appointmentDate: new Date(target.appointmentDate),
-                month_age: recalc.monthAge,
-                time: recalc.timeActivity
-              }
+
+            console.log(
+              `[recalc ${bk.time_visit}]`,
+              `ควรเป็น ${recalc.monthAge}/${recalc.timeActivity}`,
+              `DB=${bk.month_age}/${bk.time}`
+            )
+
+            runningBooking = {
+              appointmentDate:
+                new Date(bk.appointmentDate),
+              month_age: recalc.monthAge,
+              time: recalc.timeActivity
             }
-
-
-            const result = calculateMonthAgeAndTime(
-              parseInt(visitor.month_birth),
-              parseInt(visitor.year_birth),
-              birthDay,
-              selectedDate,
-              runningBooking
-            )
-            monthAge = result.monthAge
-            timeActivity = result.timeActivity
-
-          } else {
-            // ไม่พบ prevSurvey → คำนวณจากวันเกิด
-            const result = calculateMonthAgeAndTime(
-              parseInt(visitor.month_birth),
-              parseInt(visitor.year_birth),
-              birthDay,
-              selectedDate,
-              null
-            )
-            monthAge = result.monthAge
-            timeActivity = result.timeActivity
           }
-        } else {
-          // ไม่มี booking หรือเป็นครั้งแรก
-          const result = calculateMonthAgeAndTime(
-            parseInt(visitor.month_birth),
-            parseInt(visitor.year_birth),
+
+          previousBooking = runningBooking
+        }
+
+        // ================================
+        // คำนวณรอบปัจจุบัน
+        // ================================
+
+        const result =
+          calculateMonthAgeAndTime(
+            birthMonth,
+            birthYear,
             birthDay,
             selectedDate,
-            null
+            previousBooking
           )
-          monthAge = result.monthAge
-          timeActivity = result.timeActivity
-        }
 
-        
-        // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือ month_age <= 0
-        const birthYear = parseInt(visitor.year_birth) - 543
-        const birthMonth = parseInt(visitor.month_birth)
-        const birthDate = new Date(birthYear, birthMonth - 1, birthDay)
-        
-        // ตรวจสอบว่าวันนัดหมายมาก่อนวันเกิดหรือไม่
+        const monthAge =
+          result.monthAge
+
+        const timeActivity =
+          result.timeActivity
+
+        // ================================
+        // validation
+        // ================================
+
+        const birthDate =
+          new Date(
+            birthYear - 543,
+            birthMonth - 1,
+            birthDay
+          )
+
         if (selectedDate < birthDate) {
-          this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากวันนัดหมายมาก่อนวันเกิด')
-          return
-        }
-        
-        // ตรวจสอบว่า month_age <= 0 หรือไม่
-        if (monthAge <= 0) {
-          this.$toast.error('ไม่สามารถสร้างนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0')
-          return
-        }
-        //
-        const timeVisit = existingBooking?.time_visit || 1
 
-        // ดึงข้อมูลกิจกรรมทั้งหมดจาก IndexedDB
-        const activities = await this.$indexedDB.getActivityByMonthAgeAndTime(monthAge, timeActivity)
-        
-        // ตั้งค่าฟอร์มนัดหมายพร้อมข้อมูลทั้งหมด
+          this.$toast.error(
+            'ไม่สามารถสร้างนัดหมายได้ เนื่องจากวันนัดหมายมาก่อนวันเกิด'
+          )
+
+          return
+        }
+
+        if (monthAge <= 0) {
+
+          this.$toast.error(
+            'ไม่สามารถสร้างนัดหมายได้ เนื่องจากอายุเดือนน้อยกว่าหรือเท่ากับ 0'
+          )
+
+          return
+        }
+
+        // ================================
+        // โหลดกิจกรรม
+        // ================================
+
+        const activities =
+          await this.$indexedDB.getActivityByMonthAgeAndTime(
+            monthAge,
+            timeActivity
+          )
+
+        // ================================
+        // set form
+        // ================================
+
         this.appointmentForm = {
+
           id: patient.id,
-          name: `${patient.name} (${patient.nickname})`,
+
+          name:
+            `${patient.name} (${patient.nickname})`,
+
           appointmentMonth: month,
           appointmentDay: day,
           appointmentYear: year,
-          appointmentTime: patient.appointmentTime,
-          appointmentMonthAge: monthAge,
-          appointmentTimeVisit: timeVisit,
-          timeActivity: timeActivity,
-          activities: activities || [],
-          // ✅ เพิ่ม field นี้
-          activityPicture: null,  // ✅ ตั้ง null ไว้ก่อน แล้วค่อย set ทีหลัง,
-          visitorBirthMonth: parseInt(visitor.month_birth),
-          visitorBirthYear: parseInt(visitor.year_birth),
-          existingBooking: existingBooking
+
+          appointmentTime:
+            patient.appointmentTime,
+
+          appointmentMonthAge:
+            monthAge,
+
+          appointmentTimeVisit:
+            existingBooking?.time_visit || 1,
+
+          timeActivity:
+            timeActivity,
+
+          activities:
+            activities || [],
+
+          activityPicture: null,
+
+          visitorBirthMonth:
+            birthMonth,
+
+          visitorBirthYear:
+            birthYear,
+
+          existingBooking:
+            existingBooking,
+
+          // ✅ เก็บตัวที่ recalc ถูกแล้วไว้ใช้ตอนเปลี่ยนวัน
+          correctPreviousBooking:
+            previousBooking
         }
-        // ✅ set รูปทีหลัง อ่านจาก IDB ก่อนเสมอ
-        const pic = activities && activities[0]?.picture
+
+        // ================================
+        // โหลดรูป activity
+        // ================================
+
+        const pic =
+          activities?.[0]?.picture
+
         if (pic) {
-          const imageObj = await this.$indexedDB.getImage(`activity_${pic}`)
+
+          const imageObj =
+            await this.$indexedDB.getImage(
+              `activity_${pic}`
+            )
+
           if (imageObj) {
-            // มีใน IDB → ใช้ base64
-            this.appointmentForm.activityPicture = imageObj.data
+
+            this.appointmentForm.activityPicture =
+              imageObj.data
+
           } else if (navigator.onLine) {
-            // ไม่มีใน IDB แต่มีเน็ต → ใช้ URL
-            this.appointmentForm.activityPicture = `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+
+            this.appointmentForm.activityPicture =
+              `https://parenting2025.s3.ap-southeast-1.amazonaws.com/objective_picture/${pic}`
+
           } else {
-            // ไม่มีทั้งคู่
-            this.$toast.warning('ไม่พบรูปภาพในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบ')
+
+            this.$toast.warning(
+              'ไม่พบรูปภาพในอุปกรณ์ กรุณาเปิดอินเทอร์เน็ตแล้วอัปเดตระบบ'
+            )
           }
         }
+
         this.appointmentFormErrors = {}
+
         this.showAppointmentModal = true
+
       } catch (error) {
-        this.$toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูลนัดหมาย')
+
+        console.error(error)
+
+        this.$toast.error(
+          'เกิดข้อผิดพลาดในการโหลดข้อมูลนัดหมาย'
+        )
       }
     },
     async scheduleAppointmentOff(patient) {
@@ -3065,7 +3399,6 @@ export default {
         const month_age = patient.month_age
         const time = patient.time
         const time_visit = patient.time_visit
-        
         if (!month_age || !time) {
           this.$toast.error('ไม่พบข้อมูลการนัดหมาย กรุณากำหนดนัดหมายก่อน')
           return
