@@ -162,7 +162,8 @@ export default {
         'nuda@riped.utcc.ac.th',
         'kei@riped.utcc.ac.th',
         'dariga.riped@gmail.com',
-        'tuannurlaila.riped@gmail.com'
+        'tuannurlaila.riped@gmail.com',
+        'v.khruapradit@riped.utcc.ac.th'
       ]
       return allowedUsers.includes(email)
     },
