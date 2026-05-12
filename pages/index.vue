@@ -1217,9 +1217,14 @@ export default {
         const bookings = await this.$indexedDB.getBookings()
         // สร้างแผนที่การนัดหมายตาม stid เพื่อค้นหาเร็ว
         const bookingsMap = new Map()
-        bookings.forEach(booking => {
-          bookingsMap.set(booking.stid, booking)
-        })
+        // bookings.forEach(booking => {
+        //   bookingsMap.set(booking.stid, booking)
+        // })
+        bookings
+          .sort((a, b) => Number(a.time_visit) - Number(b.time_visit))
+          .forEach(booking => {
+            bookingsMap.set(booking.stid, booking)
+          })
  
         // ดึง surveys ทั้งหมดครั้งเดียวแล้วจัดกลุ่มตาม stid (optimization: ลด database queries)
         const allSurveysData = await this.$indexedDB.getAll("survey_progress")
