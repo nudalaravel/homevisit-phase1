@@ -525,8 +525,7 @@
         <div class="patient-info-bar-small">
           <i class="fas fa-user-circle"></i>
           <span>{{ editPhotoForm.patientName }}</span>
-          <!--span class="badge badge-info">ครั้งที่ {{ editPhotoForm.visitNumber }}</span-->
-          <span class="badge badge-info">ครั้งที่ {{ editPhotoForm.timeVisit }}</span>
+          <span class="badge badge-info">ครั้งที่ {{ editPhotoForm.visitNumber }}</span>
         </div>
 
         <div class="dual-image-container">
