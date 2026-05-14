@@ -2843,6 +2843,101 @@ export default function ({ app, store, $axios }, inject) {
               // Process image 1 (toy/equipment)
               if (survey.surveyImages?.[0]) {
                 const img1 = survey.surveyImages[0];
+
+                const hasValidUrl =
+                  typeof img1 === "object" &&
+                  img1.url &&
+                  (img1.url.startsWith("http://") ||
+                    img1.url.startsWith("https://"));
+
+                // เช็คชื่อไฟล์ว่าตรง pattern หรือไม่
+                const expectedToy = `${survey.stid}_${survey.time_visit}_toy`;
+
+                const hasCorrectUrl =
+                  hasValidUrl && img1.url.includes(expectedToy);
+
+                // กรณี URL ถูกต้อง ใช้ต่อได้เลย
+                if (hasCorrectUrl) {
+                  pic1 = img1.url;
+
+                // กรณี URL มี แต่ชื่อผิด และมี base64 → re-upload
+                } else if (
+                  hasValidUrl &&
+                  img1.base64?.startsWith("data:image")
+                ) {
+
+                  const reuploadedUrl = await this.uploadImageToS3(
+                    img1.base64,
+                    "toy",
+                    survey.stid,
+                    String(survey.time_visit)
+                  );
+
+                  if (reuploadedUrl) {
+                    pic1 = reuploadedUrl;
+
+                    survey.surveyImages[0] = {
+                      base64: img1.base64,
+                      url: reuploadedUrl,
+                      key: "pic1",
+                    };
+                  } else {
+                    // upload ไม่สำเร็จ fallback ใช้ URL เดิม
+                    pic1 = img1.url;
+                  }
+
+                // กรณี URL มี แต่ไม่มี base64 ให้เตือน
+                } else if (hasValidUrl) {
+
+                  console.warn(
+                    `⚠️ pic1 URL ชื่อผิด ไม่มี base64 re-upload: ${img1.url}`
+                  );
+
+                  pic1 = img1.url;
+
+                // กรณีเป็นรูปใหม่ base64 → upload
+                } else if (
+                  (typeof img1 === "object" &&
+                    img1.base64?.startsWith("data:image")) ||
+                  (typeof img1 === "string" &&
+                    img1.startsWith("data:image"))
+                ) {
+
+                  const base64Data =
+                    typeof img1 === "object"
+                      ? img1.base64
+                      : img1;
+
+                  const uploadedUrl = await this.uploadImageToS3(
+                    base64Data,
+                    "toy",
+                    survey.stid,
+                    String(survey.time_visit)
+                  );
+
+                  if (uploadedUrl) {
+                    pic1 = uploadedUrl;
+
+                    survey.surveyImages[0] = {
+                      base64: base64Data,
+                      url: uploadedUrl,
+                      key: "pic1",
+                    };
+                  } else {
+                    throw new Error(
+                      "ไม่สามารถอัพโหลดรูปภาพที่ 1 ไปยัง S3 ได้"
+                    );
+                  }
+
+                } else {
+                  console.warn(
+                    "รูปภาพที่ 1 ไม่ถูกต้อง - ข้ามการอัพโหลด"
+                  );
+                }
+              }
+              /*
+              if (survey.surveyImages?.[0]) {
+                const img1 = survey.surveyImages[0];
                 const hasValidUrl =
                   typeof img1 === "object" &&
                   img1.url &&
@@ -2878,8 +2973,116 @@ export default function ({ app, store, $axios }, inject) {
                   }
                 }
               }
+              */
 
               // Process image 2 (activity/interaction)
+              if (survey.surveyImages?.[1]) {
+                const img2 = survey.surveyImages[1];
+
+                const hasValidUrl =
+                  typeof img2 === "object" &&
+                  img2.url &&
+                  (img2.url.startsWith("http://") ||
+                    img2.url.startsWith("https://"));
+
+                // เช็คชื่อไฟล์ activity
+                const expectedActivity =
+                  `${survey.stid}_${survey.time_visit}_activity`;
+
+                const hasCorrectUrl =
+                  hasValidUrl &&
+                  img2.url.includes(expectedActivity);
+
+                // URL ถูกต้อง → ใช้ต่อ
+                if (hasCorrectUrl) {
+
+                  pic2 = img2.url;
+
+                // URL มี แต่ชื่อผิด + มี base64 → re-upload
+                } else if (
+                  hasValidUrl &&
+                  img2.base64?.startsWith("data:image")
+                ) {
+
+                  const reuploadedUrl =
+                    await this.uploadImageToS3(
+                      img2.base64,
+                      "activity",
+                      survey.stid,
+                      String(survey.time_visit)
+                    );
+
+                  if (reuploadedUrl) {
+
+                    pic2 = reuploadedUrl;
+
+                    survey.surveyImages[1] = {
+                      base64: img2.base64,
+                      url: reuploadedUrl,
+                      key: "pic2",
+                    };
+
+                  } else {
+
+                    // upload ไม่สำเร็จ → fallback URL เดิม
+                    pic2 = img2.url;
+                  }
+
+                // URL มี แต่ไม่มี base64
+                } else if (hasValidUrl) {
+
+                  console.warn(
+                    `⚠️ pic2 URL ชื่อผิด ไม่มี base64 re-upload: ${img2.url}`
+                  );
+
+                  pic2 = img2.url;
+
+                // รูปใหม่ base64 → upload
+                } else if (
+                  (typeof img2 === "object" &&
+                    img2.base64?.startsWith("data:image")) ||
+                  (typeof img2 === "string" &&
+                    img2.startsWith("data:image"))
+                ) {
+
+                  const base64Data =
+                    typeof img2 === "object"
+                      ? img2.base64
+                      : img2;
+
+                  const uploadedUrl =
+                    await this.uploadImageToS3(
+                      base64Data,
+                      "activity",
+                      survey.stid,
+                      String(survey.time_visit)
+                    );
+
+                  if (uploadedUrl) {
+
+                    pic2 = uploadedUrl;
+
+                    survey.surveyImages[1] = {
+                      base64: base64Data,
+                      url: uploadedUrl,
+                      key: "pic2",
+                    };
+
+                  } else {
+
+                    throw new Error(
+                      "ไม่สามารถอัพโหลดรูปภาพที่ 2 ไปยัง S3 ได้"
+                    );
+                  }
+
+                } else {
+
+                  console.warn(
+                    "รูปภาพที่ 2 ไม่ถูกต้อง - ข้ามการอัพโหลด"
+                  );
+                }
+              }
+              /*
               if (survey.surveyImages?.[1]) {
                 const img2 = survey.surveyImages[1];
                 const hasValidUrl =
@@ -2917,6 +3120,7 @@ export default function ({ app, store, $axios }, inject) {
                   }
                 }
               }
+              */
 
               // Update survey in IndexedDB with URLs
               await app.$indexedDB.saveSurveyProgress(survey);
