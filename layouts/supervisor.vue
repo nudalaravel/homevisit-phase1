@@ -112,6 +112,24 @@
           <i class="fas fa-dollar-sign"></i>
           <span v-if="!sidebarCollapsed">การจัดการเอกสารรับเงิน</span>
         </nuxt-link>
+        <nuxt-link
+          to="/supervisor-course-manual"
+          class="nav-item"
+          :class="{ active: isActiveRoute('supervisor-course-manual') }"
+          :title="sidebarCollapsed ? 'คู่มือหลักสูตรการเยี่ยมบ้าน' : ''"
+        >
+          <i class="fas fa-clipboard-check"></i>
+          <span v-if="!sidebarCollapsed">คู่มือหลักสูตรการเยี่ยมบ้าน</span>
+        </nuxt-link>
+        <nuxt-link
+          to="/supervisor-visit-form"
+          class="nav-item"
+          :class="{ active: isActiveRoute('supervisor-visit-form') }"
+          :title="sidebarCollapsed ? 'แบบฟอร์มการเยี่ยมบ้าน' : ''"
+        >
+          <i class="fas fa-file-alt"></i>
+          <span v-if="!sidebarCollapsed">แบบฟอร์มการเยี่ยมบ้าน</span>
+        </nuxt-link>
       </nav>
 
       <!-- Switch Back to Admin (only for admin users who switched) -->
