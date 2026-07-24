@@ -1226,23 +1226,28 @@ export default {
         let pic2Url = ''
         const stid = this.selectedVisitData.stid
         const timeVisit = this.selectedVisitData.time_visit
-        
-        // Upload pic1 if exists
-        if (this.images.image1) {
+        const isNewImage = (img) => !!img && img.startsWith('data:image')
+
+        // Upload pic1 if it's a newly selected image; keep existing URL if unchanged
+        if (isNewImage(this.images.image1)) {
           this.$toast.info('กำลังอัพโหลดรูปภาพที่ 1...', 'กำลังอัพโหลด')
           pic1Url = await this.uploadImageToS3(this.images.image1, 'observation1', stid, timeVisit)
-          if (!pic1Url && this.images.image1) {
+          if (!pic1Url) {
             throw new Error('ไม่สามารถอัพโหลดรูปภาพที่ 1 ได้')
           }
+        } else if (this.images.image1) {
+          pic1Url = this.images.image1
         }
-        
-        // Upload pic2 if exists
-        if (this.images.image2) {
+
+        // Upload pic2 if it's a newly selected image; keep existing URL if unchanged
+        if (isNewImage(this.images.image2)) {
           this.$toast.info('กำลังอัพโหลดรูปภาพที่ 2...', 'กำลังอัพโหลด')
           pic2Url = await this.uploadImageToS3(this.images.image2, 'observation2', stid, timeVisit)
-          if (!pic2Url && this.images.image2) {
+          if (!pic2Url) {
             throw new Error('ไม่สามารถอัพโหลดรูปภาพที่ 2 ได้')
           }
+        } else if (this.images.image2) {
+          pic2Url = this.images.image2
         }
         
         // Build payload with uploaded image URLs
@@ -1256,7 +1261,7 @@ export default {
               variable: payload.variable,
               value: payload.value,
               pk: ['stid', 'time_visit','homevisitor'],
-              pkval: [this.selectedVisitData.stid, String(this.selectedVisitData.time_visit),this.selectedVisitData.homevisitor],
+              pkval: [this.selectedVisitData.stid, String(this.selectedVisitData.time_visit),this.selectedVisitData.recby],
               tb: 'homevisitor_observation'
             }
           )
