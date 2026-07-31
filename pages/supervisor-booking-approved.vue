@@ -799,13 +799,10 @@ export default {
         if (this.filters.visitor && this.filters.visitor !== 'all') {
           params.append('user_id', this.filters.visitor)
         }
-        // ดึงข้อมูลจาก 2 API พร้อมกัน
-        const [resultDataResponse, resultListResponse] = await Promise.all([
-          // API หลัก - ข้อมูลผลการเยี่ยมบ้าน
-          this.$axios.$get(`/api/parenting2025_census/get/homevisit/sup/gethomevisit_result_data.php${params.toString() ? '?' + params.toString() : ''}`),
-          // API เสริม - ข้อมูล approve_status และ approve_comment
-          this.$axios.$get(`/api/parenting2025_census/get/homevisit/sup/gethomevisit_resultlist.php${params.toString() ? '?' + params.toString() : ''}`)
-        ])
+        // P3-4 fix: ลบ API call ที่ไม่ใช้ออก (resultListResponse dead)
+        const resultDataResponse = await this.$axios.$get(
+          `/api/parenting2025_census/get/homevisit/sup/gethomevisit_result_data.php${params.toString() ? '?' + params.toString() : ''}`
+        )
         // สร้าง lookup map สำหรับ approve_status และ approve_comment จาก resultlist API
         // key = stid_time_visit
         const approveStatusMap = {}
