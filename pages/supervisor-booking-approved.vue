@@ -40,6 +40,12 @@
         </select>
       </div>
     </div>
+    <!-- Filter Notice -->
+    <div v-if="!isFiltered && tableData.length > 200" class="filter-notice">
+      <i class="fas fa-info-circle"></i>
+      แสดง 200 จากทั้งหมด {{ tableData.length }} รายการ กรุณาเลือกตำบลหรือผู้เยี่ยมบ้านเพื่อดูข้อมูลทั้งหมด
+    </div>
+
     <!-- Data Table -->
     <div class="table-container">
       <!-- Skeleton Loading -->
@@ -67,7 +73,7 @@
       <!-- Actual Table -->
       <b-table
         v-else
-        :items="tableData"
+        :items="displayedTableData"
         :fields="tableFields"
         striped
         hover
@@ -619,6 +625,17 @@ export default {
       showCorrectionModal: false,
       correctionItem: null,
       correctionReason: ''
+    }
+  },
+  computed: {
+    isFiltered() {
+      return this.filters.subdistrict !== 'all' || this.filters.visitor !== 'all'
+    },
+    displayedTableData() {
+      if (this.isFiltered || this.tableData.length <= 200) {
+        return this.tableData
+      }
+      return this.tableData.slice(0, 200)
     }
   },
   async mounted() {
@@ -1665,6 +1682,19 @@ export default {
   flex-direction: column;
   gap: 0.5rem;
   min-width: 200px;
+}
+
+.filter-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #fff8e1;
+  color: #8a6d3b;
+  border: 1px solid #ffe082;
+  border-radius: 0.375rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 .filter-label {
