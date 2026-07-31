@@ -734,9 +734,9 @@ export default {
           visitTime: raw.timeStart || '-',
           endTime: raw.timeEnd || '-',
           monthAge: raw.month_age || null,
-          time: raw.time_visit,
+          time: raw.time,
           monthAgePrev: raw.prev_month_age || null,
-          timePrev: raw.prev_time_visit,
+          timePrev: raw.prev_time,
           visitNumberPrev: raw.prev_time_visit || 1,
           note: raw.note || '',
           answers: {
