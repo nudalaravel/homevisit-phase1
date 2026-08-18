@@ -428,7 +428,7 @@ export default {
 
     // Load data from APIs (options in parallel, then dependent calls)
     await Promise.all([
-      this.fetchAmphoeOptions(),
+      this.fetchTambonOptions(),
       this.fetchVisitorOptions()
     ])
     await Promise.all([
@@ -507,15 +507,15 @@ export default {
   },
   methods: {
     // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
-    async fetchAmphoeOptions() {
+    async fetchTambonOptions() {
       try {
-        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getamphoe.php')
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/gettambon.php')
         if (response.statusCode === 200 && response.results) {
           this.subdistrictOptions = [
             { value: 'all', text: '--ทั้งหมด--' },
             ...response.results.map(item => ({
-              value: item.amp_code,
-              text: item.amp_nameT
+              value: item.tam_code,
+              text: item.tam_nameT
             }))
           ]
         }

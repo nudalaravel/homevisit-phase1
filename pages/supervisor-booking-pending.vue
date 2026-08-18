@@ -807,7 +807,6 @@ export default {
     // jsPDF and html2canvas imported directly, no need for CDN
 
     // Load data from APIs
-    // await this.fetchAmphoeOptions()
     await this.fetchTambonOptions()
     await this.fetchVisitorOptions()
     await this.fetchTableData()
@@ -931,25 +930,6 @@ export default {
       // 🔥 ถ้าเป็น URL ปกติ
       return `${img}?t=${Date.now()}`
     },
-    // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
-    async fetchAmphoeOptions() {
-      try {
-        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getamphoe.php')
-        const isSuccess = response.message === 'success' || response.statusCode === 200
-        if (isSuccess && response.results) {
-          this.subdistrictOptions = [
-            { value: 'all', text: '--ทั้งหมด--' },
-            ...response.results.map(item => ({
-              value: item.amp_code || item.code,
-              text: item.amp_nameT || item.name
-            }))
-          ]
-        }
-      } catch (error) {
-        console.error('Error fetching amphoe options:', error)
-      }
-    },
-
     // ดึงข้อมูลอำเภอ/ตำบลสำหรับ dropdown
     async fetchTambonOptions() {
       try {
