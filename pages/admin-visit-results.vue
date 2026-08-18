@@ -571,6 +571,7 @@ export default {
               stid: item.stid,
               recby: item.recby,
               ampCode: item.amp_code,
+              tamCode: item.tam_code,
               visitorName: visitorNameMap[item.recby] || item.recby || item.fullname_visit || '-',
               childName: `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
               lastVisitDate: item.date_visit || '-',
@@ -608,7 +609,7 @@ export default {
       
       // Filter ตามอำเภอ
       if (this.filters.subdistrict && this.filters.subdistrict !== 'all') {
-        filtered = filtered.filter(item => item.ampCode === this.filters.subdistrict)
+        filtered = filtered.filter(item => item.tamCode === this.filters.subdistrict)
       }
       
       // Filter ตามผู้เยี่ยมบ้าน

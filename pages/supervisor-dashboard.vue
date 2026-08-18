@@ -568,6 +568,7 @@ export default {
               stid: item.stid,
               recby: item.recby, // เก็บ username ไว้สำหรับ filter
               ampCode: item.amp_code, // เก็บรหัสอำเภอไว้สำหรับ filter
+              tamCode: item.tam_code, // เก็บรหัสอำเภอไว้สำหรับ filter
               // แปลง recby (username) เป็นชื่อจริงจาก visitorOptions
               visitorName: visitorNameMap[item.recby] || item.recby || item.fullname_visit || '-',
               childName: `${item.fname_ch || ''} ${item.lname_ch || ''}`.trim() || '-',
@@ -605,7 +606,7 @@ export default {
       
       // Filter ตามอำเภอ
       if (this.filters.subdistrict && this.filters.subdistrict !== 'all') {
-        filtered = filtered.filter(item => item.ampCode === this.filters.subdistrict)
+        filtered = filtered.filter(item => item.tamCode === this.filters.subdistrict)
       }
       
       // Filter ตามผู้เยี่ยมบ้าน
