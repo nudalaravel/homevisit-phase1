@@ -514,8 +514,8 @@ export default {
           this.subdistrictOptions = [
             { value: 'all', text: '--ทั้งหมด--' },
             ...response.results.map(item => ({
-              value: item.tam_code,
-              text: item.tam_nameT
+              value: item.tambon_code || item.tam_code,
+              text: item.tambon || item.tambon_nameT
             }))
           ]
         }

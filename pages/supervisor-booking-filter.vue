@@ -731,8 +731,8 @@ export default {
           this.subdistrictOptions = [
             { value: 'all', text: '--เลือกตำบล--' },
             ...response.results.map(item => ({
-              value: item.tambon_code || item.code,
-              text: item.tambon_nameT || item.tambon
+              value: item.tambon_code || item.tam_code,
+              text: item.tambon || item.tambon_nameT
             }))
           ]
         }
