@@ -529,7 +529,7 @@
             </thead>
             <tbody>
               <tr v-for="(activity, index) in recordData.q9Activities" :key="'q9-' + index">
-                <td>{{ activity.title }}</td>
+                <td>{{ activity.title || activity.activity || `กิจกรรม ${index + 1}` }}</td>
                 <td>{{ activity.objective || '-' }}</td>
                 <td>{{ getActivityAnswer(activity.answer || recordData.answers?.q9?.[activity.no]) }}</td>
               </tr>
@@ -752,6 +752,7 @@ export default {
       showRecordModal: false,
       recordData: null,
       loadingRecord: false,
+      activitiesMap: {},
       latestApprovalsData: [],
       approvalHistoryFields: [
         {
@@ -810,6 +811,7 @@ export default {
     await this.fetchTambonOptions()
     await this.fetchVisitorOptions()
     await this.fetchTableData()
+    await this.loadActivitiesMap()
 
     // Initialize Select2 for dropdowns
     this.$nextTick(() => {
@@ -1137,6 +1139,20 @@ export default {
       }
     },
 
+    async loadActivitiesMap() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getobjective.php')
+        const allActivities = response?.results || []
+        const activitiesMap = {}
+        allActivities.forEach(act => {
+          activitiesMap[String(act.no)] = act.title || act.objective || `กิจกรรม ${act.no}`
+        })
+        this.activitiesMap = activitiesMap
+      } catch (err) {
+        console.warn('ไม่สามารถโหลดข้อมูลกิจกรรม:', err)
+      }
+    },
+
     async viewRecord(item) {
       try {
         this.loadingRecord = true
@@ -1146,34 +1162,8 @@ export default {
         // ใช้ข้อมูลจาก rawData (API response) โดยตรง
         if (item.rawData) {
           const raw = item.rawData
-          
-          // ดึงข้อมูลกิจกรรมจาก IndexedDB เพื่อ map ชื่อกิจกรรม
-          let activitiesMap = {}
-          try {
-            let allActivities = await this.$indexedDB.getActivities()
-            
-            // ถ้าไม่มีใน IndexedDB ให้ดึงจาก API
-            if (!allActivities || allActivities.length === 0) {
-              console.log('ไม่พบข้อมูลกิจกรรมใน IndexedDB, กำลังดึงจาก API...')
-              const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getobjective.php')
-              if (response && response.results && response.results.length > 0) {
-                // บันทึกลง IndexedDB
-                await this.$indexedDB.clearActivities()
-                await this.$indexedDB.addActivities(response.results)
-                allActivities = response.results
-                console.log(`โหลดกิจกรรม ${allActivities.length} รายการจาก API แล้ว`)
-              }
-            }
-            
-            if (allActivities && allActivities.length > 0) {
-              allActivities.forEach(act => {
-                activitiesMap[String(act.no)] = act.title || act.objective || `กิจกรรม ${act.no}`
-              })
-            }
-          } catch (err) {
-            console.warn('ไม่สามารถโหลดข้อมูลกิจกรรม:', err)
-          }
-          
+          const activitiesMap = this.activitiesMap
+
           // สร้าง q9 activities จาก q91_name - q95_name และ q91 - q95
           const q9Activities = []
           for (let i = 1; i <= 5; i++) {

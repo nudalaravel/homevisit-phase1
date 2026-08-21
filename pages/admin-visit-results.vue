@@ -411,6 +411,7 @@ export default {
       rawTableData: [], // เก็บข้อมูลดิบจาก API สำหรับ filter ที่ frontend
       dataFetched: false, // flag เพื่อตรวจสอบว่าดึงข้อมูลแล้วหรือยัง
       homevisitResultData: [], // เก็บข้อมูลจาก gethomevisit_result_data API สำหรับ modal
+      activitiesMap: {},
       loadingPDF: false,
       loadingVisitResult: false
     }
@@ -433,7 +434,8 @@ export default {
     ])
     await Promise.all([
       this.fetchTableData(),
-      this.fetchHomevisitResultData()
+      this.fetchHomevisitResultData(),
+      this.loadActivitiesMap()
     ])
     
     // Initialize Select2 for dropdowns
@@ -661,44 +663,36 @@ export default {
       this.showVisitHistoryModal = true
     },
     
+    async loadActivitiesMap() {
+      try {
+        const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getobjective.php')
+        const allActivities = response?.results || []
+        const activitiesMap = {}
+        allActivities.forEach(act => {
+          activitiesMap[String(act.no)] = {
+            title: act.title || act.objective || `กิจกรรม ${act.no}`,
+            objective: act.objective || '-'
+          }
+        })
+        this.activitiesMap = activitiesMap
+      } catch (err) {
+        console.warn('ไม่สามารถโหลดข้อมูลกิจกรรม:', err)
+      }
+    },
+
     async viewVisitResult(visit) {
       const raw = visit.rawData
       if (!raw) {
         this.$toast?.error('ไม่พบข้อมูลการเยี่ยมบ้าน')
         return
       }
-      
+
       try {
         this.loadingVisitResult = true
         this.showVisitResultModal = true
-        
-        // ดึงข้อมูลกิจกรรมจาก IndexedDB เพื่อ map ชื่อกิจกรรม
-        let activitiesMap = {}
-        try {
-          let allActivities = await this.$indexedDB.getActivities()
-          
-          // ถ้าไม่มีใน IndexedDB ให้ดึงจาก API
-          if (!allActivities || allActivities.length === 0) {
-            const response = await this.$axios.$get('/api/parenting2025_census/get/homevisit/getobjective.php')
-            if (response && response.results && response.results.length > 0) {
-              await this.$indexedDB.clearActivities()
-              await this.$indexedDB.addActivities(response.results)
-              allActivities = response.results
-            }
-          }
-          
-          if (allActivities && allActivities.length > 0) {
-            allActivities.forEach(act => {
-              activitiesMap[String(act.no)] = {
-                title: act.title || act.objective || `กิจกรรม ${act.no}`,
-                objective: act.objective || '-'
-              }
-            })
-          }
-        } catch (err) {
-          console.warn('ไม่สามารถโหลดข้อมูลกิจกรรม:', err)
-        }
-        
+
+        const activitiesMap = this.activitiesMap
+
         // สร้าง q5 activities จาก q51_name - q55_name และ q51 - q55
         const q5Activities = []
         for (let i = 1; i <= 5; i++) {
